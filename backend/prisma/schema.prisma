@@ -7,10 +7,53 @@ datasource db {
   url      = "file:./dev.db"
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-} 
+model Category {
+  id              Int    @id @default(autoincrement())
+  category        String
+  topic_header    String
+  subcategory     String
+  insight_subject String @unique
+}
+
+model Question {
+  id                Int       @id @default(autoincrement())
+  insight_subject   String
+  insight_direction String // Enum represented as a string in the application layer
+  question_stem     String
+  answers           Answer[]
+  mapping           Mapping[]
+}
+
+model Answer {
+  id          Int    @id @default(autoincrement())
+  question_id Int
+  answer_text String
+
+  question Question  @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  mapping  Mapping[]
+
+  @@index([question_id])
+}
+
+model Insight {
+  id          Int       @id @default(autoincrement())
+  category    String
+  subcategory String
+  subject     String
+  tag         String    @unique
+  mapping     Mapping[]
+}
+
+model Mapping {
+  id          Int  @id @default(autoincrement())
+  question_id Int
+  answer_id   Int
+  insight_id  Int? // Nullable, as an answer can map to null insight
+
+  question Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  answer   Answer   @relation(fields: [answer_id], references: [id], onDelete: Cascade)
+  insight  Insight? @relation(fields: [insight_id], references: [id], onDelete: SetNull)
+
+  @@index([question_id, answer_id])
+  @@index([insight_id])
+}
