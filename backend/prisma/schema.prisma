@@ -7,53 +7,112 @@ datasource db {
   url      = "file:./dev.db"
 }
 
+enum InsightSource {
+  INSPIRATION
+  ANSWER
+  DESCRIPTOR
+}
+
+enum OverlapType {
+  STRONG
+  WEAK
+}
+
+enum PolarityType {
+  POSITIVE
+  NEGATIVE
+}
+
+enum PresentationType {
+  ICE_BREAKER
+  FILLER
+}
+
+enum QuestionType {
+  BINARY
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+}
+
 model Category {
-  id              Int    @id @default(autoincrement())
-  category        String
-  topic_header    String
-  subcategory     String
-  insight_subject String @unique
-}
-
-model Question {
   id                Int       @id @default(autoincrement())
-  insight_subject   String
-  insight_direction String // Enum represented as a string in the application layer
-  question_stem     String
-  answers           Answer[]
-  mapping           Mapping[]
-}
-
-model Answer {
-  id          Int    @id @default(autoincrement())
-  question_id Int
-  answer_text String
-
-  question Question  @relation(fields: [question_id], references: [id], onDelete: Cascade)
-  mapping  Mapping[]
-
-  @@index([question_id])
+  topic            String
+  category         String
+  topicHeader      String
+  subcategory      String
+  insightSubject   String
+  expandedHints    String?
+  insights         Insight[]
+  categoryOverlapA CategoryOverlap[] @relation("CategoryA")
+  categoryOverlapB CategoryOverlap[] @relation("CategoryB")
 }
 
 model Insight {
-  id          Int       @id @default(autoincrement())
-  category    String
-  subcategory String
-  subject     String
-  tag         String    @unique
-  mapping     Mapping[]
+  id                Int       @id @default(autoincrement())
+  categoryId        Int
+  insightText       String
+  source            InsightSource
+  generationOrder   Int?
+  category          Category  @relation(fields: [categoryId], references: [id])
+  answers           Answer[]
+  insightCompatA    InsightCompatibility[] @relation("InsightA")
+  insightCompatB    InsightCompatibility[] @relation("InsightB")
+  insightCompareA   InsightComparison[] @relation("InsightA")
+  insightCompareB   InsightComparison[] @relation("InsightB")
 }
 
-model Mapping {
-  id          Int  @id @default(autoincrement())
-  question_id Int
-  answer_id   Int
-  insight_id  Int? // Nullable, as an answer can map to null insight
+model Style {
+  id          Int       @id @default(autoincrement())
+  description String
+  questions   Question[]
+}
 
-  question Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
-  answer   Answer   @relation(fields: [answer_id], references: [id], onDelete: Cascade)
-  insight  Insight? @relation(fields: [insight_id], references: [id], onDelete: SetNull)
+model Question {
+  id            Int          @id @default(autoincrement())
+  inspirationId Int
+  styleId       Int
+  questionType  QuestionType
+  questionText  String
+  style         Style        @relation(fields: [styleId], references: [id])
+  answers       Answer[]
+}
 
-  @@index([question_id, answer_id])
-  @@index([insight_id])
+model Answer {
+  id         Int      @id @default(autoincrement())
+  questionId Int
+  answerText String
+  insightId  Int
+  question   Question @relation(fields: [questionId], references: [id])
+  insight    Insight  @relation(fields: [insightId], references: [id])
+}
+
+model CategoryOverlap {
+  id          Int         @id @default(autoincrement())
+  categoryAId Int
+  categoryBId Int
+  overlap     OverlapType
+  categoryA   Category    @relation("CategoryA", fields: [categoryAId], references: [id])
+  categoryB   Category    @relation("CategoryB", fields: [categoryBId], references: [id])
+}
+
+model InsightCompatibility {
+  id         Int          @id @default(autoincrement())
+  insightAId Int
+  insightBId Int
+  polarity   PolarityType
+  overlap     OverlapType
+  insightA   Insight      @relation("InsightA", fields: [insightAId], references: [id])
+  insightB   Insight      @relation("InsightB", fields: [insightBId], references: [id])
+}
+
+model InsightComparison {
+  id                Int              @id @default(autoincrement())
+  insightAId        Int
+  insightBId        Int
+  presentation      PresentationType
+  presentationTitle String
+  conciseAText      String
+  conciseBText      String
+  insightA          Insight          @relation("InsightA", fields: [insightAId], references: [id])
+  insightB          Insight          @relation("InsightB", fields: [insightBId], references: [id])
 }
