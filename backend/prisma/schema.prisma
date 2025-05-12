@@ -70,10 +70,10 @@ model Style {
 model Question {
   id            Int          @id @default(autoincrement())
   inspirationId Int
-  styleId       Int
+  styleId       Int?
   questionType  QuestionType
   questionText  String
-  style         Style        @relation(fields: [styleId], references: [id])
+  style         Style?        @relation(fields: [styleId], references: [id])
   answers       Answer[]
 }
 

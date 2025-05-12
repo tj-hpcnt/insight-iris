@@ -111,9 +111,8 @@ ${extraHints}${existingInsightsText}`;
  * @param style The style to use for question generation
  * @returns Tuple containing the created question object, array of answers, array of insights, and token usage statistics
  */
-export async function generateQuestion(
-  insight: Insight,
-  style: Style
+export async function generateBaseQuestion(
+  insight: Insight
 ): Promise<[Question, Answer[], Insight[], OpenAI.Completions.CompletionUsage] | null> {
   const category = await prisma.category.findUnique({
     where: { id: insight.categoryId }
@@ -131,7 +130,7 @@ export async function generateQuestion(
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers.  We need to generate the fun questions to answer that can explore a potential insight 
 
-You must generate a great question to facilitate finding out if a particular insight is true of a user.  You must follow the style guidance provided when generating the question.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  If an insight could have parallel interesting insights, then consider a more choice based answer instead of a simple Yes or No.  When making a Yes or No / True / False type question, do not include the details in the answer. Output JSON only.  Format:
+You must generate a great question to facilitate finding out if a particular insight is true of a user.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  If an insight could have parallel interesting insights, then prefer a single choice or multiple choice based answer instead of a binary statement.  When making a Yes or No / True / False type question, do not include the details in the answer. Output JSON only.  Format:
 
 {"question":"Which food do you love the most?","answers":["Pizza", "Steak", "Salad", "Noodles"], "insights":["I love pizza", "I love steak", "I love Salad", "I love Noodles"], "type":"MULTIPLE_CHOICE"}
 
@@ -139,8 +138,6 @@ The allowed question types are:
 - BINARY: ${typeDescription[QuestionType.BINARY]}
 - SINGLE_CHOICE: ${typeDescription[QuestionType.SINGLE_CHOICE]}
 - MULTIPLE_CHOICE: ${typeDescription[QuestionType.MULTIPLE_CHOICE]}
-
-The style guidance is: ${style.description}
 
 The classification for the insight is:
 Category: ${category.category}	
@@ -202,7 +199,6 @@ ${insight.insightText}`;
       data: {
         questionText: questionData.question,
         questionType: questionData.type,
-        styleId: style.id,
         inspirationId: insight.id,
       },
     });
