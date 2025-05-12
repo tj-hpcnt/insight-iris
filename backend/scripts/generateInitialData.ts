@@ -14,50 +14,84 @@ const openai = new OpenAI({
 
 async function main() {
   try {
+    const categories = await prisma.category.findMany();
     // Insert categories from CATEGORIES constant
-    console.log('Inserting categories...');
-    const categories = [];
-    for (const categoryData of CATEGORIES) {
-      const category = await prisma.category.create({
-        data: categoryData,
-      });
-      categories.push(category);
-      console.log(`Created category: ${category.category} - ${category.topicHeader}`);
+    if (categories.length == 0) {
+      console.log('Inserting categories...');
+      for (const categoryData of CATEGORIES) {
+        const category = await prisma.category.create({
+          data: categoryData,
+        });
+        categories.push(category);
+        console.log(`Created category: ${category.category} - ${category.topicHeader}`);
+      }
+    }
+    const styles = await prisma.style.findMany();
+    // Create fixed styles
+    if (styles.length == 0) {
+        console.log('Creating styles...');
+        for (const styleDescription of FIXED_STYLES) {
+          const style = await prisma.style.create({
+            data: { description: styleDescription },
+          });
+          styles.push(style);
+          console.log(`Created style: ${styleDescription.substring(0, 50)}...`);
+        }
     }
 
+    let totalUsage = {
+      promptTokens: 0,
+      cachedPromptTokens: 0,
+      completionTokens: 0,
+    };
+
+    const insights = await prisma.insight.findMany();
     // Generate insights for each category using the new utility function
     console.log('Generating insights...');
-    const insights = [];
     for (const category of categories) {
-      const categoryInsights = await generateInspirationInsights(category, 1);
-      insights.push(...categoryInsights);
-      console.log(`Generated insights for category: ${category.insightSubject}`);
+      if (insights.filter(i => i.categoryId == category.id).length > 0) {
+        continue;
+      }
+      let totalInsights = 0;
+      let done = false;
+
+      while (!done && totalInsights < 50) {
+        const [newInsights, isDone, usage] = await generateInspirationInsights(category, 10);
+        totalUsage.promptTokens += usage.prompt_tokens;
+        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+        totalUsage.completionTokens += usage.completion_tokens;
+        console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
+        insights.push(...newInsights);
+        totalInsights += newInsights.length;
+        done = isDone;
+        console.log(`Generated ${newInsights.length} insights for category: ${category.insightSubject} (total: ${totalInsights})`);
+      }
     }
 
-    // Create fixed styles
-    console.log('Creating styles...');
-    const styles = [];
-    for (const styleDescription of FIXED_STYLES) {
-      const style = await prisma.style.create({
-        data: { description: styleDescription },
-      });
-      styles.push(style);
-      console.log(`Created style: ${styleDescription.substring(0, 50)}...`);
-    }
 
     // Generate questions for each insight and style combination
     console.log('Generating questions...');
-    const questionTypes = [QuestionType.BINARY, QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE];
-    
+
     for (const insight of insights) {
+      if (insight.source != InsightSource.INSPIRATION) {
+        continue;
+      }
+      if (await prisma.question.findFirst({ where: { inspirationId: insight.id } })) {
+        continue;
+      }
       const category = categories.find(c => c.id === insight.categoryId);
       if (!category) continue;
 
       for (const style of styles) {
-        for (const questionType of questionTypes) {
-          await generateQuestion(insight, style, questionType);
-          console.log(`Generated ${questionType} question for insight: ${insight.insightText.substring(0, 50)}...`);
-        }
+        const [question, answers, insights, usage] = await generateQuestion(insight, style);
+        totalUsage.promptTokens += usage.prompt_tokens;
+        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+        totalUsage.completionTokens += usage.completion_tokens;
+        console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
+        console.log(`Generated ${question.questionType} question for insight: ${insight.insightText}`);
+        console.log(`${question.questionText}`);
+        console.log(`${answers.map(a => a.answerText).join('|||')}`);
+        console.log(`${insights.map(i => i.insightText).join('|||')}`);
       }
     }
 
