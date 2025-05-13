@@ -12,6 +12,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const BATCH_COUNT = 10;
+
 async function main() {
   try {
     const categories = await prisma.category.findMany();
@@ -50,45 +52,65 @@ async function main() {
     if (overlaps.length < categories.length * categories.length) {
       console.log('Generating category overlaps...');
       for (const category of categories) {
-        for (const otherCategory of categories) {
-          let existing = await prisma.categoryOverlap.findFirst({ where: { categoryAId: category.id, categoryBId: otherCategory.id } });
-          if (existing) {
-            continue;
-          }
-          const [overlap, usage] = await generateCategoryOverlap(category, otherCategory);
-          overlaps.push(overlap);
-          totalUsage.promptTokens += usage.prompt_tokens;
-          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-          totalUsage.completionTokens += usage.completion_tokens;
-          console.log(`${category.category}:${category.subcategory}:${category.insightSubject} - ${otherCategory.category}:${otherCategory.subcategory}:${otherCategory.insightSubject} - ${overlap?.overlap}`);
-        }
+        // Split categories into 10 batches
+        const batchSize = Math.ceil(categories.length / BATCH_COUNT);
+        const categoryBatches = Array.from({ length: BATCH_COUNT }, (_, i) =>
+          categories.slice(i * batchSize, (i + 1) * batchSize)
+        );
+
+        await Promise.all(
+          categoryBatches.map(async (batch) => {
+            for (const otherCategory of batch) {
+              let existing = await prisma.categoryOverlap.findFirst({ where: { categoryAId: category.id, categoryBId: otherCategory.id } });
+              if (existing) {
+                continue;
+              }
+              const [overlap, usage] = await generateCategoryOverlap(category, otherCategory);
+              overlaps.push(overlap);
+              totalUsage.promptTokens += usage.prompt_tokens;
+              totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens; 
+              totalUsage.completionTokens += usage.completion_tokens;
+              console.log(`${category.category}:${category.subcategory}:${category.insightSubject} - ${otherCategory.category}:${otherCategory.subcategory}:${otherCategory.insightSubject} - ${overlap?.overlap}`);
+            }
+          })
+        );
+        console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
       }
     }
-    console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
 
     const insights = await prisma.insight.findMany();
     // Generate insights for each category using the new utility function
     console.log('Generating insights...');
-    for (const category of categories) {
-      if (insights.filter(i => i.categoryId == category.id).length > 0) {
-        continue;
-      }
-      let totalInsights = 0;
-      let done = false;
+    // Split categories into batches
+    const categoryBatchSize = Math.ceil(categories.length / BATCH_COUNT);
+    const categoryBatches = Array.from({ length: BATCH_COUNT }, (_, i) =>
+      categories.slice(i * categoryBatchSize, (i + 1) * categoryBatchSize)
+    );
 
-      while (!done && totalInsights < 50) {
-        const [newInsights, isDone, usage] = await generateInspirationInsights(category, 30);
-        totalUsage.promptTokens += usage.prompt_tokens;
-        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-        totalUsage.completionTokens += usage.completion_tokens;
-        console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
-        insights.push(...newInsights);
-        totalInsights += newInsights.length;
-        done = isDone;
-        console.log(`Generated ${newInsights.length} insights for category: ${category.insightSubject} (total: ${totalInsights})`);
-        console.log(`${newInsights.map(i => i.insightText).join('\n')}`);
-      }
-    }
+    await Promise.all(
+      categoryBatches.map(async (batch, batchIndex) => {
+        for (const category of batch) {
+          if (insights.filter(i => i.categoryId == category.id).length > 0) {
+            continue;
+          }
+          let totalInsights = 0;
+          let done = false;
+
+          while (!done && totalInsights < 10) {
+            const [newInsights, isDone, usage] = await generateInspirationInsights(category, 5);
+            totalUsage.promptTokens += usage.prompt_tokens;
+            totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+            totalUsage.completionTokens += usage.completion_tokens;
+            console.log(`[Batch ${batchIndex + 1}] accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
+            insights.push(...newInsights);
+            totalInsights += newInsights.length;
+            done = isDone;
+            console.log(`[Batch ${batchIndex + 1}] Generated ${newInsights.length} insights for category: ${category.insightSubject} (total: ${totalInsights})`);
+            console.log(`${newInsights.map(i => i.insightText).join('\n')}`);
+          }
+        }
+      })
+    );
 
 
     // Generate questions for each insight and style combination
@@ -99,9 +121,8 @@ async function main() {
     insights.sort(() => Math.random() - 0.5);
 
     // Split insights into 10 batches
-    const batchCount = 10;
-    const batchSize = Math.ceil(insights.length / batchCount);
-    const insightBatches = Array.from({ length: batchCount }, (_, i) =>
+    const batchSize = Math.ceil(insights.length / BATCH_COUNT);
+    const insightBatches = Array.from({ length: BATCH_COUNT }, (_, i) =>
       insights.slice(i * batchSize, (i + 1) * batchSize)
     );
 
