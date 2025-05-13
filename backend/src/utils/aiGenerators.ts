@@ -1,4 +1,4 @@
-import { PrismaClient, InsightSource, Category, Style, Insight, QuestionType, Question, Answer } from '@prisma/client';
+import { PrismaClient, InsightSource, Category, Style, Insight, QuestionType, Question, Answer, CategoryOverlap, OverlapType } from '@prisma/client';
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
 
@@ -232,6 +232,97 @@ ${insight.insightText}`;
     return [question, answers, newInsights, completion.usage];
   } catch (error) {
     console.error('Error creating question:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
+}
+
+/**
+ * Generates a category overlap between two categories using AI to determine if their insights might overlap
+ * @param categoryA The first category to compare
+ * @param categoryB The second category to compare
+ * @returns The created CategoryOverlap object and token usage statistics
+ */
+export async function generateCategoryOverlap(
+  categoryA: Category,
+  categoryB: Category
+): Promise<[CategoryOverlap, OpenAI.Completions.CompletionUsage] | null> {
+  if (categoryA.id == categoryB.id) {
+    const overlap = await prisma.categoryOverlap.create({
+      data: {
+        categoryAId: categoryA.id,
+        categoryBId: categoryB.id,
+        overlap: OverlapType.STRONG,
+      },
+    });
+    const usage = { prompt_tokens: 0, prompt_tokens_details: { cached_tokens: 0 }, completion_tokens: 0, total_tokens: 0 };
+    return [overlap, usage];
+  }
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine if two categories of insights might have overlapping or related insights.  Ultimately we will take each pair of potential insights in categoryies that you determine to have overlapp and analyze them to see if they imply compatibility or incomaptibility between the two users.   
+
+Category A:
+Category: ${categoryA.category}
+Topic: ${categoryA.topicHeader}
+Subcategory: ${categoryA.subcategory}
+Subject: ${categoryA.insightSubject}
+
+Category B:
+Category: ${categoryB.category}
+Topic: ${categoryB.topicHeader}
+Subcategory: ${categoryB.subcategory}
+Subject: ${categoryB.insightSubject}
+
+Determine the likelihood of insights from category A and category B being implying compatibility between the two users. Output JSON only. Format:
+{"overlap":"STRONG"}
+{"overlap":"WEAK"}
+
+Inisghts from categories might look like:
+"I love to travel"
+"I prefer a partner who can provide for me"
+
+Use STRONG if the categories are likely to have insights that have strong implication for compatibility.
+Use WEAK if the categories are not likely to have insights that imply compatibility.`;
+
+  const completion = await openai.beta.chat.completions.parse({
+    messages: [{ role: "system", content: prompt }],
+    model: "gpt-4.1",
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "overlap",
+        schema: {
+          type: "object",
+          properties: {
+            overlap: {
+              type: "string",
+              enum: ["STRONG", "WEAK", "NONE"]
+            }
+          },
+          required: ["overlap"]
+        }
+      }
+    }
+  });
+
+  try {
+    const overlapData = completion.choices[0].message.parsed as {
+      overlap: OverlapType;
+    };
+    if (!overlapData) {
+      throw new Error("Parse error");
+    }
+    
+    const categoryOverlap = await prisma.categoryOverlap.create({
+      data: {
+        categoryAId: categoryA.id,
+        categoryBId: categoryB.id,
+        overlap: overlapData.overlap,
+      },
+    });
+
+    return [categoryOverlap, completion.usage];
+  } catch (error) {
+    console.error('Error creating category overlap:', error);
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }

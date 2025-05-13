@@ -2,7 +2,7 @@ import { PrismaClient, InsightSource, OverlapType, PolarityType, PresentationTyp
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { generateInspirationInsights, generateBaseQuestion } from '../src/utils/aiGenerators';
+import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap } from '../src/utils/aiGenerators';
 import { CATEGORIES } from './categories';
 import { FIXED_STYLES } from './styles';
 
@@ -29,14 +29,14 @@ async function main() {
     const styles = await prisma.style.findMany();
     // Create fixed styles
     if (styles.length == 0) {
-        console.log('Creating styles...');
-        for (const styleDescription of FIXED_STYLES) {
-          const style = await prisma.style.create({
-            data: { description: styleDescription },
-          });
-          styles.push(style);
-          console.log(`Created style: ${styleDescription.substring(0, 50)}...`);
-        }
+      console.log('Creating styles...');
+      for (const styleDescription of FIXED_STYLES) {
+        const style = await prisma.style.create({
+          data: { description: styleDescription },
+        });
+        styles.push(style);
+        console.log(`Created style: ${styleDescription.substring(0, 50)}...`);
+      }
     }
 
     let totalUsage = {
@@ -44,6 +44,27 @@ async function main() {
       cachedPromptTokens: 0,
       completionTokens: 0,
     };
+
+    const overlaps = await prisma.categoryOverlap.findMany();
+    // Generate category overlaps
+    if (overlaps.length < categories.length * categories.length) {
+      console.log('Generating category overlaps...');
+      for (const category of categories) {
+        for (const otherCategory of categories) {
+          let existing = await prisma.categoryOverlap.findFirst({ where: { categoryAId: category.id, categoryBId: otherCategory.id } });
+          if (existing) {
+            continue;
+          }
+          const [overlap, usage] = await generateCategoryOverlap(category, otherCategory);
+          overlaps.push(overlap);
+          totalUsage.promptTokens += usage.prompt_tokens;
+          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+          totalUsage.completionTokens += usage.completion_tokens;
+          console.log(`${category.category}:${category.subcategory}:${category.insightSubject} - ${otherCategory.category}:${otherCategory.subcategory}:${otherCategory.insightSubject} - ${overlap?.overlap}`);
+        }
+      }
+    }
+    console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
 
     const insights = await prisma.insight.findMany();
     // Generate insights for each category using the new utility function
