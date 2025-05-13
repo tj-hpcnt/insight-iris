@@ -326,4 +326,126 @@ Use WEAK if the categories are not likely to have insights that imply compatibil
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
+}
+
+/**
+ * Generates a new category for an insight using AI to determine the best fit
+ * @param insight The insight to recategorize
+ * @returns Tuple containing the new category object and token usage statistics
+ */
+export async function reassignCategory(
+  insight: Insight
+): Promise<[Category, OpenAI.Completions.CompletionUsage] | null> {
+  // Get all existing categories
+  const categories = await prisma.category.findMany();
+  const allSubjects = []
+
+  const existingCategory = await prisma.category.findFirst({ where: { id: insight.categoryId } });
+  if (!existingCategory) {
+    throw new Error("Category not found");
+  }
+  
+  // Build category tree
+  const categoryTree = categories.reduce((tree, cat) => {
+    if (!tree[cat.category]) {
+      tree[cat.category] = {};
+    }
+    if (!tree[cat.category][cat.topicHeader]) {
+      tree[cat.category][cat.topicHeader] = {};
+    }
+    if (!tree[cat.category][cat.topicHeader][cat.subcategory]) {
+      tree[cat.category][cat.topicHeader][cat.subcategory] = [];
+    }
+    tree[cat.category][cat.topicHeader][cat.subcategory].push(cat.insightSubject);
+    allSubjects.push(cat.insightSubject);
+    return tree;
+  }, {} as Record<string, Record<string, Record<string, string[]>>>);
+
+  // Convert tree to string representation
+  const categoryTreeStr = Object.entries(categoryTree)
+    .map(([category, topics]) => {
+      return `${category}:\n${Object.entries(topics)
+        .map(([topic, subcategories]) => {
+          return `  ${topic}:\n${Object.entries(subcategories)
+            .map(([subcategory, subjects]) => {
+              return `    ${subcategory}:\n${subjects
+                .map(subject => `      - ${subject}`)
+                .join('\n')}`;
+            })
+            .join('\n')}`;
+        })
+        .join('\n')}`;
+    })
+    .join('\n');
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine the most appropriate category for an insight.
+
+The insight to categorize is:
+"${insight.insightText}"
+
+It was generated related to another insight with this classification, so there is a decent chance that it is related to the same category:
+Category: ${existingCategory.category}	
+Topic: ${existingCategory.topicHeader}	
+Subcategory: ${existingCategory.subcategory}
+Subject: ${existingCategory.insightSubject}
+
+Here is the hierarchical category structure:
+${categoryTreeStr}
+
+Please select the most appropriate leaf category (insightSubject) for this insight. The category should be the most specific and relevant category that captures the essence of the insight. Output JSON only. Format:
+
+{"insightSubject":"Dietary preferences"}`;
+
+  const completion = await openai.beta.chat.completions.parse({
+    messages: [{ role: "system", content: prompt }],
+    model: "gpt-4.1",
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "category",
+        schema: {
+          type: "object",
+          properties: {
+            insightSubject: {
+              type: "string",
+              enum: allSubjects
+            }
+          },
+          required: ["insightSubject"]
+        }
+      }
+    }
+  });
+
+  try {
+    const categoryData = completion.choices[0].message.parsed as {
+      insightSubject: string;
+    };
+    if (!categoryData) {
+      throw new Error("Parse error");
+    }
+
+    // Find or create the category
+    let category = await prisma.category.findFirst({
+      where: {
+        insightSubject: categoryData.insightSubject,
+      },
+    });
+
+    if (!category) {
+      throw new Error("Unknown subject");
+    }
+
+    // update the category for the insight
+    await prisma.insight.update({
+      where: { id: insight.id },
+      data: { categoryId: category.id },
+    });
+
+    return [category, completion.usage];
+  } catch (error) {
+    console.error('Error creating category:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return [null, completion.usage];
+  }
 } 

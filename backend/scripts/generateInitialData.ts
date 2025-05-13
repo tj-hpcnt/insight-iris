@@ -2,7 +2,7 @@ import { PrismaClient, InsightSource, OverlapType, PolarityType, PresentationTyp
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap } from '../src/utils/aiGenerators';
+import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory } from '../src/utils/aiGenerators';
 import { CATEGORIES } from './categories';
 import { FIXED_STYLES } from './styles';
 
@@ -121,8 +121,8 @@ async function main() {
     insights.sort(() => Math.random() - 0.5);
 
     // Split insights into 10 batches
-    const batchSize = Math.ceil(insights.length / BATCH_COUNT);
-    const insightBatches = Array.from({ length: BATCH_COUNT }, (_, i) =>
+    batchSize = Math.ceil(insights.length / BATCH_COUNT);
+    insightBatches = Array.from({ length: BATCH_COUNT }, (_, i) =>
       insights.slice(i * batchSize, (i + 1) * batchSize)
     );
 
@@ -151,6 +151,32 @@ async function main() {
       })
     );
 
+    // reassign the category for the inspiration insights
+    console.log('Reassigning category for inspiration insights...');
+    // Filter inspiration insights and split into batches
+    const inspirationInsights = insights.filter(insight => insight.source === InsightSource.INSPIRATION);
+    var batchSize = Math.ceil(inspirationInsights.length / BATCH_COUNT);
+    var insightBatches = Array.from({ length: BATCH_COUNT }, (_, i) =>
+      inspirationInsights.slice(i * batchSize, (i + 1) * batchSize)
+    );
+
+    await Promise.all(
+      insightBatches.map(async (batch, batchIndex) => {
+        for (const insight of batch) {
+          const originalCategory = await prisma.category.findFirst({ where: { id: insight.categoryId } });
+          const [category, usage] = await reassignCategory(insight);
+          if (category.id == originalCategory.id) {
+            continue;
+          }
+          console.log(`[Batch ${batchIndex + 1}] Reassigned category for insight: ${insight.insightText} from ${originalCategory?.insightSubject} to ${category?.insightSubject}`);
+          totalUsage.promptTokens += usage.prompt_tokens;
+          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+          totalUsage.completionTokens += usage.completion_tokens;
+          console.log(`[Batch ${batchIndex + 1}] accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
+        }
+      })
+    );
+    
     console.log('Data generation completed successfully!');
   } catch (error) {
     console.error('Error generating data:', error);
