@@ -36,7 +36,6 @@ enum QuestionType {
 
 model Category {
   id                Int       @id @default(autoincrement())
-  topic            String
   category         String
   topicHeader      String
   subcategory      String

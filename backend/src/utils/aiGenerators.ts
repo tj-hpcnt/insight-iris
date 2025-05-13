@@ -51,7 +51,7 @@ Generate ${count} candidate insights for the requested category.  If all useful 
 {"insights":[],"done":true}
 
 Category: ${category.category}	
-Topic: ${category.topic}	
+Topic: ${category.topicHeader}	
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 ${extraHints}${existingInsightsText}`;
@@ -141,7 +141,7 @@ The allowed question types are:
 
 The classification for the insight is:
 Category: ${category.category}	
-Topic: ${category.topic}	
+Topic: ${category.topicHeader}	
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
