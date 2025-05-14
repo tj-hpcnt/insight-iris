@@ -62,6 +62,7 @@ ${extraHints}${existingInsightsText}`;
   const format = {
     type: "json_schema" as const,
     json_schema: {
+      strict: true,
       name: "insights",
       schema: {
         type: "object",
@@ -76,7 +77,8 @@ ${extraHints}${existingInsightsText}`;
             type: "boolean"
           }
         },
-        required: ["insights", "done"]
+        required: ["insights", "done"],
+        additionalProperties: false
       }
     },
   };
@@ -164,6 +166,7 @@ ${insight.insightText}`;
   const format = {
     type: "json_schema" as const,
     json_schema: {
+      strict: true,
       name: "question",
       schema: {
         type: "object",
@@ -188,7 +191,8 @@ ${insight.insightText}`;
             enum: ["BINARY", "SINGLE_CHOICE", "MULTIPLE_CHOICE"]
           }
         },
-        required: ["question", "answers", "insights", "type"]
+        required: ["question", "answers", "insights", "type"],
+        additionalProperties: false
       }
     }
   };
@@ -332,6 +336,7 @@ Use WEAK if the categories are not likely to have insights that imply compatibil
   const format = {
     type: "json_schema" as const,
     json_schema: {
+      strict: true,
       name: "overlap",
       schema: {
         type: "object",
@@ -341,7 +346,8 @@ Use WEAK if the categories are not likely to have insights that imply compatibil
             enum: ["STRONG", "WEAK", "NONE"]
           }
         },
-        required: ["overlap"]
+        required: ["overlap"],
+        additionalProperties: false
       }
     }
   };
@@ -465,6 +471,7 @@ Please select the most appropriate leaf category (insightSubject) for this insig
   const format = {
     type: "json_schema" as const,
     json_schema: {
+      strict: true,
       name: "category",
       schema: {
         type: "object",
@@ -474,7 +481,8 @@ Please select the most appropriate leaf category (insightSubject) for this insig
             enum: allSubjects
           }
         },
-        required: ["insightSubject"]
+        required: ["insightSubject"],
+        additionalProperties: false
       }
     }
   };
@@ -557,6 +565,7 @@ ${insightB.insightText}`;
   const format = {
     type: "json_schema" as const,
     json_schema: {
+      strict: true,
       name: "insight_comparison",
       schema: {
         type: "object",
@@ -568,7 +577,8 @@ ${insightB.insightText}`;
           user_a: { type: "string" },
           user_b: { type: "string" }
         },
-        required: ["relation", "strength", "presentation", "title", "user_a", "user_b"]
+        required: ["relation", "strength", "presentation", "title", "user_a", "user_b"],
+        additionalProperties: false
       }
     }
   };
@@ -594,14 +604,11 @@ ${insightB.insightText}`;
       throw new Error("Parse error");
     }
 
-    // Map relation to PolarityType (POSITIVE, NEGATIVE) or skip if unrelated
+    // Map relation to PolarityType (POSITIVE, NEGATIVE, NEUTRAL) or skip if unrelated
     let polarity: PolarityType = null;
     if (comparisonData.relation === "compatible") polarity = "POSITIVE";
     else if (comparisonData.relation === "incompatible") polarity = "NEGATIVE";
-    // If unrelated, do not create a record
-    if (comparisonData.relation === "unrelated") {
-      return [null, completion.usage];
-    }
+    else if (comparisonData.relation === "unrelated") polarity = "NEUTRAL";
 
     // Map strength to OverlapType or null
     let overlap: OverlapType = null;

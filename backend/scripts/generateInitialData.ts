@@ -202,6 +202,7 @@ async function main() {
         insightPairs.push([a, b]);
       }
     }
+    console.log(`Found ${insightPairs.length} insight pairs`);
     // Batch the pairs
     const pairBatchSize = Math.ceil(insightPairs.length / BATCH_COUNT);
     const pairBatches = Array.from({ length: BATCH_COUNT }, (_, i) =>
@@ -241,7 +242,7 @@ async function main() {
               totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
               totalUsage.completionTokens += usage.completion_tokens;
               console.log(`[Batch ${batchIndex + 1}] Compared: ${insightA.insightText} <-> ${insightB.insightText}`);
-              if (comparison) {
+              if (comparison != null) {
                 console.log(`[Batch ${batchIndex + 1}] ${comparison.polarity} ${comparison.overlap} ${comparison.presentation}`);
                 console.log(`[Batch ${batchIndex + 1}] ${comparison.presentationTitle}: ${comparison.conciseAText} <-> ${comparison.conciseBText}`);
               }
