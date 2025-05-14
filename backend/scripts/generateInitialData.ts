@@ -71,11 +71,13 @@ async function main() {
         await Promise.all(
           categoryBatches.map(async (batch) => {
             for (const otherCategory of batch) {
-              let existing = await prisma.categoryOverlap.findFirst({ where: { categoryAId: category.id, categoryBId: otherCategory.id } });
+              // make sure we sort them so that we don't generate bidirectionally and can use the LLM cache
+              const [categoryA, categoryB] = [category, otherCategory].sort((a, b) => a.id - b.id);
+              let existing = await prisma.categoryOverlap.findFirst({ where: { categoryAId: categoryA.id, categoryBId: categoryB.id } });
               if (existing) {
                 continue;
               }
-              const [overlap, usage] = await generateCategoryOverlap(category, otherCategory);
+              const [overlap, usage] = await generateCategoryOverlap(categoryA, categoryB);
               overlaps.push(overlap);
               totalUsage.promptTokens += usage.prompt_tokens;
               totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens; 
@@ -138,23 +140,27 @@ async function main() {
     await Promise.all(
       insightBatches.map(async (batch, batchIndex) => {
         for (const insight of batch) {
-          if (insight.source != InsightSource.INSPIRATION) {
-            continue;
-          }
-          if (await prisma.question.findFirst({ where: { inspirationId: insight.id } })) {
-            continue;
-          }
-          const category = categories.find(c => c.id === insight.categoryId);
-          if (!category) continue;
+          try {
+            if (insight.source != InsightSource.INSPIRATION) {
+              continue;
+            }
+            if (await prisma.question.findFirst({ where: { inspirationId: insight.id } })) {
+              continue;
+            }
+            const category = categories.find(c => c.id === insight.categoryId);
+            if (!category) continue;
 
-          const [question, answers, insights, usage] = await generateBaseQuestion(insight);
-          totalUsage.promptTokens += usage.prompt_tokens;
-          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-          totalUsage.completionTokens += usage.completion_tokens;
-          console.log(`[Batch ${batchIndex + 1}] Generated ${question.questionType} question for insight: ${insight.insightText}`);
-          console.log(`${question.questionText}`);
-          console.log(`${answers.map(a => a.answerText).join('|||')}`);
-          console.log(`${insights.map(i => i.insightText).join('|||')}`);
+            const [question, answers, insights, usage] = await generateBaseQuestion(insight);
+            totalUsage.promptTokens += usage.prompt_tokens;
+            totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+            totalUsage.completionTokens += usage.completion_tokens;
+            console.log(`[Batch ${batchIndex + 1}] Generated ${question.questionType} question for insight: ${insight.insightText}`);
+            console.log(`${question.questionText}`);
+            console.log(`${answers.map(a => a.answerText).join('|||')}`);
+            console.log(`${insights.map(i => i.insightText).join('|||')}`);
+          } catch (err) {
+            console.error(`Error processing insight ID: ${insight.id}`, err);
+          }
         }
       })
     );

@@ -89,10 +89,6 @@ ${extraHints}${existingInsightsText}`;
     response_format: format,
   });
 
-  if (!cachedCompletion) {
-    await cachePromptExecution(model, messages, format, completion);
-  }
-
   let insightData = (completion.choices[0].message as any).parsed || { insights: [], done: true };
   const insights = [];
 
@@ -107,13 +103,17 @@ ${extraHints}${existingInsightsText}`;
       });
       insights.push(insight);
     }
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+
+    return [insights, insightData.done, completion.usage];
   } catch (error) {
     console.error('Error creating insights:', error);
     console.error('Raw response:', completion.choices[0].message);
     return null
   }
-
-  return [insights, insightData.done, completion.usage];
 }
 
 /**
@@ -201,10 +201,6 @@ ${insight.insightText}`;
     response_format: format,
   });
 
-  if (!cachedCompletion) {
-    await cachePromptExecution(model, messages, format, completion);
-  }
-
   try {
     const questionData = (completion.choices[0].message as any).parsed as {
       question: string;
@@ -214,6 +210,9 @@ ${insight.insightText}`;
     };
     if (!questionData) {
       throw new Error("Parse error");
+    }
+    if (questionData.answers.length != questionData.insights.length) {
+      throw new Error("Answers and insights length mismatch");
     }
 
     const question = await prisma.question.create({
@@ -248,6 +247,10 @@ ${insight.insightText}`;
         },
       });
       answers.push(answer);
+    }
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
     }
 
     return [question, answers, newInsights, completion.usage];
@@ -331,10 +334,6 @@ Use WEAK if the categories are not likely to have insights that imply compatibil
     response_format: format,
   });
 
-  if (!cachedCompletion) {
-    await cachePromptExecution(model, messages, format, completion);
-  }
-
   try {
     const overlapData = (completion.choices[0].message as any).parsed as {
       overlap: OverlapType;
@@ -350,6 +349,10 @@ Use WEAK if the categories are not likely to have insights that imply compatibil
         overlap: overlapData.overlap,
       },
     });
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
 
     return [categoryOverlap, completion.usage];
   } catch (error) {
@@ -454,10 +457,6 @@ Please select the most appropriate leaf category (insightSubject) for this insig
     response_format: format,
   });
 
-  if (!cachedCompletion) {
-    await cachePromptExecution(model, messages, format, completion);
-  }
-
   try {
     const categoryData = (completion.choices[0].message as any).parsed as {
       insightSubject: string;
@@ -482,6 +481,10 @@ Please select the most appropriate leaf category (insightSubject) for this insig
       where: { id: insight.id },
       data: { categoryId: category.id },
     });
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
 
     return [category, completion.usage];
   } catch (error) {
