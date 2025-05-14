@@ -192,16 +192,21 @@ async function main() {
 
     // Generate insight comparisons for pairs with strong category overlap
     console.log('Generating insight comparisons for strong category overlaps...');
-    // Get all pairs of insights in different categories
+    const categoryMap = new Map(categories.map(c => [c.id, c]));
+    const categoryOverlapMap = new Map(overlaps.map(o => [o.categoryAId + '_' + o.categoryBId, o]));
+    
+    // Get all pairs of insights in different categories, and collect strong category relations
     const insightPairs = [];
-    for (let i = 0; i < insights.length; i++) {
-      for (let j = i + 1; j < insights.length; j++) {
-        const a = insights[i];
-        const b = insights[j];
-        if (a.categoryId === b.categoryId) continue;
+    for (const a of insights) {
+      for (const b of insights) {
+        const categoryAId = Math.min(a.categoryId, b.categoryId)
+        const categoryBId = Math.max(a.categoryId, b.categoryId)
+        const overlap = categoryOverlapMap.get(categoryAId + '_' + categoryBId) as typeof overlaps[number];
+        if (overlap.overlap != 'STRONG') continue;
         insightPairs.push([a, b]);
       }
     }
+    insightPairs.sort(() => Math.random() - 0.5);
     console.log(`Found ${insightPairs.length} insight pairs`);
     // Batch the pairs
     const pairBatchSize = Math.ceil(insightPairs.length / BATCH_COUNT);

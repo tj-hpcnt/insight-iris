@@ -100,10 +100,10 @@ model InsightComparison {
   insightBId        Int
   polarity          PolarityType
   overlap           OverlapType
-  presentation      PresentationType
-  presentationTitle String
-  conciseAText      String
-  conciseBText      String
+  presentation      PresentationType?
+  presentationTitle String?
+  conciseAText      String?
+  conciseBText      String?
   insightA          Insight          @relation("InsightA", fields: [insightAId], references: [id])
   insightB          Insight          @relation("InsightB", fields: [insightBId], references: [id])
 

@@ -622,10 +622,10 @@ ${insightB.insightText}`;
     // If not_interesting, do not create a record
     if (comparisonData.presentation === "not_interesting") {
       // Still create the record, but leave presentation, title, conciseAText, conciseBText as null
-      presentation = null;
-      comparisonData.title = null;
-      comparisonData.user_a = null;
-      comparisonData.user_b = null;
+      presentation = undefined;
+      comparisonData.title = undefined;
+      comparisonData.user_a = undefined;
+      comparisonData.user_b = undefined;
     }
 
     // Create or update the InsightComparison record, filling all required fields per schema.prisma
@@ -645,8 +645,12 @@ ${insightB.insightText}`;
         conciseBText: comparisonData.user_b,
       },
       create: {
-        insightAId: insightA.id,
-        insightBId: insightB.id,
+        insightA: {
+          connect: { id: insightA.id }
+        },
+        insightB: {
+          connect: { id: insightB.id }
+        },
         polarity: polarity,
         overlap: overlap,
         presentation: presentation,
