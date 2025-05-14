@@ -1,7 +1,7 @@
 import { PrismaClient, InsightSource, Category, Style, Insight, QuestionType, Question, Answer, CategoryOverlap, OverlapType } from '../../src/generated/prisma/core';
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
-import { PrismaClient as CachePrismaClient } from '../../src/generated/prisma/cache';
+import { fetchCachedExecution, cachePromptExecution } from './llmCaching';
 
 dotenv.config();
 
@@ -10,57 +10,6 @@ const openai = new OpenAI({
 });
 
 const prisma = new PrismaClient();
-const cachePrisma = new CachePrismaClient();
-
-/**
- * Fetches a cached prompt execution from the database
- * @param model The model used for the completion
- * @param messages The messages sent to the model
- * @param format The response format used
- * @returns The cached completion result if found, null otherwise
- */
-async function fetchCachedExecution(
-  model: string,
-  messages: OpenAI.Chat.ChatCompletionMessageParam[],
-  format: { type: string; json_schema: any }
-): Promise<OpenAI.Chat.Completions.ChatCompletion | null> {
-  const cached = await cachePrisma.cache.findFirst({
-    where: {
-      model,
-      prompt: JSON.stringify(messages),
-      format: JSON.stringify(format),
-    },
-  });
-
-  if (!cached) {
-    return null;
-  }
-
-  return JSON.parse(cached.output) as OpenAI.Chat.Completions.ChatCompletion;
-}
-
-/**
- * Caches the result of a prompt execution in the database
- * @param model The model used for the completion
- * @param messages The messages sent to the model
- * @param format The response format used
- * @param completion The completion result from OpenAI
- */
-async function cachePromptExecution(
-  model: string,
-  messages: OpenAI.Chat.ChatCompletionMessageParam[],
-  format: { type: string; json_schema: any },
-  completion: OpenAI.Chat.Completions.ChatCompletion
-) {
-  await cachePrisma.cache.create({
-    data: {
-      model,
-      prompt: JSON.stringify(messages),
-      format: JSON.stringify(format),
-      output: JSON.stringify(completion),
-    },
-  });
-}
 
 /**
  * Generates a specified number of insights for a given category

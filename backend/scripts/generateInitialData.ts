@@ -50,6 +50,13 @@ async function main() {
       completionTokens: 0,
     };
 
+    // Start periodic logging of token usage every 5 seconds
+    const usageLogger = setInterval(() => {
+      console.log(
+        `accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`
+      );
+    }, 5000);
+
     const overlaps = await prisma.categoryOverlap.findMany();
     // Generate category overlaps
     if (overlaps.length < categories.length * categories.length) {
@@ -77,7 +84,7 @@ async function main() {
             }
           })
         );
-        console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
+        // Removed per-iteration token log
       }
     }
 
@@ -104,7 +111,6 @@ async function main() {
             totalUsage.promptTokens += usage.prompt_tokens;
             totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
             totalUsage.completionTokens += usage.completion_tokens;
-            console.log(`[Batch ${batchIndex + 1}] accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
             insights.push(...newInsights);
             totalInsights += newInsights.length;
             done = isDone;
@@ -145,7 +151,6 @@ async function main() {
           totalUsage.promptTokens += usage.prompt_tokens;
           totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
           totalUsage.completionTokens += usage.completion_tokens;
-          console.log(`[Batch ${batchIndex + 1}] accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
           console.log(`[Batch ${batchIndex + 1}] Generated ${question.questionType} question for insight: ${insight.insightText}`);
           console.log(`${question.questionText}`);
           console.log(`${answers.map(a => a.answerText).join('|||')}`);
@@ -175,11 +180,11 @@ async function main() {
           totalUsage.promptTokens += usage.prompt_tokens;
           totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
           totalUsage.completionTokens += usage.completion_tokens;
-          console.log(`[Batch ${batchIndex + 1}] accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
         }
       })
     );
     
+    clearInterval(usageLogger);
     console.log('Data generation completed successfully!');
   } catch (error) {
     console.error('Error generating data:', error);
