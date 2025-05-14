@@ -55,8 +55,6 @@ model Insight {
   generationOrder   Int?
   category          Category  @relation(fields: [categoryId], references: [id])
   answers           Answer[]
-  insightCompatA    InsightCompatibility[] @relation("InsightA")
-  insightCompatB    InsightCompatibility[] @relation("InsightB")
   insightCompareA   InsightComparison[] @relation("InsightA")
   insightCompareB   InsightComparison[] @relation("InsightB")
 }
@@ -91,26 +89,23 @@ model CategoryOverlap {
   overlap     OverlapType
   categoryA   Category    @relation("CategoryA", fields: [categoryAId], references: [id])
   categoryB   Category    @relation("CategoryB", fields: [categoryBId], references: [id])
-}
 
-model InsightCompatibility {
-  id         Int          @id @default(autoincrement())
-  insightAId Int
-  insightBId Int
-  polarity   PolarityType
-  overlap     OverlapType
-  insightA   Insight      @relation("InsightA", fields: [insightAId], references: [id])
-  insightB   Insight      @relation("InsightB", fields: [insightBId], references: [id])
-}
+  @@unique([categoryAId, categoryBId])
+ }
 
 model InsightComparison {
   id                Int              @id @default(autoincrement())
   insightAId        Int
   insightBId        Int
+  polarity          PolarityType
+  overlap           OverlapType
   presentation      PresentationType
   presentationTitle String
   conciseAText      String
   conciseBText      String
   insightA          Insight          @relation("InsightA", fields: [insightAId], references: [id])
   insightB          Insight          @relation("InsightB", fields: [insightBId], references: [id])
+
+  @@unique([insightAId, insightBId])
+
 }

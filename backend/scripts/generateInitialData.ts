@@ -34,9 +34,9 @@ async function main() {
       console.log('Creating styles...');
       for (const [name, description] of Object.entries(FIXED_STYLES) as Array<[string, string]>) {
         const style = await prisma.style.create({
-          data: { 
+          data: {
             name,
-            description 
+            description
           },
         });
         styles.push(style);
@@ -80,7 +80,7 @@ async function main() {
               const [overlap, usage] = await generateCategoryOverlap(categoryA, categoryB);
               overlaps.push(overlap);
               totalUsage.promptTokens += usage.prompt_tokens;
-              totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens; 
+              totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
               totalUsage.completionTokens += usage.completion_tokens;
               console.log(`${category.category}:${category.subcategory}:${category.insightSubject} - ${otherCategory.category}:${otherCategory.subcategory}:${otherCategory.insightSubject} - ${overlap?.overlap}`);
             }
@@ -189,7 +189,70 @@ async function main() {
         }
       })
     );
-    
+
+    // Generate insight comparisons for pairs with strong category overlap
+    console.log('Generating insight comparisons for strong category overlaps...');
+    // Get all pairs of insights in different categories
+    const insightPairs = [];
+    for (let i = 0; i < insights.length; i++) {
+      for (let j = i + 1; j < insights.length; j++) {
+        const a = insights[i];
+        const b = insights[j];
+        if (a.categoryId === b.categoryId) continue;
+        insightPairs.push([a, b]);
+      }
+    }
+    // Batch the pairs
+    const pairBatchSize = Math.ceil(insightPairs.length / BATCH_COUNT);
+    const pairBatches = Array.from({ length: BATCH_COUNT }, (_, i) =>
+      insightPairs.slice(i * pairBatchSize, (i + 1) * pairBatchSize)
+    );
+    await Promise.all(
+      pairBatches.map(async (batch, batchIndex) => {
+        for (var [insightA, insightB] of batch) {
+          //swap insight a and b if their ids are out of order to maximize caching
+          if (insightA.id > insightB.id) {
+            [insightA, insightB] = [insightB, insightA];
+          }
+          // Skip if already compared
+          const existing = await prisma.insightComparison.findFirst({
+            where: {
+              insightAId: insightA.id,
+              insightBId: insightB.id,
+            },
+          });
+          if (existing) continue;
+          // Query for a strong overlap between the categories
+          const overlap = await prisma.categoryOverlap.findFirst({
+            where: {
+              categoryAId: Math.min(insightA.categoryId, insightB.categoryId), 
+              categoryBId: Math.max(insightA.categoryId, insightB.categoryId),
+              overlap: 'STRONG',
+            }
+          });
+          if (!overlap) continue;
+          try {
+            const result = await import('../src/utils/aiGenerators');
+            const generateInsightComparison = result.generateInsightComparison;
+            const comparisonResult = await generateInsightComparison(insightA, insightB);
+            if (comparisonResult) {
+              const [comparison, usage] = comparisonResult;
+              totalUsage.promptTokens += usage.prompt_tokens;
+              totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+              totalUsage.completionTokens += usage.completion_tokens;
+              console.log(`[Batch ${batchIndex + 1}] Compared: ${insightA.insightText} <-> ${insightB.insightText}`);
+              if (comparison) {
+                console.log(`[Batch ${batchIndex + 1}] ${comparison.polarity} ${comparison.overlap} ${comparison.presentation}`);
+                console.log(`[Batch ${batchIndex + 1}] ${comparison.presentationTitle}: ${comparison.conciseAText} <-> ${comparison.conciseBText}`);
+              }
+            }
+          } catch (err) {
+            console.error(`Error comparing insights ${insightA.id} and ${insightB.id}`, err);
+          }
+        }
+      })
+    );
+
     clearInterval(usageLogger);
     console.log('Data generation completed successfully!');
   } catch (error) {
