@@ -1,6 +1,7 @@
-import { PrismaClient, InsightSource, Category, Style, Insight, QuestionType, Question, Answer, CategoryOverlap, OverlapType } from '@prisma/client';
+import { PrismaClient, InsightSource, Category, Style, Insight, QuestionType, Question, Answer, CategoryOverlap, OverlapType } from '../../src/generated/prisma/core';
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
+import { PrismaClient as CachePrismaClient } from '../../src/generated/prisma/cache';
 
 dotenv.config();
 
@@ -9,6 +10,57 @@ const openai = new OpenAI({
 });
 
 const prisma = new PrismaClient();
+const cachePrisma = new CachePrismaClient();
+
+/**
+ * Fetches a cached prompt execution from the database
+ * @param model The model used for the completion
+ * @param messages The messages sent to the model
+ * @param format The response format used
+ * @returns The cached completion result if found, null otherwise
+ */
+async function fetchCachedExecution(
+  model: string,
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+  format: { type: string; json_schema: any }
+): Promise<OpenAI.Chat.Completions.ChatCompletion | null> {
+  const cached = await cachePrisma.cache.findFirst({
+    where: {
+      model,
+      prompt: JSON.stringify(messages),
+      format: JSON.stringify(format),
+    },
+  });
+
+  if (!cached) {
+    return null;
+  }
+
+  return JSON.parse(cached.output) as OpenAI.Chat.Completions.ChatCompletion;
+}
+
+/**
+ * Caches the result of a prompt execution in the database
+ * @param model The model used for the completion
+ * @param messages The messages sent to the model
+ * @param format The response format used
+ * @param completion The completion result from OpenAI
+ */
+async function cachePromptExecution(
+  model: string,
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+  format: { type: string; json_schema: any },
+  completion: OpenAI.Chat.Completions.ChatCompletion
+) {
+  await cachePrisma.cache.create({
+    data: {
+      model,
+      prompt: JSON.stringify(messages),
+      format: JSON.stringify(format),
+      output: JSON.stringify(completion),
+    },
+  });
+}
 
 /**
  * Generates a specified number of insights for a given category
@@ -56,33 +108,43 @@ Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 ${extraHints}${existingInsightsText}`;
 
-  const completion = await openai.beta.chat.completions.parse({
-    messages: [{ role: "system", content: prompt }],
-    model: "gpt-4.1",
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "insights",
-        schema: {
-          type: "object",
-          properties: {
-            insights: {
-              type: "array",
-              items: {
-                type: "string"
-              }
-            },
-            done: {
-              type: "boolean"
+  const model = "gpt-4.1";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      name: "insights",
+      schema: {
+        type: "object",
+        properties: {
+          insights: {
+            type: "array",
+            items: {
+              type: "string"
             }
           },
-          required: ["insights", "done"]
-        }
-      },
+          done: {
+            type: "boolean"
+          }
+        },
+        required: ["insights", "done"]
+      }
     },
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
   });
 
-  let insightData = completion.choices[0].message.parsed || { insights: [], done: true };
+  if (!cachedCompletion) {
+    await cachePromptExecution(model, messages, format, completion);
+  }
+
+  let insightData = (completion.choices[0].message as any).parsed || { insights: [], done: true };
   const insights = [];
 
   try {
@@ -148,44 +210,54 @@ Subject: ${category.insightSubject}
 The insight to query is:
 ${insight.insightText}`;
 
-  const completion = await openai.beta.chat.completions.parse({
-    messages: [{ role: "system", content: prompt }],
-    model: "gpt-4.1",
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "question",
-        schema: {
-          type: "object",
-          properties: {
-            question: {
+  const model = "gpt-4.1";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      name: "question",
+      schema: {
+        type: "object",
+        properties: {
+          question: {
+            type: "string"
+          },
+          answers: {
+            type: "array",
+            items: {
               type: "string"
-            },
-            answers: {
-              type: "array",
-              items: {
-                type: "string"
-              }
-            },
-            insights: {
-              type: "array",
-              items: {
-                type: "string"
-              }
-            },
-            type: {
-              type: "string",
-              enum: ["BINARY", "SINGLE_CHOICE", "MULTIPLE_CHOICE"]
             }
           },
-          required: ["question", "answers", "insights", "type"]
-        }
+          insights: {
+            type: "array",
+            items: {
+              type: "string"
+            }
+          },
+          type: {
+            type: "string",
+            enum: ["BINARY", "SINGLE_CHOICE", "MULTIPLE_CHOICE"]
+          }
+        },
+        required: ["question", "answers", "insights", "type"]
       }
     }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
   });
 
+  if (!cachedCompletion) {
+    await cachePromptExecution(model, messages, format, completion);
+  }
+
   try {
-    const questionData = completion.choices[0].message.parsed as {
+    const questionData = (completion.choices[0].message as any).parsed as {
       question: string;
       answers: string[];
       insights: string[];
@@ -283,29 +355,39 @@ Inisghts from categories might look like:
 Use STRONG if the categories are likely to have insights that have strong implication for compatibility.
 Use WEAK if the categories are not likely to have insights that imply compatibility.`;
 
-  const completion = await openai.beta.chat.completions.parse({
-    messages: [{ role: "system", content: prompt }],
-    model: "gpt-4.1",
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "overlap",
-        schema: {
-          type: "object",
-          properties: {
-            overlap: {
-              type: "string",
-              enum: ["STRONG", "WEAK", "NONE"]
-            }
-          },
-          required: ["overlap"]
-        }
+  const model = "gpt-4.1";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      name: "overlap",
+      schema: {
+        type: "object",
+        properties: {
+          overlap: {
+            type: "string",
+            enum: ["STRONG", "WEAK", "NONE"]
+          }
+        },
+        required: ["overlap"]
       }
     }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
   });
 
+  if (!cachedCompletion) {
+    await cachePromptExecution(model, messages, format, completion);
+  }
+
   try {
-    const overlapData = completion.choices[0].message.parsed as {
+    const overlapData = (completion.choices[0].message as any).parsed as {
       overlap: OverlapType;
     };
     if (!overlapData) {
@@ -396,29 +478,39 @@ Please select the most appropriate leaf category (insightSubject) for this insig
 
 {"insightSubject":"Dietary preferences"}`;
 
-  const completion = await openai.beta.chat.completions.parse({
-    messages: [{ role: "system", content: prompt }],
-    model: "gpt-4.1",
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "category",
-        schema: {
-          type: "object",
-          properties: {
-            insightSubject: {
-              type: "string",
-              enum: allSubjects
-            }
-          },
-          required: ["insightSubject"]
-        }
+  const model = "gpt-4.1";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      name: "category",
+      schema: {
+        type: "object",
+        properties: {
+          insightSubject: {
+            type: "string",
+            enum: allSubjects
+          }
+        },
+        required: ["insightSubject"]
       }
     }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
   });
 
+  if (!cachedCompletion) {
+    await cachePromptExecution(model, messages, format, completion);
+  }
+
   try {
-    const categoryData = completion.choices[0].message.parsed as {
+    const categoryData = (completion.choices[0].message as any).parsed as {
       insightSubject: string;
     };
     if (!categoryData) {

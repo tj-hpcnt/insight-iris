@@ -1,0 +1,19 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma/cache"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./cache.db"
+}
+
+model Cache {
+  id     Int    @id @default(autoincrement())
+  model  String
+  prompt String
+  format String
+  output String
+
+  @@index([model, prompt, format])
+} 

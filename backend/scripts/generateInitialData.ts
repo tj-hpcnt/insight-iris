@@ -1,4 +1,4 @@
-import { PrismaClient, InsightSource, OverlapType, PolarityType, PresentationType, QuestionType } from '@prisma/client';
+import { PrismaClient, InsightSource, OverlapType, PolarityType, PresentationType, QuestionType } from '../src/generated/prisma/core';
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -25,19 +25,22 @@ async function main() {
           data: categoryData,
         });
         categories.push(category);
-        console.log(`Created category: ${category.category} - ${category.topicHeader}`);
+        console.log(`Created category: ${category.category} - ${category.topicHeader} - ${category.subcategory} - ${category.insightSubject}`);
       }
     }
     const styles = await prisma.style.findMany();
     // Create fixed styles
     if (styles.length == 0) {
       console.log('Creating styles...');
-      for (const styleDescription of FIXED_STYLES) {
+      for (const [name, description] of Object.entries(FIXED_STYLES) as Array<[string, string]>) {
         const style = await prisma.style.create({
-          data: { description: styleDescription },
+          data: { 
+            name,
+            description 
+          },
         });
         styles.push(style);
-        console.log(`Created style: ${styleDescription.substring(0, 50)}...`);
+        console.log(`Created style ${name}: ${description.substring(0, 50)}...`);
       }
     }
 
