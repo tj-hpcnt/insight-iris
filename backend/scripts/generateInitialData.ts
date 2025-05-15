@@ -1,6 +1,6 @@
 import { PrismaClient, InsightSource, Category, Insight } from '../src/generated/prisma/core';
 import * as dotenv from 'dotenv';
-import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison } from '../src/utils/aiGenerators';
+import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancy} from '../src/utils/aiGenerators';
 import { CATEGORIES } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
@@ -8,6 +8,8 @@ import { processInParallel } from '../src/utils/parallelProcessor';
 dotenv.config();
 const prisma = new PrismaClient();
 const BATCH_COUNT = 10;
+const MINIMUM_BASE_INSIGHTS = 10
+const INSIGHT_INITAL_POOL_COUNT = 100
 
 async function main() {
   try {
@@ -47,9 +49,7 @@ async function main() {
 
     // Start periodic logging of token usage every 5 seconds
     const usageLogger = setInterval(() => {
-      console.log(
-        `accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`
-      );
+      console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
     }, 5000);
 
     const overlaps = await prisma.categoryOverlap.findMany();
@@ -75,32 +75,57 @@ async function main() {
       console.log(`${categoryA.category}:${categoryA.subcategory}:${categoryA.insightSubject} - ${categoryB.category}:${categoryB.subcategory}:${categoryB.insightSubject} - ${overlap?.overlap}`);
     }
 
-    const insights = await prisma.insight.findMany();
-    // Generate insights for each category using the new utility function
     console.log('Generating insights...');
     await processInParallel<Category, void>(
       categories,
       async (category) => {
         var totalInsights = await prisma.insight.count({ where: { categoryId: category.id, source: InsightSource.INSPIRATION } });
+        // This is not a perfect check to see if we already did the correct job
+        if (totalInsights > MINIMUM_BASE_INSIGHTS) return;
         let done = false;
-        while (!done && totalInsights < 10) {
-          const [newInsights, isDone, usage] = await generateInspirationInsights(category, 5);
+        let round_fails = 0;
+        while (!done && totalInsights < INSIGHT_INITAL_POOL_COUNT) {
+          const newTotalInsights = await prisma.insight.count({ where: { categoryId: category.id, source: InsightSource.INSPIRATION } });
+          if (newTotalInsights == totalInsights) {
+            round_fails++;
+            if (round_fails == 3) {
+              console.log(`Terminating inspiration pool generation for category: ${category.insightSubject} after 3 rounds of failure`);
+              break;
+            }
+            continue;
+          }
+          totalInsights = newTotalInsights;
+          const target = Math.max(10, Math.min(30, INSIGHT_INITAL_POOL_COUNT - totalInsights));
+          const [newInsights, isDone, usage] = await generateInspirationInsights(category, target);
           totalUsage.promptTokens += usage.prompt_tokens;
           totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
           totalUsage.completionTokens += usage.completion_tokens;
-          insights.push(...newInsights);
-          totalInsights += newInsights.length;
           done = isDone;
           console.log(`Generated ${newInsights.length} insights for category: ${category.insightSubject} (total: ${totalInsights})`);
           console.log(`${newInsights.map(i => i.insightText).join('\n')}`);
+          for (const insight of newInsights) {
+            const [newCategory, usage] = await reassignCategory(insight);
+            totalUsage.promptTokens += usage.prompt_tokens;
+            totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+            totalUsage.completionTokens += usage.completion_tokens;
+            if (newCategory.id != insight.categoryId) {
+              console.log(`Reassigned category for inspiration insight: ${insight.insightText} from ${insight.categoryId} to ${newCategory.id}`);
+            }
+          }
         }
+        console.log(`Reducing redundancy for category: ${category.insightSubject}`);
+        const [deletedIds, usage] = await reduceRedundancy(category);
+        totalUsage.promptTokens += usage.prompt_tokens;
+        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+        totalUsage.completionTokens += usage.completion_tokens;
+        console.log(`Reduced redundancy for category: ${category.insightSubject} - ${deletedIds.length} insights deleted of ${totalInsights}`);
+
       },
       BATCH_COUNT
     );
 
-    // Generate questions for each insight and style combination
     console.log('Generating questions...');
-    const style = styles.find(s => s.description.indexOf("cheeky") >= 0);
+    const insights = await prisma.insight.findMany({ where: { source: InsightSource.INSPIRATION } });
     insights.sort(() => Math.random() - 0.5);
 
     await processInParallel<Insight, void>(
@@ -131,12 +156,11 @@ async function main() {
       BATCH_COUNT
     );
 
-    // reassign the category for the inspiration insights
     console.log('Reassigning category for inspiration insights...');
-    const inspirationInsights = insights.filter(insight => insight.source === InsightSource.INSPIRATION);
-    
+    const answerInsights = await prisma.insight.findMany({ where: { source: InsightSource.ANSWER } });
+
     await processInParallel<Insight, void>(
-      inspirationInsights,
+      answerInsights,
       async (insight) => {
         const originalCategory = await prisma.category.findFirst({ where: { id: insight.categoryId } });
         const [category, usage] = await reassignCategory(insight);
@@ -151,11 +175,9 @@ async function main() {
       BATCH_COUNT
     );
 
-    // Generate insight comparisons for pairs with strong category overlap
     console.log('Generating insight comparisons for strong category overlaps...');
-    const categoryMap = new Map(categories.map(c => [c.id, c]));
     const categoryOverlapMap = new Map(overlaps.map(o => [o.categoryAId + '_' + o.categoryBId, o]));
-    
+
     // Get all pairs of insights in different categories, and collect strong category relations
     const insightPairs: [Insight, Insight][] = [];
     for (let i = 0; i < insights.length; i++) {
@@ -194,7 +216,7 @@ async function main() {
         // Query for a strong overlap between the categories
         const overlap = await prisma.categoryOverlap.findFirst({
           where: {
-            categoryAId: Math.min(insightA.categoryId, insightB.categoryId), 
+            categoryAId: Math.min(insightA.categoryId, insightB.categoryId),
             categoryBId: Math.max(insightA.categoryId, insightB.categoryId),
             overlap: 'STRONG',
           }
@@ -222,6 +244,7 @@ async function main() {
     );
 
     clearInterval(usageLogger);
+    console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
     console.log('Data generation completed successfully!');
   } catch (error) {
     console.error('Error generating data:', error);

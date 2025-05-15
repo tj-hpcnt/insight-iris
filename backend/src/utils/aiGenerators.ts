@@ -670,4 +670,108 @@ ${insightB.insightText}`;
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
+}
+
+/**
+ * Reduces redundancy in inspiration insights for a given category by identifying and removing duplicate insights
+ * @param category The category to reduce redundancy in
+ * @returns Tuple containing array of deleted insight IDs and token usage statistics
+ */
+export async function reduceRedundancy(
+  category: Category
+): Promise<[number[], OpenAI.Completions.CompletionUsage] | null> {
+  // Get all inspiration insights for this category
+  const insights = await prisma.insight.findMany({
+    where: {
+      categoryId: category.id,
+      source: InsightSource.INSPIRATION,
+    },
+  });
+
+  if (insights.length <= 1) {
+    return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
+  }
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and remove redundant insights that essentially convey the same information.
+
+Category Classification:
+Category: ${category.category}
+Topic: ${category.topicHeader}
+Subcategory: ${category.subcategory}
+Subject: ${category.insightSubject}
+
+Here are all the insights for this category:
+${insights.map((insight, index) => `${index + 1}. ${insight.insightText}`).join('\n')}
+
+Please analyze these insights and identify which ones are redundant (i.e., they convey essentially the same information or meaning). Output JSON only. Format:
+
+{"redundantInsights": [2, 7, 21]}`;
+
+  const model = "o3";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "redundant_insights",
+      schema: {
+        type: "object",
+        properties: {
+          redundantInsights: {
+            type: "array",
+            items: {
+              type: "integer"
+            }
+          }
+        },
+        required: ["redundantInsights"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Skip cache as requested
+  const completion = await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const redundancyData = (completion.choices[0].message as any).parsed as {
+      redundantInsights: number[];
+    };
+    if (!redundancyData) {
+      throw new Error("Parse error");
+    }
+
+    // Convert 1-based indices to 0-based and get unique insight IDs to delete
+    const insightIndicesToDelete = new Set(
+      redundancyData.redundantInsights.map(num => num - 1)
+    );
+    const insightsToDelete = insights.filter((_, index) => insightIndicesToDelete.has(index));
+
+    const deletedIds = [];
+    for (const insight of insightsToDelete) {
+      await prisma.insight.delete({
+        where: { id: insight.id }
+      });
+      deletedIds.push(insight.id);
+    }
+    
+    // o3 costs 5x more than gpt-4.1
+    const usage = {
+      prompt_tokens: completion.usage.prompt_tokens * 5,
+      completion_tokens: completion.usage.completion_tokens * 5,
+      prompt_tokens_details: {
+        cached_tokens: completion.usage.prompt_tokens_details.cached_tokens * 5,
+      }
+    } as OpenAI.Completions.CompletionUsage;
+    return [deletedIds, usage];
+
+  } catch (error) {
+    console.error('Error reducing redundancy:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
 } 
