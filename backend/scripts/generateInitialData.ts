@@ -1,6 +1,6 @@
 import { PrismaClient, InsightSource, Category, Insight } from '../src/generated/prisma/core';
 import * as dotenv from 'dotenv';
-import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancy, generateCategoryOverlapByRanking} from '../src/utils/aiGenerators';
+import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancy, generateCategoryOverlapByRanking, generateInsightCategoryOverlap } from '../src/utils/aiGenerators';
 import { CATEGORIES } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
@@ -186,69 +186,81 @@ async function main() {
       BATCH_COUNT
     );
 
-    console.log('Generating insight comparisons for strong category overlaps...');
-    const categoryOverlapMap = new Map(overlaps.map(o => [o.categoryAId + '_' + o.categoryBId, o]));
+    console.log('Generating insight comparisons for strong category overlaps (by relevant categories)...');
 
-    // Get all pairs of insights in different categories, and collect strong category relations
-    const insightPairs: [Insight, Insight][] = [];
-    for (let i = 0; i < insights.length; i++) {
-      const a = insights[i];
-      if (a.source != InsightSource.INSPIRATION) continue;
-      for (let j = i; j < insights.length; j++) {
-        const b = insights[j];
-        if (b.source != InsightSource.INSPIRATION) continue;
-        const categoryAId = Math.min(a.categoryId, b.categoryId);
-        const categoryBId = Math.max(a.categoryId, b.categoryId);
-        const overlap = categoryOverlapMap.get(categoryAId + '_' + categoryBId) as typeof overlaps[number];
-        if (overlap.overlap != 'STRONG') continue;
-        insightPairs.push([a, b]);
+    // Only consider INSPIRATION insights
+    const inspirationInsights = insights.filter(i => i.source === InsightSource.INSPIRATION);
+
+    // Helper: group insights by categoryId for quick lookup
+    const insightsByCategoryId = new Map<number, Insight[]>();
+    for (const ins of inspirationInsights) {
+      if (!insightsByCategoryId.has(ins.categoryId)) {
+        insightsByCategoryId.set(ins.categoryId, []);
       }
+      insightsByCategoryId.get(ins.categoryId)!.push(ins);
     }
-    insightPairs.sort(() => Math.random() - 0.5);
-    console.log(`Found ${insightPairs.length} insight pairs`);
 
-    await processInParallel<[Insight, Insight], void>(
-      insightPairs,
-      async ([insightA, insightB]) => {
-        //swap insight a and b if their ids are out of order to maximize caching
-        if (insightA.id > insightB.id) {
-          [insightA, insightB] = [insightB, insightA];
-        }
-        // Skip if already compared
-        const existing = await prisma.insightComparison.findFirst({
-          where: {
-            insightAId: insightA.id,
-            insightBId: insightB.id,
-          },
-        });
-        if (existing) return;
-
-        console.log(`Comparing ${JSON.stringify(insightA)} and ${JSON.stringify(insightB)}`);
-        // Query for a strong overlap between the categories
-        const overlap = await prisma.categoryOverlap.findFirst({
-          where: {
-            categoryAId: Math.min(insightA.categoryId, insightB.categoryId),
-            categoryBId: Math.max(insightA.categoryId, insightB.categoryId),
-            overlap: 'STRONG',
-          }
-        });
-        if (!overlap) return;
-
+    // Iterate over each inspiration insight
+    await processInParallel<Insight, void>(
+      inspirationInsights,
+      async (insight) => {
         try {
-          const comparisonResult = await generateInsightComparison(insightA, insightB);
-          if (comparisonResult) {
-            const [comparison, usage] = comparisonResult;
-            totalUsage.promptTokens += usage.prompt_tokens;
-            totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-            totalUsage.completionTokens += usage.completion_tokens;
-            console.log(`Compared: ${insightA.insightText} <-> ${insightB.insightText}`);
-            if (comparison != null) {
-              console.log(`${comparison.polarity} ${comparison.overlap} ${comparison.presentation}`);
-              console.log(`${comparison.presentationTitle}: ${comparison.conciseAText} <-> ${comparison.conciseBText}`);
+          // Get relevant categories for this insight using AI
+          const overlapResult = await generateInsightCategoryOverlap(insight);
+          if (!overlapResult) {
+            console.error(`No relevant categories found for insight ${insight.id}`);
+            return;
+          }
+          const [relevantCategories, removedCategories, usage] = overlapResult;
+          totalUsage.promptTokens += usage.prompt_tokens;
+          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+          totalUsage.completionTokens += usage.completion_tokens;
+
+          console.log(`Relevant categories for insight ${insight.insightText}: condensed to ${relevantCategories.length} removed ${removedCategories.length}`)
+          console.log(`will consider categories: ${relevantCategories.map(c => c.insightSubject).join(', ')}`);
+          // For each relevant category, get all INSPIRATION insights in that category
+          for (const relevantCategory of relevantCategories) {
+            const otherInsights = insightsByCategoryId.get(relevantCategory.id) || [];
+            // Serially compare this insight to each other insight in the relevant category
+            for (const otherInsight of otherInsights) {
+
+              // Always order ids to maximize caching
+              let insightA = insight;
+              let insightB = otherInsight;
+              if (insightA.id > insightB.id) {
+                [insightA, insightB] = [insightB, insightA];
+              }
+
+              // Skip if already compared
+              const existing = await prisma.insightComparison.findFirst({
+                where: {
+                  insightAId: insightA.id,
+                  insightBId: insightB.id,
+                },
+              });
+              if (existing) continue;
+
+              try {
+                console.log(`Comparing ${JSON.stringify(insightA)} and ${JSON.stringify(insightB)}`);
+                const comparisonResult = await generateInsightComparison(insightA, insightB);
+                if (comparisonResult) {
+                  const [comparison, compUsage] = comparisonResult;
+                  totalUsage.promptTokens += compUsage.prompt_tokens;
+                  totalUsage.cachedPromptTokens += compUsage.prompt_tokens_details.cached_tokens;
+                  totalUsage.completionTokens += compUsage.completion_tokens;
+                  console.log(`Compared: ${insightA.insightText} <-> ${insightB.insightText}`);
+                  if (comparison != null) {
+                    console.log(`${comparison.polarity} ${comparison.overlap} ${comparison.presentation}`);
+                    console.log(`${comparison.presentationTitle}: ${comparison.conciseAText} <-> ${comparison.conciseBText}`);
+                  }
+                }
+              } catch (err) {
+                console.error(`Error comparing insights ${insightA.id} and ${insightB.id}`, err);
+              }
             }
           }
         } catch (err) {
-          console.error(`Error comparing insights ${insightA.id} and ${insightB.id}`, err);
+          console.error(`Error processing insight ID: ${insight.id} for category overlap comparisons`, err);
         }
       },
       BATCH_COUNT

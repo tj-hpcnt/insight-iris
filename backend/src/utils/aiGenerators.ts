@@ -226,9 +226,9 @@ ${insight.insightText}`;
         where: {
           inspirationId: insight.id,
         },
-      }); 
+      });
       // TODO: need to do setup for cascading
-      
+
       // Create the question
       const question = await tx.question.create({
         data: {
@@ -367,7 +367,7 @@ Use WEAK if the categories are not likely to have insights that imply compatibil
     if (!overlapData) {
       throw new Error("Parse error");
     }
-    
+
     // Create or update the categoryOverlap record
     const categoryOverlap = await prisma.categoryOverlap.upsert({
       where: {
@@ -414,7 +414,7 @@ export async function reassignCategory(
   if (!existingCategory) {
     throw new Error("Category not found");
   }
-  
+
   // Build category tree
   const categoryTree = categories.reduce((tree, cat) => {
     if (!tree[cat.category]) {
@@ -758,7 +758,7 @@ Please analyze these insights and identify which ones are redundant (i.e., they 
       });
       deletedIds.push(insight.id);
     }
-    
+
     // o3 costs 5x more than gpt-4.1
     const usage = {
       prompt_tokens: completion.usage.prompt_tokens * 5,
@@ -890,11 +890,11 @@ Subject: ${category.insightSubject}
     }
 
     const overlaps: CategoryOverlap[] = [];
-    
+
     const allStrongSubjects = Array.from(
       new Set([category.insightSubject, ...rankingData.strongSubjects])
     );
-    
+
     for (const subject of allStrongSubjects) {
       const relatedCategory = allCategories.find(cat => cat.insightSubject === subject);
       if (!relatedCategory) {
@@ -902,7 +902,7 @@ Subject: ${category.insightSubject}
       }
 
       // Ensure categoryAId is always the smaller ID for consistency
-      const [categoryAId, categoryBId] = category.id < relatedCategory.id 
+      const [categoryAId, categoryBId] = category.id < relatedCategory.id
         ? [category.id, relatedCategory.id]
         : [relatedCategory.id, category.id];
 
@@ -926,15 +926,15 @@ Subject: ${category.insightSubject}
     }
 
     // Create WEAK entries for categories not in the ranked list
-    const rankedCategoryIds = new Set(allStrongSubjects.map(subject => 
-      subject === category.insightSubject 
-        ? category.id 
+    const rankedCategoryIds = new Set(allStrongSubjects.map(subject =>
+      subject === category.insightSubject
+        ? category.id
         : allCategories.find(cat => cat.insightSubject === subject)?.id
     ));
 
     for (const otherCategory of allCategories) {
       if (!rankedCategoryIds.has(otherCategory.id)) {
-        const [categoryAId, categoryBId] = category.id < otherCategory.id 
+        const [categoryAId, categoryBId] = category.id < otherCategory.id
           ? [category.id, otherCategory.id]
           : [otherCategory.id, category.id];
 
@@ -974,6 +974,179 @@ Subject: ${category.insightSubject}
     return [overlaps, usage];
   } catch (error) {
     console.error('Error creating category overlaps:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
+}
+
+/**
+ * Determines which categories are most relevant for a given insight based on existing category overlaps
+ * @param insight The insight to find relevant categories for
+ * @returns Tuple containing array of relevant categories and token usage statistics
+ */
+export async function generateInsightCategoryOverlap(
+  insight: Insight
+): Promise<[Category[], Category[], OpenAI.Completions.CompletionUsage] | null> {
+  // Get the insight's category
+  const insightCategory = await prisma.category.findUnique({
+    where: { id: insight.categoryId }
+  });
+
+  if (!insightCategory) {
+    throw new Error(`Category not found for insight ${insight.id}`);
+  }
+
+  // Get all categories that have overlaps with the insight's category
+  const categoryOverlaps = await prisma.categoryOverlap.findMany({
+    where: {
+      AND: [
+        { overlap: "STRONG" },
+        {
+          OR: [
+            { categoryAId: insightCategory.id },
+            { categoryBId: insightCategory.id },
+          ]
+        }
+      ]
+    },
+    include: {
+      categoryA: true,
+      categoryB: true
+    }
+  });
+
+  // Extract unique categories from overlaps
+  const relatedCategories = new Set<Category>();
+  relatedCategories.add(insightCategory);
+  for (const overlap of categoryOverlaps) {
+    if (overlap.categoryA.id !== insightCategory.id) {
+      relatedCategories.add(overlap.categoryA);
+    }
+    if (overlap.categoryB.id !== insightCategory.id) {
+      relatedCategories.add(overlap.categoryB);
+    }
+  }
+
+
+  if (relatedCategories.size === 0) {
+    throw Error(`No base related categories found for insight ${insight.id}`);
+  }
+
+  // Build category tree for context
+  const categoryTree = Array.from(relatedCategories).reduce((tree, cat) => {
+    if (!tree[cat.category]) {
+      tree[cat.category] = {};
+    }
+    if (!tree[cat.category][cat.topicHeader]) {
+      tree[cat.category][cat.topicHeader] = {};
+    }
+    if (!tree[cat.category][cat.topicHeader][cat.subcategory]) {
+      tree[cat.category][cat.topicHeader][cat.subcategory] = [];
+    }
+    tree[cat.category][cat.topicHeader][cat.subcategory].push(cat.insightSubject);
+    return tree;
+  }, {} as Record<string, Record<string, Record<string, string[]>>>);
+
+  // Convert tree to string representation
+  const categoryTreeStr = Object.entries(categoryTree)
+    .map(([category, topics]) => {
+      return `${category}:\n${Object.entries(topics)
+        .map(([topic, subcategories]) => {
+          return `  ${topic}:\n${Object.entries(subcategories)
+            .map(([subcategory, subjects]) => {
+              return `    ${subcategory}:\n${subjects
+                .map(subject => `      - ${subject}`)
+                .join('\n')}`;
+            })
+            .join('\n')}`;
+        })
+        .join('\n')}`;
+    })
+    .join('\n');
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine which categories likely contain insights that overlap most with a specific insight.
+
+Here are the categories that have been identified as having potential relationships with this specific insight:
+${categoryTreeStr}
+
+Please analyze the target insight and identify which of these categories are most to have insights which interact with the insight specified. Consider how insights from one of these catergories might interact with the insight specified:
+- Would the insights help as ice breakers if users knew each others' answers?
+- Do they imply compatibility for casual daily life?
+- Do they imply compatibility for long term plans?
+- Do they imply users can have a lot of fun together?
+- Would they help on a first date?
+- Would knowing each others' answers help users understand each other better?
+
+Output JSON only. Each subject must be unique. Format:
+{"relevantSubjects": ["Dietary preferences", "Travel style", "Music taste"]}
+
+Target Insight:
+"${insight.insightText}"
+
+Target Category:
+Category: ${insightCategory.category}
+Topic: ${insightCategory.topicHeader}
+Subcategory: ${insightCategory.subcategory}
+Subject: ${insightCategory.insightSubject}
+`;
+
+  const model = "gpt-4.1";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "relevant_categories",
+      schema: {
+        type: "object",
+        properties: {
+          relevantSubjects: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: Array.from(relatedCategories).map(cat => cat.insightSubject)
+            }
+          }
+        },
+        required: ["relevantSubjects"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const rankingData = (completion.choices[0].message as any).parsed as {
+      relevantSubjects: string[];
+    };
+    if (!rankingData) {
+      throw new Error("Parse error");
+    }
+
+    const uniqueRelevantSubjects = Array.from(new Set(rankingData.relevantSubjects));
+
+    const relevantCategories = Array.from(relatedCategories).filter(cat =>
+      uniqueRelevantSubjects.includes(cat.insightSubject) || cat.insightSubject === insightCategory.insightSubject
+    );
+
+    const removedCategories = Array.from(relatedCategories).filter(cat =>
+      !relevantCategories.includes(cat)
+    );
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+
+    return [relevantCategories, removedCategories, completion.usage];
+  } catch (error) {
+    console.error('Error determining relevant categories:', error);
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
