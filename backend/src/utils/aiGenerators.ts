@@ -774,4 +774,207 @@ Please analyze these insights and identify which ones are redundant (i.e., they 
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
+}
+
+/**
+ * Generates category overlaps by ranking all potential relationships for a given category
+ * @param category The category to find overlaps for
+ * @returns Tuple containing array of created CategoryOverlap objects and token usage statistics
+ */
+export async function generateCategoryOverlapByRanking(
+  category: Category
+): Promise<[CategoryOverlap[], OpenAI.Completions.CompletionUsage] | null> {
+  // Get all categories
+  const allCategories = await prisma.category.findMany();
+
+  if (allCategories.length === 0) {
+    return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
+  }
+
+  // Get all valid insight subjects for validation
+  const validSubjects = allCategories.map(cat => cat.insightSubject);
+
+  // Build category tree for context
+  const categoryTree = allCategories.reduce((tree, cat) => {
+    if (!tree[cat.category]) {
+      tree[cat.category] = {};
+    }
+    if (!tree[cat.category][cat.topicHeader]) {
+      tree[cat.category][cat.topicHeader] = {};
+    }
+    if (!tree[cat.category][cat.topicHeader][cat.subcategory]) {
+      tree[cat.category][cat.topicHeader][cat.subcategory] = [];
+    }
+    tree[cat.category][cat.topicHeader][cat.subcategory].push(cat.insightSubject);
+    return tree;
+  }, {} as Record<string, Record<string, Record<string, string[]>>>);
+
+  // Convert tree to string representation
+  const categoryTreeStr = Object.entries(categoryTree)
+    .map(([category, topics]) => {
+      return `${category}:\n${Object.entries(topics)
+        .map(([topic, subcategories]) => {
+          return `  ${topic}:\n${Object.entries(subcategories)
+            .map(([subcategory, subjects]) => {
+              return `    ${subcategory}:\n${subjects
+                .map(subject => `      - ${subject}`)
+                .join('\n')}`;
+            })
+            .join('\n')}`;
+        })
+        .join('\n')}`;
+    })
+    .join('\n');
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine which categories of insights might have overlapping or related insights that could imply compatibility between users.
+
+Here are all categories in the system:
+${categoryTreeStr}
+
+Please analyze the target category and identify which other categories have STRONG relationships that could imply compatibility or incompatibility between users. Output them in descending order of importance. Consider:
+- Will insights from these categories help as ice breakers if users knew each others' answers?
+- Do they imply compatibility for casual daily life?
+- Do they imply compatibility for long term plans?
+- Do they imply users can have a lot of fun together?
+- Would they help on a first date?
+- Would knowing each others' answers help users understand each other better?
+
+Output JSON only. Format:
+{"strongSubjects": ["Dietary preferences", "Travel style", "Music taste"]}
+
+Target Category:
+Category: ${category.category}
+Topic: ${category.topicHeader}
+Subcategory: ${category.subcategory}
+Subject: ${category.insightSubject}
+`;
+
+  const model = "o3";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "ranked_categories",
+      schema: {
+        type: "object",
+        properties: {
+          strongSubjects: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: validSubjects
+            }
+          }
+        },
+        required: ["strongSubjects"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const rankingData = (completion.choices[0].message as any).parsed as {
+      strongSubjects: string[];
+    };
+    if (!rankingData) {
+      throw new Error("Parse error");
+    }
+
+    const overlaps: CategoryOverlap[] = [];
+    
+    const allStrongSubjects = Array.from(
+      new Set([category.insightSubject, ...rankingData.strongSubjects])
+    );
+    
+    for (const subject of allStrongSubjects) {
+      const relatedCategory = allCategories.find(cat => cat.insightSubject === subject);
+      if (!relatedCategory) {
+        throw new Error(`Category not found for subject: ${subject}`);
+      }
+
+      // Ensure categoryAId is always the smaller ID for consistency
+      const [categoryAId, categoryBId] = category.id < relatedCategory.id 
+        ? [category.id, relatedCategory.id]
+        : [relatedCategory.id, category.id];
+
+      const overlap = await prisma.categoryOverlap.upsert({
+        where: {
+          categoryAId_categoryBId: {
+            categoryAId,
+            categoryBId,
+          },
+        },
+        update: {
+          overlap: "STRONG",
+        },
+        create: {
+          categoryAId,
+          categoryBId,
+          overlap: "STRONG",
+        },
+      });
+      overlaps.push(overlap);
+    }
+
+    // Create WEAK entries for categories not in the ranked list
+    const rankedCategoryIds = new Set(allStrongSubjects.map(subject => 
+      subject === category.insightSubject 
+        ? category.id 
+        : allCategories.find(cat => cat.insightSubject === subject)?.id
+    ));
+
+    for (const otherCategory of allCategories) {
+      if (!rankedCategoryIds.has(otherCategory.id)) {
+        const [categoryAId, categoryBId] = category.id < otherCategory.id 
+          ? [category.id, otherCategory.id]
+          : [otherCategory.id, category.id];
+
+        const overlap = await prisma.categoryOverlap.upsert({
+          where: {
+            categoryAId_categoryBId: {
+              categoryAId,
+              categoryBId,
+            },
+          },
+          update: {
+            overlap: "WEAK",
+          },
+          create: {
+            categoryAId,
+            categoryBId,
+            overlap: "WEAK",
+          },
+        });
+        overlaps.push(overlap);
+      }
+    }
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+
+    // o3 costs 5x more than gpt-4.1
+    const usage = {
+      prompt_tokens: completion.usage.prompt_tokens * 5,
+      completion_tokens: completion.usage.completion_tokens * 5,
+      prompt_tokens_details: {
+        cached_tokens: completion.usage.prompt_tokens_details.cached_tokens * 5,
+      }
+    } as OpenAI.Completions.CompletionUsage;
+
+    return [overlaps, usage];
+  } catch (error) {
+    console.error('Error creating category overlaps:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
 } 

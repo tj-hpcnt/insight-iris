@@ -1,6 +1,6 @@
 import { PrismaClient, InsightSource, Category, Insight } from '../src/generated/prisma/core';
 import * as dotenv from 'dotenv';
-import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancy} from '../src/utils/aiGenerators';
+import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancy, generateCategoryOverlapByRanking} from '../src/utils/aiGenerators';
 import { CATEGORIES } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
@@ -52,28 +52,39 @@ async function main() {
       console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
     }, 5000);
 
+    // Generate category overlaps by ranking, in parallel for each category
+    console.log('Generating category overlaps by ranking...');
+    await processInParallel(
+      categories,
+      async (category) => {
+        const result = await generateCategoryOverlapByRanking(category);
+        if (result) {
+          const [overlapsForCategory, usage] = result;
+          totalUsage.promptTokens += usage.prompt_tokens;
+          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+          totalUsage.completionTokens += usage.completion_tokens;
+          for (const overlap of overlapsForCategory.filter(o => o.overlap === "STRONG")) {
+            // Always log with the current category first
+            let firstId, secondId;
+            if (overlap.categoryAId === category.id) {
+              firstId = overlap.categoryAId;
+              secondId = overlap.categoryBId;
+            } else {
+              firstId = overlap.categoryBId;
+              secondId = overlap.categoryAId;
+            }
+            const firstSubject = categories.find(c => c.id === firstId)?.insightSubject;
+            const secondSubject = categories.find(c => c.id === secondId)?.insightSubject;
+            console.log(
+              `CategoryOverlap: ${firstId} (${firstSubject}) - ${secondId} (${secondSubject}) (${overlap.overlap})`
+            );
+          }
+        }
+      },
+      BATCH_COUNT
+    );
+
     const overlaps = await prisma.categoryOverlap.findMany();
-    //generate the pairs of category ids to process
-    const categoryPairs = [];
-    for (let i = 0; i < categories.length; i++) {
-      for (let j = i; j < categories.length; j++) {
-        categoryPairs.push([categories[i], categories[j]]);
-      }
-    }
-    console.log('Generating category overlaps...');
-    for (const pair of categoryPairs) {
-      const [categoryA, categoryB] = pair
-      let existing = await prisma.categoryOverlap.findFirst({ where: { categoryAId: categoryA.id, categoryBId: categoryB.id } });
-      if (existing) {
-        continue;
-      }
-      const [overlap, usage] = await generateCategoryOverlap(categoryA, categoryB);
-      overlaps.push(overlap);
-      totalUsage.promptTokens += usage.prompt_tokens;
-      totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-      totalUsage.completionTokens += usage.completion_tokens;
-      console.log(`${categoryA.category}:${categoryA.subcategory}:${categoryA.insightSubject} - ${categoryB.category}:${categoryB.subcategory}:${categoryB.insightSubject} - ${overlap?.overlap}`);
-    }
 
     console.log('Generating insights...');
     await processInParallel<Category, void>(
