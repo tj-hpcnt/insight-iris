@@ -244,14 +244,16 @@ async function main() {
                 console.log(`Comparing ${JSON.stringify(insightA)} and ${JSON.stringify(insightB)}`);
                 const comparisonResult = await generateInsightComparison(insightA, insightB);
                 if (comparisonResult) {
-                  const [comparison, compUsage] = comparisonResult;
+                  const [comparison, presentation, compUsage] = comparisonResult;
                   totalUsage.promptTokens += compUsage.prompt_tokens;
                   totalUsage.cachedPromptTokens += compUsage.prompt_tokens_details.cached_tokens;
                   totalUsage.completionTokens += compUsage.completion_tokens;
                   console.log(`Compared: ${insightA.insightText} <-> ${insightB.insightText}`);
                   if (comparison != null) {
-                    console.log(`${comparison.polarity} ${comparison.overlap} ${comparison.presentation}`);
-                    console.log(`${comparison.presentationTitle}: ${comparison.conciseAText} <-> ${comparison.conciseBText}`);
+                    console.log(`${comparison.polarity} ${comparison.overlap}`);
+                    if (presentation) {
+                      console.log(`${presentation.presentationTitle}: ${presentation.conciseAText} <-> ${presentation.conciseBText}`);
+                    }
                   }
                 }
               } catch (err) {

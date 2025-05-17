@@ -25,11 +25,6 @@ enum PolarityType {
   NEUTRAL
 }
 
-enum PresentationType {
-  ICE_BREAKER
-  FILLER
-}
-
 enum QuestionType {
   BINARY
   SINGLE_CHOICE
@@ -100,13 +95,18 @@ model InsightComparison {
   insightBId        Int
   polarity          PolarityType
   overlap           OverlapType
-  presentation      PresentationType?
-  presentationTitle String?
-  conciseAText      String?
-  conciseBText      String?
   insightA          Insight          @relation("InsightA", fields: [insightAId], references: [id])
   insightB          Insight          @relation("InsightB", fields: [insightBId], references: [id])
+  presentation      InsightComparisonPresentation?
 
   @@unique([insightAId, insightBId])
+}
 
+model InsightComparisonPresentation {
+  id                Int              @id @default(autoincrement())
+  insightComparisonId Int            @unique
+  presentationTitle String
+  conciseAText      String
+  conciseBText      String
+  insightComparison InsightComparison @relation(fields: [insightComparisonId], references: [id])
 }
