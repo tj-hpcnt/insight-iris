@@ -224,7 +224,7 @@ async function main() {
             const otherInsights = await prisma.insight.findMany({
               where: {
                 categoryId: relevantCategory.id,
-                source: InsightSource.INSPIRATION,
+                source: InsightSource.ANSWER,
               }
             });
             // check if all of otherInsights are in existingComparisonSet

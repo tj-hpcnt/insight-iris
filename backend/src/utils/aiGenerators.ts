@@ -1158,7 +1158,7 @@ export async function generateInsightCategoryComparisonByRanking(
   const categoryInsights = await prisma.insight.findMany({
     where: {
       categoryId: category.id,
-      source: InsightSource.INSPIRATION,
+      source: InsightSource.ANSWER,
     },
   });
 
@@ -1168,10 +1168,10 @@ export async function generateInsightCategoryComparisonByRanking(
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine how a specific insight relates to other insights in a category.
 
-  You are provided a lists of insights from an specific category.  Your job is to compare each one with the single target insight.  For each of the categories insights, you need to determine if that would indicate compatiblity or incompatiblility with the target insight. You will output a list of insights that are compatible and one list of insights that are incompatible.  Only include ones where the relationship is strong, e.g. it would likely impact the compatibility of the two users. List the most important one first.  Do not include weak or unrelated relationships.
+  You are provided a lists of insights from an specific category.  Your job is to compare each one with the single target insight.  For each of the categories insights, you need to determine if that would indicate compatiblity or incompatiblility with the target insight. You will output a list of insights that are compatible and one list of insights that are incompatible.  Only include ones where the relationship is strong, e.g. it would strongly impact the compatibility of the two users. List the most important one first.  Do not include weak or unrelated relationships.
 
   Output JSON only. Format:
-  {"compatible": ["I love dogs", "Pizza is my favorite food"], "incompatible": ["I'm a vegetarian"]}
+  {"compatible": ["I love Italian food", "Pizza is my favorite food"], "incompatible": ["I'm a vegetarian"]}
 
   Category Insights to Compare Against:
   ${categoryInsights.map((catInsight) => `"${catInsight.insightText}"`).join('\n')}
