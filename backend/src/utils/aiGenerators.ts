@@ -697,7 +697,7 @@ ${insights.map((insight, index) => `${index + 1}. ${insight.insightText}`).join(
 
 Please analyze these insights and identify which ones are redundant (i.e., they convey essentially the same information or meaning). Output JSON only. Format:
 
-{"redundantInsights": [2, 7, 21]}`;
+{"redundantInsights": ["I love Italian food", "I enjoy pasta dishes"]}`;
 
   const model = "o3";
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
@@ -712,7 +712,8 @@ Please analyze these insights and identify which ones are redundant (i.e., they 
           redundantInsights: {
             type: "array",
             items: {
-              type: "integer"
+              type: "string",
+              enum: insights.map(insight => insight.insightText)
             }
           }
         },
@@ -731,17 +732,16 @@ Please analyze these insights and identify which ones are redundant (i.e., they 
 
   try {
     const redundancyData = (completion.choices[0].message as any).parsed as {
-      redundantInsights: number[];
+      redundantInsights: string[];
     };
     if (!redundancyData) {
       throw new Error("Parse error");
     }
 
-    // Convert 1-based indices to 0-based and get unique insight IDs to delete
-    const insightIndicesToDelete = new Set(
-      redundancyData.redundantInsights.map(num => num - 1)
+    // Get unique insight IDs to delete based on the redundant insight texts
+    const insightsToDelete = insights.filter(insight => 
+      redundancyData.redundantInsights.includes(insight.insightText)
     );
-    const insightsToDelete = insights.filter((_, index) => insightIndicesToDelete.has(index));
 
     const deletedIds = [];
     for (const insight of insightsToDelete) {
