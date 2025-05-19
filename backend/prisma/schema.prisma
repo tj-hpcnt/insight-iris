@@ -53,6 +53,8 @@ model Insight {
   answers           Answer[]
   insightCompareA   InsightComparison[] @relation("InsightA")
   insightCompareB   InsightComparison[] @relation("InsightB")
+
+  @@index([categoryId])
 }
 
 model Style {
@@ -87,7 +89,8 @@ model CategoryOverlap {
   categoryB   Category    @relation("CategoryB", fields: [categoryBId], references: [id])
 
   @@unique([categoryAId, categoryBId])
- }
+  @@index([categoryBId])
+}
 
 model InsightComparison {
   id                Int              @id @default(autoincrement())
@@ -100,6 +103,7 @@ model InsightComparison {
   presentation      InsightComparisonPresentation?
 
   @@unique([insightAId, insightBId])
+  @@index([insightBId])
 }
 
 model InsightComparisonPresentation {

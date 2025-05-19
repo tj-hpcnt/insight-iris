@@ -1,6 +1,6 @@
 import { PrismaClient, InsightSource, Category, Insight } from '../src/generated/prisma/core';
 import * as dotenv from 'dotenv';
-import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancy, generateCategoryOverlapByRanking, generateInsightCategoryOverlap } from '../src/utils/aiGenerators';
+import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancy, generateCategoryOverlapByRanking, generateInsightCategoryOverlap, generateInsightComparisonPresentation, generateInsightCategoryComparisonByRanking } from '../src/utils/aiGenerators';
 import { CATEGORIES } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
@@ -191,15 +191,6 @@ async function main() {
     // Only consider INSPIRATION insights
     const inspirationInsights = insights.filter(i => i.source === InsightSource.INSPIRATION);
 
-    // Helper: group insights by categoryId for quick lookup
-    const insightsByCategoryId = new Map<number, Insight[]>();
-    for (const ins of inspirationInsights) {
-      if (!insightsByCategoryId.has(ins.categoryId)) {
-        insightsByCategoryId.set(ins.categoryId, []);
-      }
-      insightsByCategoryId.get(ins.categoryId)!.push(ins);
-    }
-
     // Iterate over each inspiration insight
     await processInParallel<Insight, void>(
       inspirationInsights,
@@ -218,46 +209,49 @@ async function main() {
 
           console.log(`Relevant categories for insight ${insight.insightText}: condensed to ${relevantCategories.length} removed ${removedCategories.length}`)
           console.log(`will consider categories: ${relevantCategories.map(c => c.insightSubject).join(', ')}`);
-          // For each relevant category, get all INSPIRATION insights in that category
+
+          const existingComparisons = await prisma.insightComparison.findMany({
+            where: {
+              OR: [
+                { insightAId: insight.id },
+                { insightBId: insight.id },
+              ],
+            },
+            select: { insightAId: true, insightBId: true },
+          });
+          const existingComparisonSet = new Set(existingComparisons.map(c => c.insightAId === insight.id ? c.insightBId : c.insightAId));
           for (const relevantCategory of relevantCategories) {
-            const otherInsights = insightsByCategoryId.get(relevantCategory.id) || [];
-            // Serially compare this insight to each other insight in the relevant category
-            for (const otherInsight of otherInsights) {
-
-              // Always order ids to maximize caching
-              let insightA = insight;
-              let insightB = otherInsight;
-              if (insightA.id > insightB.id) {
-                [insightA, insightB] = [insightB, insightA];
+            const otherInsights = await prisma.insight.findMany({
+              where: {
+                categoryId: relevantCategory.id,
+                source: InsightSource.INSPIRATION,
               }
-
-              // Skip if already compared
-              const existing = await prisma.insightComparison.findFirst({
-                where: {
-                  insightAId: insightA.id,
-                  insightBId: insightB.id,
-                },
-              });
-              if (existing) continue;
-
-              try {
-                console.log(`Comparing ${JSON.stringify(insightA)} and ${JSON.stringify(insightB)}`);
-                const comparisonResult = await generateInsightComparison(insightA, insightB);
-                if (comparisonResult) {
-                  const [comparison, presentation, compUsage] = comparisonResult;
-                  totalUsage.promptTokens += compUsage.prompt_tokens;
-                  totalUsage.cachedPromptTokens += compUsage.prompt_tokens_details.cached_tokens;
-                  totalUsage.completionTokens += compUsage.completion_tokens;
-                  console.log(`Compared: ${insightA.insightText} <-> ${insightB.insightText}`);
-                  if (comparison != null) {
-                    console.log(`${comparison.polarity} ${comparison.overlap}`);
-                    if (presentation) {
-                      console.log(`${presentation.presentationTitle}: ${presentation.conciseAText} <-> ${presentation.conciseBText}`);
-                    }
+            });
+            // check if all of otherInsights are in existingComparisonSet
+            if (otherInsights.every(o => existingComparisonSet.has(o.id))) {
+              continue;
+            }
+            const [comparisons, usage] = await generateInsightCategoryComparisonByRanking(insight, relevantCategory);
+            totalUsage.promptTokens += usage.prompt_tokens;
+            totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+            totalUsage.completionTokens += usage.completion_tokens;
+            for (const comparison of comparisons) {
+              // Only create presentation for strong overlaps
+              if (comparison.overlap === "STRONG") {
+                try {
+                  const [presentation, usage] = await generateInsightComparisonPresentation(comparison);
+                  totalUsage.promptTokens += usage.prompt_tokens;
+                  totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+                  totalUsage.completionTokens += usage.completion_tokens;
+                  console.log(`Compared: ${comparison.insightAId} <-> ${comparison.insightBId} | ${comparison.polarity} ${comparison.overlap}`);
+                  if (presentation) {
+                    console.log(`Presentation: ${presentation.presentationTitle}: ${presentation.conciseAText} <-> ${presentation.conciseBText}`);
                   }
+                } catch (err) {
+                  console.error(`Error generating presentation for comparison ${comparison.id}`, err);
                 }
-              } catch (err) {
-                console.error(`Error comparing insights ${insightA.id} and ${insightB.id}`, err);
+              } else {
+                console.log(`Compared: ${comparison.insightAId} <-> ${comparison.insightBId} | ${comparison.polarity} ${comparison.overlap}`);
               }
             }
           }

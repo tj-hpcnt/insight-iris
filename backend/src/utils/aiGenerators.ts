@@ -977,7 +977,7 @@ Subject: ${category.insightSubject}
  * @returns Tuple containing array of relevant categories and token usage statistics
  */
 export async function generateInsightCategoryOverlap(
-  insight: Insight
+  insight: Insight,
 ): Promise<[Category[], Category[], OpenAI.Completions.CompletionUsage] | null> {
   // Get the insight's category
   const insightCategory = await prisma.category.findUnique({
@@ -1139,6 +1139,286 @@ Subject: ${insightCategory.insightSubject}
     return [relevantCategories, removedCategories, completion.usage];
   } catch (error) {
     console.error('Error determining relevant categories:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
+}
+
+/**
+ * Generates insight comparisons between a target insight and all insights in a given category
+ * @param insight The target insight to compare against
+ * @param category The category containing insights to compare with
+ * @returns Tuple containing array of created InsightComparison objects and token usage statistics
+ */
+export async function generateInsightCategoryComparisonByRanking(
+  insight: Insight,
+  category: Category
+): Promise<[InsightComparison[], OpenAI.Completions.CompletionUsage] | null> {
+  // Get all insights from the specified category
+  const categoryInsights = await prisma.insight.findMany({
+    where: {
+      categoryId: category.id,
+      source: InsightSource.INSPIRATION,
+    },
+  });
+
+  if (categoryInsights.length === 0) {
+    return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
+  }
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine how a specific insight relates to other insights in a category.
+
+  You are provided a lists of insights from an specific category.  Your job is to compare each one with the single target insight.  For each of the categories insights, you need to determine if that would indicate compatiblity or incompatiblility with the target insight. You will output a list of insights that are compatible and one list of insights that are incompatible.  Only include ones where the relationship is strong, e.g. it would likely impact the compatibility of the two users. List the most important one first.  Do not include weak or unrelated relationships.
+
+  Output JSON only. Format:
+  {"compatible": ["I love dogs", "Pizza is my favorite food"], "incompatible": ["I'm a vegetarian"]}
+
+  Category Insights to Compare Against:
+  ${categoryInsights.map((catInsight) => `"${catInsight.insightText}"`).join('\n')}
+
+  Target Insight:
+  "${insight.insightText}"
+  `;
+
+  const model = "gpt-4.1";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "insight_comparisons",
+      schema: {
+        type: "object",
+        properties: {
+          compatible: {
+            type: "array",
+            items: {
+              type: "string"
+            }
+          },
+          incompatible: {
+            type: "array",
+            items: {
+              type: "string"
+            }
+          }
+        },
+        required: ["compatible", "incompatible"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const comparisonData = (completion.choices[0].message as any).parsed as {
+      compatible: string[];
+      incompatible: string[];
+    };
+    if (!comparisonData) {
+      throw new Error("Parse error");
+    }
+
+    // There are a few cases where the original 1-1 comparison determined a WEAK relationship, but most cases are STRONG
+    // None were determined as WEAK, an only one was considered neutral while all other insights that match are positive
+    // TODO: check that the end result of this ranked mode acheives similar results to the 1-1 comparison
+
+    const comparisons: InsightComparison[] = [];
+    const strongCompatible = new Set(comparisonData.compatible);
+    const strongIncompatible = new Set(comparisonData.incompatible);
+
+    for (const catInsight of categoryInsights) {
+      let polarity: PolarityType = null;
+      if (strongCompatible.has(catInsight.insightText)) polarity = "POSITIVE";
+      else if (strongIncompatible.has(catInsight.insightText)) polarity = "NEGATIVE";
+      
+      if (!polarity) {
+        const comparison = await prisma.insightComparison.upsert({
+          where: {
+            insightAId_insightBId: {
+              insightAId: Math.min(insight.id, catInsight.id),
+              insightBId: Math.max(insight.id, catInsight.id),
+            },
+          },
+          update: {
+            polarity: "NEUTRAL",
+            overlap: "WEAK",
+          },
+          create: {
+            insightA: { connect: { id: Math.min(insight.id, catInsight.id) } },
+            insightB: { connect: { id: Math.max(insight.id, catInsight.id) } },
+            polarity: "NEUTRAL",
+            overlap: "WEAK",
+          },
+        });
+        comparisons.push(comparison);
+        await prisma.insightComparisonPresentation.deleteMany({
+          where: {
+            insightComparisonId: comparison.id,
+          }
+        });
+
+        continue;
+      }
+
+
+
+      let overlap: OverlapType = "STRONG";
+
+      const insightAId = Math.min(insight.id, catInsight.id);
+      const insightBId = Math.max(insight.id, catInsight.id);
+
+      const comparison = await prisma.insightComparison.upsert({
+        where: {
+          insightAId_insightBId: {
+            insightAId,
+            insightBId,
+          },
+        },
+        update: {
+          polarity,
+          overlap,
+        },
+        create: {
+          insightA: { connect: { id: insightAId } },
+          insightB: { connect: { id: insightBId } },
+          polarity,
+          overlap,
+        },
+      });
+      comparisons.push(comparison);
+    }
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+
+    return [comparisons, completion.usage];
+  } catch (error) {
+    console.error('Error creating insight comparisons:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
+}
+
+/**
+ * Generates or updates the presentation details (title, concise versions) for a given InsightComparison.
+ * This function assumes the InsightComparison's overlap is STRONG for active presentation generation.
+ * If the overlap is not STRONG, any existing presentation will be removed, and no new one will be generated.
+ * @param insightComparisonToPresent The InsightComparison record for which to generate presentation details. Its 'overlap' field determines behavior.
+ * @returns Tuple containing the created/updated InsightComparisonPresentation object and token usage statistics if presentation is generated, otherwise null.
+ */
+export async function generateInsightComparisonPresentation(
+  insightComparisonToPresent: InsightComparison
+): Promise<[InsightComparisonPresentation, OpenAI.Completions.CompletionUsage] | null> {
+  // Fetch the actual insight objects to get their text for the prompt
+  const insightA = await prisma.insight.findUnique({
+    where: { id: insightComparisonToPresent.insightAId },
+  });
+  const insightB = await prisma.insight.findUnique({
+    where: { id: insightComparisonToPresent.insightBId },
+  });
+
+  if (!insightA || !insightB) {
+    console.error(
+      `Could not find one or both insights for InsightComparison ID: ${insightComparisonToPresent.id}`
+    );
+    return null;
+  }
+
+  // If the relationship strength is not STRONG, ensure no presentation record exists and return.
+  if (insightComparisonToPresent.overlap !== OverlapType.STRONG) {
+    await prisma.insightComparisonPresentation.deleteMany({
+      where: {
+        insightComparisonId: insightComparisonToPresent.id,
+      },
+    });
+    // console.log(`Presentation not generated for InsightComparison ID: ${insightComparisonToPresent.id} as overlap is not STRONG.`);
+    return null; // No presentation generated, no token usage to report for this specific task
+  }
+
+  // At this point, overlap is STRONG, so we proceed to generate presentation details.
+  const prompt = `We are building a database of information about users of a dating app. For a pair of insights that have a STRONG relationship, we need to generate presentation details.
+Provide a title to show as a header describing what links these insights. Also, provide maximally shortened versions of each insight for UI display.
+Output JSON in the following format:
+{"title":"Shared Hobby", "concise_insight_A":"Loves hiking", "concise_insight_B":"Enjoys outdoor trails"}
+
+User A Insight (corresponds to insightComparison.insightAId):
+${insightA.insightText}
+User B Insight (corresponds to insightComparison.insightBId):
+${insightB.insightText}`;
+
+  const model = "gpt-4.1";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "insight_presentation_details",
+      schema: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          concise_insight_A: { type: "string" },
+          concise_insight_B: { type: "string" }
+        },
+        required: ["title", "concise_insight_A", "concise_insight_B"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const presentationData = (completion.choices[0].message as any).parsed as {
+      title: string;
+      concise_insight_A: string;
+      concise_insight_B: string;
+    };
+    if (!presentationData) {
+      throw new Error("Parse error for presentation data");
+    }
+
+    // Upsert the InsightComparisonPresentation record
+    const newOrUpdatedPresentation = await prisma.insightComparisonPresentation.upsert({
+      where: {
+        insightComparisonId: insightComparisonToPresent.id,
+      },
+      update: {
+        presentationTitle: presentationData.title,
+        conciseAText: presentationData.concise_insight_A,
+        conciseBText: presentationData.concise_insight_B,
+      },
+      create: {
+        insightComparisonId: insightComparisonToPresent.id,
+        presentationTitle: presentationData.title,
+        conciseAText: presentationData.concise_insight_A,
+        conciseBText: presentationData.concise_insight_B,
+      },
+    });
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+
+    return [newOrUpdatedPresentation, completion.usage];
+
+  } catch (error) {
+    console.error('Error in generateInsightComparisonPresentation:', error);
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
