@@ -95,6 +95,7 @@ async function main() {
         if (totalInsights > MINIMUM_BASE_INSIGHTS) return;
         let done = false;
         let round_fails = 0;
+        totalInsights = -1; // first pass is never a failure
         while (!done && totalInsights < INSIGHT_INITAL_POOL_COUNT) {
           const newTotalInsights = await prisma.insight.count({ where: { categoryId: category.id, source: InsightSource.INSPIRATION } });
           if (newTotalInsights == totalInsights) {

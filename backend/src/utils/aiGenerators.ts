@@ -739,7 +739,7 @@ Please analyze these insights and identify which ones are redundant (i.e., they 
     }
 
     // Get unique insight IDs to delete based on the redundant insight texts
-    const insightsToDelete = insights.filter(insight => 
+    const insightsToDelete = insights.filter(insight =>
       redundancyData.redundantInsights.includes(insight.insightText)
     );
 
@@ -1238,7 +1238,7 @@ export async function generateInsightCategoryComparisonByRanking(
       let polarity: PolarityType = null;
       if (strongCompatible.has(catInsight.insightText)) polarity = "POSITIVE";
       else if (strongIncompatible.has(catInsight.insightText)) polarity = "NEGATIVE";
-      
+
       if (!polarity) {
         const comparison = await prisma.insightComparison.upsert({
           where: {
