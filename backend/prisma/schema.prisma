@@ -112,5 +112,6 @@ model InsightComparisonPresentation {
   presentationTitle String
   conciseAText      String
   conciseBText      String
+  importance        Int
   insightComparison InsightComparison @relation(fields: [insightComparisonId], references: [id])
 }

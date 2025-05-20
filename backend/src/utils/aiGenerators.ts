@@ -648,6 +648,7 @@ ${insightB.insightText}`;
           presentationTitle: comparisonData.title,
           conciseAText: comparisonData.user_a,
           conciseBText: comparisonData.user_b,
+          importance: 5,
         }
       });
     }
@@ -1347,8 +1348,13 @@ export async function generateInsightComparisonPresentation(
   // At this point, overlap is STRONG, so we proceed to generate presentation details.
   const prompt = `We are building a database of information about users of a dating app. For a pair of insights that have a STRONG relationship, we need to generate presentation details.
 Provide a title to show as a header describing what links these insights. Also, provide maximally shortened versions of each insight for UI display.
+Additionally, rate the importance of this compatibility factor from 1-10, where:
+- 10 means it's a deal breaker/maker (e.g., core values, major life goals, fundamental lifestyle choices)
+- 5 means it's moderately important but compromise is possible
+- 1 means it's a minor preference that's easily adaptable (e.g., food cuisine preferences, minor hobbies)
+
 Output JSON in the following format:
-{"title":"Shared Hobby", "concise_insight_A":"Loves hiking", "concise_insight_B":"Enjoys outdoor trails"}
+{"title":"Shared Hobby", "concise_insight_A":"Loves hiking", "concise_insight_B":"Enjoys outdoor trails", "importance":7}
 
 User A Insight (corresponds to insightComparison.insightAId):
 ${insightA.insightText}
@@ -1367,9 +1373,10 @@ ${insightB.insightText}`;
         properties: {
           title: { type: "string" },
           concise_insight_A: { type: "string" },
-          concise_insight_B: { type: "string" }
+          concise_insight_B: { type: "string" },
+          importance: { type: "integer" }
         },
-        required: ["title", "concise_insight_A", "concise_insight_B"],
+        required: ["title", "concise_insight_A", "concise_insight_B", "importance"],
         additionalProperties: false
       }
     }
@@ -1388,6 +1395,7 @@ ${insightB.insightText}`;
       title: string;
       concise_insight_A: string;
       concise_insight_B: string;
+      importance: number;
     };
     if (!presentationData) {
       throw new Error("Parse error for presentation data");
@@ -1402,12 +1410,14 @@ ${insightB.insightText}`;
         presentationTitle: presentationData.title,
         conciseAText: presentationData.concise_insight_A,
         conciseBText: presentationData.concise_insight_B,
+        importance: presentationData.importance,
       },
       create: {
         insightComparisonId: insightComparisonToPresent.id,
         presentationTitle: presentationData.title,
         conciseAText: presentationData.concise_insight_A,
         conciseBText: presentationData.concise_insight_B,
+        importance: presentationData.importance,
       },
     });
 

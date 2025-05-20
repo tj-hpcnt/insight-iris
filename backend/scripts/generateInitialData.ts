@@ -244,7 +244,7 @@ async function main() {
                   totalUsage.completionTokens += usage.completion_tokens;
                   console.log(`Compared: ${comparison.insightAId} <-> ${comparison.insightBId} | ${comparison.polarity} ${comparison.overlap}`);
                   if (presentation) {
-                    console.log(`Presentation: ${presentation.presentationTitle}: ${presentation.conciseAText} <-> ${presentation.conciseBText}`);
+                    console.log(`Presentation: ${presentation.presentationTitle}: ${presentation.conciseAText} <-> ${presentation.conciseBText} (Importance: ${presentation.importance})`);
                   }
                 } catch (err) {
                   console.error(`Error generating presentation for comparison ${comparison.id}`, err);
