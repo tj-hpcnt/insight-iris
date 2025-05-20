@@ -8,8 +8,8 @@ import { processInParallel } from '../src/utils/parallelProcessor';
 dotenv.config();
 const prisma = new PrismaClient();
 const BATCH_COUNT = 10;
-const MINIMUM_BASE_INSIGHTS = 10
-const INSIGHT_INITAL_POOL_COUNT = 100
+const MINIMUM_BASE_INSIGHTS = 5
+const INSIGHT_INITAL_POOL_COUNT = 10
 
 async function main() {
   try {
@@ -107,7 +107,7 @@ async function main() {
             continue;
           }
           totalInsights = newTotalInsights;
-          const target = Math.max(10, Math.min(30, INSIGHT_INITAL_POOL_COUNT - totalInsights));
+          const target = Math.max(3, Math.min(30, INSIGHT_INITAL_POOL_COUNT - totalInsights));
           const [newInsights, isDone, usage] = await generateInspirationInsights(category, target);
           totalUsage.promptTokens += usage.prompt_tokens;
           totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
@@ -125,6 +125,7 @@ async function main() {
             }
           }
         }
+        totalInsights = await prisma.insight.count({ where: { categoryId: category.id, source: InsightSource.INSPIRATION } });
         console.log(`Reducing redundancy for category: ${category.insightSubject}`);
         const [deletedIds, usage] = await reduceRedundancy(category);
         totalUsage.promptTokens += usage.prompt_tokens;
@@ -189,12 +190,9 @@ async function main() {
 
     console.log('Generating insight comparisons for strong category overlaps (by relevant categories)...');
 
-    // Only consider INSPIRATION insights
-    const inspirationInsights = insights.filter(i => i.source === InsightSource.INSPIRATION);
-
     // Iterate over each inspiration insight
     await processInParallel<Insight, void>(
-      inspirationInsights,
+      answerInsights,
       async (insight) => {
         try {
           // Get relevant categories for this insight using AI
@@ -252,7 +250,7 @@ async function main() {
                   console.error(`Error generating presentation for comparison ${comparison.id}`, err);
                 }
               } else {
-                console.log(`Compared: ${comparison.insightAId} <-> ${comparison.insightBId} | ${comparison.polarity} ${comparison.overlap}`);
+                //console.log(`Compared: ${comparison.insightAId} <-> ${comparison.insightBId} | ${comparison.polarity} ${comparison.overlap}`);
               }
             }
           }

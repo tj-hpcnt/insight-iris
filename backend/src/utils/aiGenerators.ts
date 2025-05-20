@@ -823,7 +823,7 @@ export async function generateCategoryOverlapByRanking(
 Here are all categories in the system:
 ${categoryTreeStr}
 
-Please analyze the target category and identify which other categories have STRONG relationships that could imply compatibility or incompatibility between users. Output them in descending order of importance. Consider:
+Please analyze the target category and identify which other categories have STRONG relationships that could imply compatibility or incompatibility between users. Output them in descending order of importance. Make sure to generate the most important possible insights as trivial things are not helpful for matching.  Consider:
 - Will insights from these categories help as ice breakers if users knew each others' answers?
 - Do they imply compatibility for casual daily life?
 - Do they imply compatibility for long term plans?
