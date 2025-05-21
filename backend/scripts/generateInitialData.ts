@@ -159,10 +159,15 @@ async function main() {
           totalUsage.promptTokens += usage.prompt_tokens;
           totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
           totalUsage.completionTokens += usage.completion_tokens;
-          console.log(`Generated ${question.questionType} question for insight: ${insight.insightText}`);
-          console.log(`${question.questionText}`);
-          console.log(`${answers.map(a => a.answerText).join('|||')}`);
-          console.log(`${insights.map(i => i.insightText).join('|||')}`);
+          if (question) {
+            console.log(`Generated ${question.questionType} question for insight: ${insight.insightText}`);
+            console.log(`${question.questionText}`);
+            console.log(`${answers.map(a => a.answerText).join('|||')}`);
+            console.log(`${insights.map(i => i.insightText).join('|||')}`);
+          } else {
+            console.error(`No question generated for insight: ${insight.insightText}`);
+            //TODO: delete insight
+          }
         } catch (err) {
           console.error(`Error processing insight ID: ${insight.id}`, err);
         }

@@ -135,6 +135,29 @@ export async function generateBaseQuestion(
     throw new Error(`Category not found for insight ${insight.id}`);
   }
 
+  const categoryInsights = await prisma.insight.findMany({
+    where: {
+      categoryId: category.id,
+      source: InsightSource.ANSWER,
+    },
+    select: {
+      id: true, // We only need the IDs of these insights.
+    },
+  });
+  const insightIdsInCategory = categoryInsights.map(ci => ci.id);
+  const existingQuestionsRaw = await prisma.question.findMany({
+    where: {
+      inspirationId: {
+        in: insightIdsInCategory,
+      },
+    },
+    select: {
+      questionText: true, // Select only the questionText.
+    },
+  });
+  const questions = existingQuestionsRaw.map(q => ({ text: q.questionText }));
+
+
   const typeDescription = {
     [QuestionType.BINARY]: "a binary question (yes/no, true/false, agree/disagree)",
     [QuestionType.SINGLE_CHOICE]: "a single-choice question with multiple options",
@@ -143,9 +166,13 @@ export async function generateBaseQuestion(
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers.  We need to generate the fun questions to answer that can explore a potential insight 
 
-You must generate a great question to facilitate finding out if a particular insight is true of a user.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  If an insight could have parallel interesting insights, then prefer a single choice or multiple choice based answer instead of a binary statement.  When making a Yes or No / True / False type question, do not include the details in the answer. Output JSON only.  Format:
+You must generate a great question to facilitate finding out if a particular insight is true of a user.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  If an insight could have parallel interesting insights, then prefer a single choice or multiple choice based answer instead of a binary statement.  When making a Yes or No / True / False type question, do not include the details in the answer. Don't make new questions that are too similar to existing questions.  Output JSON only.  Format:
 
 {"question":"Which food do you love the most?","answers":["Pizza", "Steak", "Salad", "Noodles"], "insights":["I love pizza", "I love steak", "I love Salad", "I love Noodles"], "type":"MULTIPLE_CHOICE"}
+
+If you can't generate a unique question, then output:
+{"question":"","answers":[], "insights":[], "type":"DUPLICATE"}
+
 
 The allowed question types are:
 - BINARY: ${typeDescription[QuestionType.BINARY]}
@@ -159,7 +186,10 @@ Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
 The insight to query is:
-${insight.insightText}`;
+${insight.insightText}
+
+The existing questions for this category are:
+${questions.map(question => question.text).join('\n')}`;
 
   const model = "gpt-4.1";
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
@@ -188,7 +218,7 @@ ${insight.insightText}`;
           },
           type: {
             type: "string",
-            enum: ["BINARY", "SINGLE_CHOICE", "MULTIPLE_CHOICE"]
+            enum: ["BINARY", "SINGLE_CHOICE", "MULTIPLE_CHOICE", "DUPLICATE"]
           }
         },
         required: ["question", "answers", "insights", "type"],
@@ -205,6 +235,13 @@ ${insight.insightText}`;
     response_format: format,
   });
 
+  if ((completion.choices[0].message as any).parsed.type == "DUPLICATE") {
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+    return [null, null, null, completion.usage];
+  }
+
   try {
     const questionData = (completion.choices[0].message as any).parsed as {
       question: string;
@@ -212,6 +249,7 @@ ${insight.insightText}`;
       insights: string[];
       type: QuestionType;
     };
+
     if (!questionData) {
       throw new Error("Parse error");
     }
@@ -233,7 +271,7 @@ ${insight.insightText}`;
       const question = await tx.question.create({
         data: {
           questionText: questionData.question,
-          questionType: questionData.type,
+          questionType: questionData.type as QuestionType,
           inspirationId: insight.id,
         },
       });
@@ -694,7 +732,7 @@ Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
 Here are all the insights for this category:
-${insights.map((insight, index) => `${index + 1}. ${insight.insightText}`).join('\n')}
+${insights.map(insight => insight.insightText).join('\n')}
 
 Please analyze these insights and identify which ones are redundant (i.e., they convey essentially the same information or meaning). Output JSON only. Format:
 
