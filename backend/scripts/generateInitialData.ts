@@ -1,6 +1,6 @@
 import { PrismaClient, InsightSource, Category, Insight } from '../src/generated/prisma/core';
 import * as dotenv from 'dotenv';
-import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancyOfInspirations, generateCategoryOverlapByRanking, generateInsightCategoryOverlap, generateInsightComparisonPresentation, generateInsightCategoryComparisonByRanking } from '../src/utils/aiGenerators';
+import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancyOfInspirations, generateCategoryOverlapByRanking, generateInsightCategoryOverlap, generateInsightComparisonPresentation, generateInsightCategoryComparisonByRanking, reduceExactRedundancyForAnswers } from '../src/utils/aiGenerators';
 import { CATEGORIES } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
@@ -188,8 +188,14 @@ async function main() {
       },
       BATCH_COUNT
     );
+    
 
-    console.log('Reducing redundancy for ANSWER insights...');
+    console.log('Reducing redundancy for ANSWER insights exact matches...');
+    const exactRedundancyResult = await reduceExactRedundancyForAnswers();
+    for (const mergedInsight of exactRedundancyResult) {
+      console.log(`Merged insight: ${mergedInsight.oldInsight.insightText} -> ${mergedInsight.newInsight.insightText}`);
+    }
+    console.log('Reducing redundancy for ANSWER insights AI matches...');
     await processInParallel<Category, void>(
       categories,
       async (category) => {

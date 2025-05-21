@@ -853,105 +853,109 @@ Please analyze these insights and group together those that are equivalent. For 
     const insightsMap = new Map(insights.map(i => [i.insightText, i]));
     const mergedInsights: {oldInsight: Insight, newInsight: Insight}[] = [];
 
-    for (const group of redundancyData.equivalentInsightGroups) {
-      if (group.length < 2) { // If only one insight in a group, nothing to merge
-        continue;
-      }
-
-      const primaryInsightText = group[0];
-      const primaryInsight = insightsMap.get(primaryInsightText);
-
-      if (!primaryInsight) {
-        console.warn(`Primary insight text "${primaryInsightText}" not found in category ${category.id}. Skipping group.`);
-        continue;
-      }
-
-      const existingComparisons = await prisma.insightComparison.findMany({
-        where: {
-          OR: [{ insightAId: primaryInsight.id }, { insightBId: primaryInsight.id }],
-        },
-        select: {
-          insightAId: true,
-          insightBId: true
-        }
-      })
-      .then(comparisons => 
-        comparisons.map(comp => 
-          comp.insightAId === primaryInsight.id ? comp.insightBId : comp.insightAId
-        )
-      );
-      
-
-      for (let i = 1; i < group.length; i++) {
-        const redundantInsightText = group[i];
-        const redundantInsight = insightsMap.get(redundantInsightText);
-
-        if (!redundantInsight) {
-          console.warn(`Redundant insight text "${redundantInsightText}" not found in category ${category.id}. Skipping.`);
+    //wrap in a transaction
+    await prisma.$transaction(async (tx) => {
+      for (const group of redundancyData.equivalentInsightGroups) {
+        if (group.length < 2) { // If only one insight in a group, nothing to merge
           continue;
         }
 
-        if (redundantInsight.id === primaryInsight.id) {
-          console.warn(`Primary and redundant insight are the same for text "${primaryInsightText}". Skipping merge for this item.`);
+        const primaryInsightText = group[0];
+        const primaryInsight = insightsMap.get(primaryInsightText);
+
+        if (!primaryInsight) {
+          console.warn(`Primary insight text "${primaryInsightText}" not found in category ${category.id}. Skipping group.`);
           continue;
         }
 
-        // Relink Answer records
-        await prisma.answer.updateMany({
-          where: { insightId: redundantInsight.id },
-          data: { insightId: primaryInsight.id },
-        });
-
-        // Fetch all InsightComparison records involving the redundantInsight
-        const comparisonsToRelink = await prisma.insightComparison.findMany({
+        const existingComparisons = await tx.insightComparison.findMany({
           where: {
-            OR: [
-              { insightAId: redundantInsight.id },
-              { insightBId: redundantInsight.id },
-            ],
+            OR: [{ insightAId: primaryInsight.id }, { insightBId: primaryInsight.id }],
           },
-        });
-
-        for (const comp of comparisonsToRelink) {
-          const originalCompId = comp.id;
-          let newAId = comp.insightAId;
-          let newBId = comp.insightBId;
-
-          if (comp.insightAId === redundantInsight.id) {
-            newAId = primaryInsight.id;
+          select: {
+            insightAId: true,
+            insightBId: true
           }
-          if (comp.insightBId === redundantInsight.id) { 
-            newBId = primaryInsight.id;
-          }
-          newAId = Math.min(newAId, newBId);
-          newBId = Math.max(newAId, newBId);
+        })
+        .then(comparisons => 
+          comparisons.map(comp => 
+            comp.insightAId === primaryInsight.id ? comp.insightBId : comp.insightAId
+          )
+        );
+        
 
-          const newId = newAId === primaryInsight.id ? newBId : newAId;
+        for (let i = 1; i < group.length; i++) {
+          const redundantInsightText = group[i];
+          const redundantInsight = insightsMap.get(redundantInsightText);
 
-          if (existingComparisons.includes(newId)) {
-            // If the new id is already in the existing comparisons, we need to delete the comparison
-            await prisma.insightComparison.delete({ where: { id: originalCompId } });
+          if (!redundantInsight) {
+            console.warn(`Redundant insight text "${redundantInsightText}" not found in category ${category.id}. Skipping.`);
             continue;
           }
 
-          try {
-            await prisma.insightComparison.update({
-              where: { id: originalCompId },
-              data: { insightAId: newAId, insightBId: newBId },
-            });
-          } catch (e) {
-              console.error(`Error updating InsightComparison (ID: ${originalCompId}) from (A:${comp.insightAId}, B:${comp.insightBId}) to (A:${newAId}, B:${newBId}):`, e);
+          if (redundantInsight.id === primaryInsight.id) {
+            console.warn(`Primary and redundant insight are the same for text "${primaryInsightText}". Skipping merge for this item.`);
+            continue;
           }
-        }
 
-        // Delete the redundant insight
-        await prisma.insight.delete({
-          where: { id: redundantInsight.id },
-        });
-        mergedInsights.push({oldInsight: redundantInsight, newInsight: primaryInsight});
-        console.log(`Merged insight "${redundantInsight.insightText}" (ID: ${redundantInsight.id}) into "${primaryInsight.insightText}" (ID: ${primaryInsight.id}) in category ${category.insightSubject}`);
+          // Relink Answer records
+          await tx.answer.updateMany({
+            where: { insightId: redundantInsight.id },
+            data: { insightId: primaryInsight.id },
+          });
+
+          // Fetch all InsightComparison records involving the redundantInsight
+          const comparisonsToRelink = await tx.insightComparison.findMany({
+            where: {
+              OR: [
+                { insightAId: redundantInsight.id },
+                { insightBId: redundantInsight.id },
+              ],
+            },
+          });
+
+          for (const comp of comparisonsToRelink) {
+            const originalCompId = comp.id;
+            let newAId = comp.insightAId;
+            let newBId = comp.insightBId;
+
+            if (comp.insightAId === redundantInsight.id) {
+              newAId = primaryInsight.id;
+            }
+            if (comp.insightBId === redundantInsight.id) { 
+              newBId = primaryInsight.id;
+            }
+            newAId = Math.min(newAId, newBId);
+            newBId = Math.max(newAId, newBId);
+
+            const newId = newAId === primaryInsight.id ? newBId : newAId;
+
+            if (existingComparisons.includes(newId)) {
+              // If the new id is already in the existing comparisons, we need to delete the comparison
+              await tx.insightComparisonPresentation.deleteMany({ where: { insightComparisonId: originalCompId } });
+              await tx.insightComparison.delete({ where: { id: originalCompId } });
+              continue;
+            }
+
+            try {
+              await tx.insightComparison.update({
+                where: { id: originalCompId },
+                data: { insightAId: newAId, insightBId: newBId },
+              });
+            } catch (e) {
+                console.error(`Error updating InsightComparison (ID: ${originalCompId}) from (A:${comp.insightAId}, B:${comp.insightBId}) to (A:${newAId}, B:${newBId}):`, e);
+            }
+          }
+
+          // Delete the redundant insight
+          await tx.insight.delete({
+            where: { id: redundantInsight.id },
+          });
+          mergedInsights.push({oldInsight: redundantInsight, newInsight: primaryInsight});
+          console.log(`Merged insight "${redundantInsight.insightText}" (ID: ${redundantInsight.id}) into "${primaryInsight.insightText}" (ID: ${primaryInsight.id}) in category ${category.insightSubject}`);
+        }
       }
-    }
+    });
 
     // o3 costs 5x more than gpt-4.1
     const usage = {
@@ -1634,4 +1638,148 @@ ${insightB.insightText}`;
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
+}
+
+/**
+ * Reduces redundancy in ANSWER insights by identifying and merging insights.
+ * It identifies groups of insights with identical insightText, keeps one as primary,
+ * relinks Answer and InsightComparison records from redundant insights to the primary one,
+ * and then deletes the redundant insights. This version does not use AI and operates globally.
+ * @returns Array of objects detailing each merge, with oldInsight and newInsight.
+ */
+export async function reduceExactRedundancyForAnswers(): Promise<{oldInsight: Insight, newInsight: Insight}[]> {
+  // 1. Fetch ALL Answer insights (no category filter), ordered by ID to consistently pick a primary.
+  const allAnswerInsights = await prisma.insight.findMany({
+    where: {
+      source: InsightSource.ANSWER,
+    },
+    orderBy: {
+      id: 'asc',
+    }
+  });
+
+  if (allAnswerInsights.length <= 1) {
+    return [];
+  }
+
+  // 2. Group insights by insightText
+  const insightsByText = new Map<string, Insight[]>();
+  for (const insight of allAnswerInsights) {
+    if (!insightsByText.has(insight.insightText)) {
+      insightsByText.set(insight.insightText, []);
+    }
+    insightsByText.get(insight.insightText)!.push(insight);
+  }
+
+  const mergedInsightsInfo: {oldInsight: Insight, newInsight: Insight}[] = [];
+
+  await prisma.$transaction(async (tx) => {
+    for (const [_text, group] of insightsByText) {
+      if (group.length < 2) {
+        continue; // No redundancy in this group
+      }
+
+      // The first insight in the group is the primary (due to orderBy id: 'asc')
+      const primaryInsight = group[0];
+
+      // Create a set to track IDs of insights already compared with the current primaryInsight.
+      // This set is populated initially and updated as redundant insights in THIS group are processed.
+      const peersOfPrimary = new Set<number>();
+      const initialPrimaryComparisons = await tx.insightComparison.findMany({
+        where: {
+          OR: [{ insightAId: primaryInsight.id }, { insightBId: primaryInsight.id }],
+        },
+        select: { insightAId: true, insightBId: true }
+      });
+      initialPrimaryComparisons.forEach(comp => {
+        peersOfPrimary.add(comp.insightAId === primaryInsight.id ? comp.insightBId : comp.insightAId);
+      });
+
+      // Iterate over redundant insights in the current group
+      for (let i = 1; i < group.length; i++) {
+        const redundantInsight = group[i];
+
+        // Should not happen given unique IDs and group[0] being primary, but as a safeguard:
+        if (redundantInsight.id === primaryInsight.id) {
+            console.warn(`Primary and redundant insight are the same (ID: ${primaryInsight.id}, Text: "${primaryInsight.insightText}"). Skipping merge for this item.`);
+            continue;
+        }
+
+        // Relink Answer records from redundantInsight to primaryInsight
+        await tx.answer.updateMany({
+          where: { insightId: redundantInsight.id },
+          data: { insightId: primaryInsight.id },
+        });
+
+        // Handle InsightComparison records involving the redundantInsight
+        const comparisonsToRelink = await tx.insightComparison.findMany({
+          where: {
+            OR: [
+              { insightAId: redundantInsight.id },
+              { insightBId: redundantInsight.id },
+            ],
+          },
+        });
+
+        for (const comp of comparisonsToRelink) {
+          const originalCompId = comp.id;
+          let otherInsightInOriginalPair: number;
+
+          if (comp.insightAId === redundantInsight.id) {
+            otherInsightInOriginalPair = comp.insightBId;
+          } else { // comp.insightBId must be redundantInsight.id
+            otherInsightInOriginalPair = comp.insightAId;
+          }
+
+          // Case 1: Redundant insight was compared with the primary insight itself.
+          // After relinking, this would become (primary, primary), which is invalid. So, delete.
+          if (otherInsightInOriginalPair === primaryInsight.id) {
+            await tx.insightComparisonPresentation.deleteMany({ where: { insightComparisonId: originalCompId } });
+            await tx.insightComparison.delete({ where: { id: originalCompId } });
+            continue;
+          }
+
+          // Case 2: The new pair (primaryInsight, otherInsightInOriginalPair) already exists (i.e., primary is already linked to other).
+          // This means the current `comp` (which was (redundant, other)) becomes a duplicate. So, delete.
+          if (peersOfPrimary.has(otherInsightInOriginalPair)) {
+            await tx.insightComparisonPresentation.deleteMany({ where: { insightComparisonId: originalCompId } });
+            await tx.insightComparison.delete({ where: { id: originalCompId } });
+            continue;
+          }
+
+          // Case 3: This is a potentially new, valid pair: (primaryInsight, otherInsightInOriginalPair).
+          // Update the current comparison `comp` to use primaryInsight, ensuring sorted IDs.
+          const finalNewAId = Math.min(primaryInsight.id, otherInsightInOriginalPair);
+          const finalNewBId = Math.max(primaryInsight.id, otherInsightInOriginalPair);
+
+          try {
+            await tx.insightComparison.update({
+              where: { id: originalCompId },
+              data: { insightAId: finalNewAId, insightBId: finalNewBId },
+            });
+            // Successfully updated. Add `otherInsightInOriginalPair` to `peersOfPrimary`
+            // to correctly handle subsequent redundant insights in THIS group that might also point to it.
+            peersOfPrimary.add(otherInsightInOriginalPair);
+          } catch (e: any) {
+            console.error(`Error updating InsightComparison (ID: ${originalCompId}) from (A:${comp.insightAId}, B:${comp.insightBId}) to (A:${finalNewAId}, B:${finalNewBId}). Redundant ID: ${redundantInsight.id}, Primary ID: ${primaryInsight.id}:`, e);
+            throw e; // Rethrow if it's not a unique constraint error we can recover from by deleting.
+          }
+        }
+
+        // Delete the redundant insight itself
+        await tx.insight.delete({
+          where: { id: redundantInsight.id },
+        });
+        mergedInsightsInfo.push({oldInsight: redundantInsight, newInsight: primaryInsight});
+        console.log(`Exactly merged insight (ID: ${redundantInsight.id}) "${redundantInsight.insightText}" into (ID: ${primaryInsight.id}) "${primaryInsight.insightText}"`);
+      }
+    }
+  },
+  {
+    maxWait: 10000, // default 2000
+    timeout: 20000, // default 5000
+  }
+  ); // End of transaction
+
+  return mergedInsightsInfo;
 } 
