@@ -874,7 +874,8 @@ Please analyze these insights and group together those that are equivalent. For 
           insightAId: true,
           insightBId: true
         }
-      }).then(comparisons => 
+      })
+      .then(comparisons => 
         comparisons.map(comp => 
           comp.insightAId === primaryInsight.id ? comp.insightBId : comp.insightAId
         )

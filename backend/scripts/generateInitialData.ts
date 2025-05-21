@@ -171,7 +171,7 @@ async function main() {
     );
 
     console.log('Reassigning category for inspiration insights...');
-    const answerInsights = await prisma.insight.findMany({ where: { source: InsightSource.ANSWER } });
+    let answerInsights = await prisma.insight.findMany({ where: { source: InsightSource.ANSWER } });
 
     await processInParallel<Insight, void>(
       answerInsights,
@@ -209,7 +209,7 @@ async function main() {
 
     console.log('Generating insight comparisons for strong category overlaps (by relevant categories)...');
 
-    // Iterate over each inspiration insight
+    answerInsights = await prisma.insight.findMany({ where: { source: InsightSource.ANSWER } });
     await processInParallel<Insight, void>(
       answerInsights,
       async (insight) => {
