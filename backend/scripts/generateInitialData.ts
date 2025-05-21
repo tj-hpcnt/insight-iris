@@ -1,9 +1,10 @@
 import { PrismaClient, InsightSource, Category, Insight } from '../src/generated/prisma/core';
 import * as dotenv from 'dotenv';
-import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancy, generateCategoryOverlapByRanking, generateInsightCategoryOverlap, generateInsightComparisonPresentation, generateInsightCategoryComparisonByRanking } from '../src/utils/aiGenerators';
+import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancyOfInspirations, generateCategoryOverlapByRanking, generateInsightCategoryOverlap, generateInsightComparisonPresentation, generateInsightCategoryComparisonByRanking } from '../src/utils/aiGenerators';
 import { CATEGORIES } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
+import { reduceRedundancyForAnswers } from '../src/utils/aiGenerators';
 
 dotenv.config();
 const prisma = new PrismaClient();
@@ -127,7 +128,7 @@ async function main() {
         }
         totalInsights = await prisma.insight.count({ where: { categoryId: category.id, source: InsightSource.INSPIRATION } });
         console.log(`Reducing redundancy for category: ${category.insightSubject}`);
-        const [deletedIds, usage] = await reduceRedundancy(category);
+        const [deletedIds, usage] = await reduceRedundancyOfInspirations(category);
         totalUsage.promptTokens += usage.prompt_tokens;
         totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
         totalUsage.completionTokens += usage.completion_tokens;
@@ -184,6 +185,24 @@ async function main() {
         totalUsage.promptTokens += usage.prompt_tokens;
         totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
         totalUsage.completionTokens += usage.completion_tokens;
+      },
+      BATCH_COUNT
+    );
+
+    console.log('Reducing redundancy for ANSWER insights...');
+    await processInParallel<Category, void>(
+      categories,
+      async (category) => {
+        const result = await reduceRedundancyForAnswers(category);
+        if (result) {
+          const [mergedInsights, usage] = result;
+          totalUsage.promptTokens += usage.prompt_tokens;
+          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+          totalUsage.completionTokens += usage.completion_tokens;
+          for (const mergedInsight of mergedInsights) {
+            console.log(`Merged insight: ${mergedInsight.oldInsight.insightText} -> ${mergedInsight.newInsight.insightText}`);
+          }
+        }
       },
       BATCH_COUNT
     );

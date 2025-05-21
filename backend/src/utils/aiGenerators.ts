@@ -670,7 +670,7 @@ ${insightB.insightText}`;
  * @param category The category to reduce redundancy in
  * @returns Tuple containing array of deleted insight IDs and token usage statistics
  */
-export async function reduceRedundancy(
+export async function reduceRedundancyOfInspirations(
   category: Category
 ): Promise<[number[], OpenAI.Completions.CompletionUsage] | null> {
   // Get all inspiration insights for this category
@@ -764,6 +764,207 @@ Please analyze these insights and identify which ones are redundant (i.e., they 
 
   } catch (error) {
     console.error('Error reducing redundancy:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
+}
+
+/**
+ * Reduces redundancy in ANSWER insights for a given category by identifying and merging equivalent insights.
+ * It identifies groups of equivalent insights, keeps the clearest one,
+ * relinks Answer records from redundant insights to the primary one, and then deletes the redundant insights.
+ * @param category The category to reduce redundancy in
+ * @returns Tuple containing array of deleted insight IDs and token usage statistics
+ */
+export async function reduceRedundancyForAnswers(
+  category: Category
+): Promise<[{oldInsight: Insight, newInsight: Insight}[], OpenAI.Completions.CompletionUsage] | null> {
+  // Get all ANSWER insights for this category
+  const insights = await prisma.insight.findMany({
+    where: {
+      categoryId: category.id,
+      source: InsightSource.ANSWER,
+    },
+  });
+
+  if (insights.length <= 1) {
+    return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
+  }
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and merge equivalent insights within a category that essentially convey the same information.
+
+Category Classification:
+Category: ${category.category}
+Topic: ${category.topicHeader}
+Subcategory: ${category.subcategory}
+Subject: ${category.insightSubject}
+
+Here are all the ANSWER insights for this category:
+${insights.map((insight) => `"${insight.insightText}"`).join('\n')}
+
+Please analyze these insights and group together those that are equivalent. For each group, the first insight in the list should be the clearest or most preferred representation. Don't output single insights, only groups. Output JSON only. Format:
+
+{"equivalentInsightGroups": [["I love Italian food", "I enjoy pasta dishes", "Italian cuisine is my favorite"], ["I dislike sports", "I'm not a sports fan"]]}`;
+
+  const model = "o3"; // Using o3 as it's good for classification and structuring
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "equivalent_answer_insights",
+      schema: {
+        type: "object",
+        properties: {
+          equivalentInsightGroups: {
+            type: "array",
+            items: {
+              type: "array",
+              items: {
+                type: "string",
+                // Ensure the LLM only outputs insights that actually exist in this category
+                enum: insights.map(insight => insight.insightText)
+              },
+            }
+          }
+        },
+        required: ["equivalentInsightGroups"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Skip cache as this process should always use the latest set of insights
+  const completion = await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const redundancyData = (completion.choices[0].message as any).parsed as {
+      equivalentInsightGroups: string[][];
+    };
+    if (!redundancyData || !redundancyData.equivalentInsightGroups) {
+      console.error("Parse error or no equivalentInsightGroups in response:", redundancyData);
+      throw new Error("Parse error or malformed response for equivalent insights");
+    }
+
+    const insightsMap = new Map(insights.map(i => [i.insightText, i]));
+    const mergedInsights: {oldInsight: Insight, newInsight: Insight}[] = [];
+
+    for (const group of redundancyData.equivalentInsightGroups) {
+      if (group.length < 2) { // If only one insight in a group, nothing to merge
+        continue;
+      }
+
+      const primaryInsightText = group[0];
+      const primaryInsight = insightsMap.get(primaryInsightText);
+
+      if (!primaryInsight) {
+        console.warn(`Primary insight text "${primaryInsightText}" not found in category ${category.id}. Skipping group.`);
+        continue;
+      }
+
+      const existingComparisons = await prisma.insightComparison.findMany({
+        where: {
+          OR: [{ insightAId: primaryInsight.id }, { insightBId: primaryInsight.id }],
+        },
+        select: {
+          insightAId: true,
+          insightBId: true
+        }
+      }).then(comparisons => 
+        comparisons.map(comp => 
+          comp.insightAId === primaryInsight.id ? comp.insightBId : comp.insightAId
+        )
+      );
+      
+
+      for (let i = 1; i < group.length; i++) {
+        const redundantInsightText = group[i];
+        const redundantInsight = insightsMap.get(redundantInsightText);
+
+        if (!redundantInsight) {
+          console.warn(`Redundant insight text "${redundantInsightText}" not found in category ${category.id}. Skipping.`);
+          continue;
+        }
+
+        if (redundantInsight.id === primaryInsight.id) {
+          console.warn(`Primary and redundant insight are the same for text "${primaryInsightText}". Skipping merge for this item.`);
+          continue;
+        }
+
+        // Relink Answer records
+        await prisma.answer.updateMany({
+          where: { insightId: redundantInsight.id },
+          data: { insightId: primaryInsight.id },
+        });
+
+        // Fetch all InsightComparison records involving the redundantInsight
+        const comparisonsToRelink = await prisma.insightComparison.findMany({
+          where: {
+            OR: [
+              { insightAId: redundantInsight.id },
+              { insightBId: redundantInsight.id },
+            ],
+          },
+        });
+
+        for (const comp of comparisonsToRelink) {
+          const originalCompId = comp.id;
+          let newAId = comp.insightAId;
+          let newBId = comp.insightBId;
+
+          if (comp.insightAId === redundantInsight.id) {
+            newAId = primaryInsight.id;
+          }
+          if (comp.insightBId === redundantInsight.id) { 
+            newBId = primaryInsight.id;
+          }
+          newAId = Math.min(newAId, newBId);
+          newBId = Math.max(newAId, newBId);
+
+          const newId = newAId === primaryInsight.id ? newBId : newAId;
+
+          if (existingComparisons.includes(newId)) {
+            // If the new id is already in the existing comparisons, we need to delete the comparison
+            await prisma.insightComparison.delete({ where: { id: originalCompId } });
+            continue;
+          }
+
+          try {
+            await prisma.insightComparison.update({
+              where: { id: originalCompId },
+              data: { insightAId: newAId, insightBId: newBId },
+            });
+          } catch (e) {
+              console.error(`Error updating InsightComparison (ID: ${originalCompId}) from (A:${comp.insightAId}, B:${comp.insightBId}) to (A:${newAId}, B:${newBId}):`, e);
+          }
+        }
+
+        // Delete the redundant insight
+        await prisma.insight.delete({
+          where: { id: redundantInsight.id },
+        });
+        mergedInsights.push({oldInsight: redundantInsight, newInsight: primaryInsight});
+        console.log(`Merged insight "${redundantInsight.insightText}" (ID: ${redundantInsight.id}) into "${primaryInsight.insightText}" (ID: ${primaryInsight.id}) in category ${category.insightSubject}`);
+      }
+    }
+
+    // o3 costs 5x more than gpt-4.1
+    const usage = {
+      prompt_tokens: (completion.usage?.prompt_tokens || 0) * 5,
+      completion_tokens: (completion.usage?.completion_tokens || 0) * 5,
+      prompt_tokens_details: { // Assuming prompt_tokens_details might be null
+        cached_tokens: (completion.usage?.prompt_tokens_details?.cached_tokens || 0) * 5,
+      }
+    } as OpenAI.Completions.CompletionUsage;
+
+    return [mergedInsights, usage];
+
+  } catch (error) {
+    console.error(`Error reducing redundancy for ANSWER insights in category ${category.insightSubject}:`, error);
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
