@@ -925,8 +925,7 @@ Please analyze these insights and group together those that are equivalent. For 
             if (comp.insightBId === redundantInsight.id) { 
               newBId = primaryInsight.id;
             }
-            newAId = Math.min(newAId, newBId);
-            newBId = Math.max(newAId, newBId);
+            [newAId, newBId] = [Math.min(newAId, newBId), Math.max(newAId, newBId)];
 
             const newId = newAId === primaryInsight.id ? newBId : newAId;
 
