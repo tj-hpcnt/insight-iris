@@ -174,129 +174,125 @@ def main():
     # Extract text embeddings from insights, using only the first 256 elements
     text_embeddings = np.array([ins['embedding'][:] for ins in insights if 'embedding' in ins])
     if text_embeddings.shape[0] != N:
-        print(f"Warning: Number of embeddings ({text_embeddings.shape[0]}) does not match number of insights ({N}). Skipping regression.")
-    else:
-        # Latent representations from SVD (W is of shape (K, N), so transpose to (N, K))
-        latent_representations = W.T  # Shape (N, K)
+        raise ValueError(f"Number of embeddings ({text_embeddings.shape[0]}) does not match number of insights ({N}).")
+    # Latent representations from SVD (W is of shape (K, N), so transpose to (N, K))
+    latent_representations = W.T  # Shape (N, K)
 
-        # Split data into training and testing sets
-        X_train, X_test, y_train, y_test = train_test_split(text_embeddings, latent_representations, test_size=0.2, random_state=42)
+    # Split data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(text_embeddings, latent_representations, test_size=0.2, random_state=42)
 
-        # Fit Ridge Regression model
-        ridge_model = Ridge(alpha=1.0)
-        ridge_model.fit(X_train, y_train)
+    # Fit Ridge Regression model
+    ridge_model = Ridge(alpha=1.0)
+    ridge_model.fit(X_train, y_train)
 
-        # Compute scaling factor using training set predictions
-        y_train_pred = ridge_model.predict(X_train)
-        train_predictions = []
-        for i in range(len(X_train)):
-            for j in range(i + 1, len(X_train)):
-                pred_importance = np.dot(y_train_pred[i], y_train_pred[j])
-                train_predictions.append(pred_importance)
-        train_predictions = np.array(train_predictions)
-        max_abs_pred = np.max(np.abs(train_predictions)) if len(train_predictions) > 0 else 1.0
-        scaling_factor = 10.0 / max_abs_pred if max_abs_pred > 0 else 1.0
-        summary.update({
-            'ridge_scaling_factor': scaling_factor
+    # Compute scaling factor using training set predictions
+    y_train_pred = ridge_model.predict(X_train)
+    train_predictions = []
+    for i in range(len(X_train)):
+        for j in range(i + 1, len(X_train)):
+            pred_importance = np.dot(y_train_pred[i], y_train_pred[j])
+            train_predictions.append(pred_importance)
+    train_predictions = np.array(train_predictions)
+    max_abs_pred = np.max(np.abs(train_predictions)) if len(train_predictions) > 0 else 1.0
+    scaling_factor = 10.0 / max_abs_pred if max_abs_pred > 0 else 1.0
+    summary.update({
+        'ridge_scaling_factor': scaling_factor
+    })
+
+    # Predict on test set
+    y_pred = ridge_model.predict(X_test)
+
+    # Calculate prediction quality metrics
+    mse_latent = mean_squared_error(y_test, y_pred)
+    mae_latent = mean_absolute_error(y_test, y_pred)
+    correlation_latent = np.corrcoef(y_pred.flatten(), y_test.flatten())[0, 1] if len(y_pred) > 1 else 0
+
+    # Update summary with regression stats
+    summary.update({
+        'text_to_latent_mse': mse_latent,
+        'text_to_latent_mae': mae_latent,
+        'text_to_latent_correlation': correlation_latent
+    })
+
+    # Compute predictions for normal comparisons using Ridge model
+    ridge_predictions = []
+    ridge_actuals = []
+    ridge_comparison_details = []
+    for comp in comparisons:
+        a = comp['insightAId']
+        b = comp['insightBId']
+        importance = comp.get('importance', 0)
+        polarity = comp.get('polarity', 1)
+        idx_a = id_to_idx[a]
+        idx_b = id_to_idx[b]
+        insight_a_text = next((ins['insightText'] for ins in insights if ins['id'] == a), 'Unknown')
+        insight_b_text = next((ins['insightText'] for ins in insights if ins['id'] == b), 'Unknown')
+        # Get text embeddings for a and b
+        emb_a = text_embeddings[idx_a]
+        emb_b = text_embeddings[idx_b]
+        # Predict latent representations using Ridge model
+        latent_a = ridge_model.predict([emb_a])[0]
+        latent_b = ridge_model.predict([emb_b])[0]
+        # Compute dot product as predicted importance
+        pred_importance = np.dot(latent_a, latent_b) * scaling_factor
+        ridge_predictions.append(pred_importance)
+        ridge_actuals.append(importance * polarity)
+        ridge_comparison_details.append({
+            'insightA': insight_a_text,
+            'insightB': insight_b_text,
+            'original_importance': importance * polarity,
+            'predicted_importance': pred_importance
         })
 
-        # Predict on test set
-        y_pred = ridge_model.predict(X_test)
+    # Calculate accuracy statistics for Ridge normal comparisons
+    ridge_predictions = np.array(ridge_predictions)
+    ridge_actuals = np.array(ridge_actuals)
+    ridge_mse = np.mean((ridge_predictions - ridge_actuals) ** 2)
+    ridge_mae = np.mean(np.abs(ridge_predictions - ridge_actuals))
+    ridge_correlation = np.corrcoef(ridge_predictions, ridge_actuals)[0, 1] if len(ridge_predictions) > 1 else 0
 
-        # Calculate prediction quality metrics
-        mse_latent = mean_squared_error(y_test, y_pred)
-        mae_latent = mean_absolute_error(y_test, y_pred)
-        correlation_latent = np.corrcoef(y_pred.flatten(), y_test.flatten())[0, 1] if len(y_pred) > 1 else 0
+    # Update summary with Ridge stats
+    summary.update({
+        'ridge_prediction_mse': ridge_mse,
+        'ridge_prediction_mae': ridge_mae,
+        'ridge_prediction_correlation': ridge_correlation
+    })
 
-        # Update summary with regression stats
-        summary.update({
-            'text_to_latent_mse': mse_latent,
-            'text_to_latent_mae': mae_latent,
-            'text_to_latent_correlation': correlation_latent
-        })
+    # Update regression stats
+    regression_stats = {
+        'text_embedding_dimension': len(text_embeddings[0]),
+        'latent_dimension': args.dimension,
+        'num_insights_with_embeddings': text_embeddings.shape[0],
+        'mse': mse_latent,
+        'mae': mae_latent,
+        'correlation': correlation_latent,
+        'normal_mse': ridge_mse,
+        'normal_mae': ridge_mae,
+        'normal_correlation': ridge_correlation,
+        'zero_mse': zero_mse,
+        'zero_mae': zero_mae,
+        'zero_correlation': zero_correlation
+    }
 
-        # Compute predictions for normal comparisons using Ridge model
-        ridge_predictions = []
-        ridge_actuals = []
-        ridge_comparison_details = []
-        for comp in comparisons:
-            a = comp['insightAId']
-            b = comp['insightBId']
-            importance = comp.get('importance', 0)
-            polarity = comp.get('polarity', 1)
-            idx_a = id_to_idx[a]
-            idx_b = id_to_idx[b]
-            insight_a_text = next((ins['insightText'] for ins in insights if ins['id'] == a), 'Unknown')
-            insight_b_text = next((ins['insightText'] for ins in insights if ins['id'] == b), 'Unknown')
-            # Get text embeddings for a and b
-            emb_a = text_embeddings[idx_a]
-            emb_b = text_embeddings[idx_b]
-            # Predict latent representations using Ridge model
-            latent_a = ridge_model.predict([emb_a])[0]
-            latent_b = ridge_model.predict([emb_b])[0]
-            # Compute dot product as predicted importance
-            pred_importance = np.dot(latent_a, latent_b) * scaling_factor
-            ridge_predictions.append(pred_importance)
-            ridge_actuals.append(importance * polarity)
-            ridge_comparison_details.append({
-                'insightA': insight_a_text,
-                'insightB': insight_b_text,
-                'original_importance': importance * polarity,
-                'predicted_importance': pred_importance
-            })
+    # Save the ridge regression metrics to a separate file
+    regression_stats_path = os.path.join(args.data_dir, 'text_to_latent_regression_stats.json')
+    with open(regression_stats_path, 'w') as f:
+        json.dump(regression_stats, f, indent=2)
 
-        # Calculate accuracy statistics for Ridge normal comparisons
-        ridge_predictions = np.array(ridge_predictions)
-        ridge_actuals = np.array(ridge_actuals)
-        ridge_mse = np.mean((ridge_predictions - ridge_actuals) ** 2)
-        ridge_mae = np.mean(np.abs(ridge_predictions - ridge_actuals))
-        ridge_correlation = np.corrcoef(ridge_predictions, ridge_actuals)[0, 1] if len(ridge_predictions) > 1 else 0
-
-        # Update summary with Ridge stats
-        summary.update({
-            'ridge_prediction_mse': ridge_mse,
-            'ridge_prediction_mae': ridge_mae,
-            'ridge_prediction_correlation': ridge_correlation
-        })
-
-        # Update regression stats
-        regression_stats = {
-            'text_embedding_dimension': len(text_embeddings[0]),
-            'latent_dimension': args.dimension,
-            'num_insights_with_embeddings': text_embeddings.shape[0],
-            'mse': mse_latent,
-            'mae': mae_latent,
-            'correlation': correlation_latent,
-            'normal_mse': ridge_mse,
-            'normal_mae': ridge_mae,
-            'normal_correlation': ridge_correlation,
-            'zero_mse': zero_mse,
-            'zero_mae': zero_mae,
-            'zero_correlation': zero_correlation
-        }
-
-        # Save the ridge regression metrics to a separate file
-        regression_stats_path = os.path.join(args.data_dir, 'text_to_latent_regression_stats.json')
-        with open(regression_stats_path, 'w') as f:
-            json.dump(regression_stats, f, indent=2)
-
-        # Sort comparison details by absolute difference between predicted and actual
-        for detail in comparison_details:
-            detail['abs_diff'] = abs(detail['predicted_importance'] - detail['original_importance'])
-        comparison_details.sort(key=lambda x: x['abs_diff'], reverse=True)
-        
-        # Similarly sort zero comparison details
-        for detail in zero_comparison_details:
-            detail['abs_diff'] = abs(detail['predicted_importance'] - detail['original_importance'])
-        zero_comparison_details.sort(key=lambda x: x['abs_diff'], reverse=True)
-        
-        # Also sort ridge comparison details if they exist
-        if 'ridge_comparison_details' in locals():
-            for detail in ridge_comparison_details:
-                detail['abs_diff'] = abs(detail['predicted_importance'] - detail['original_importance'])
-            ridge_comparison_details.sort(key=lambda x: x['abs_diff'], reverse=True)
-
-        print(f"Text to latent regression stats written to {regression_stats_path}")
+    # Sort comparison details by absolute difference between predicted and actual
+    for detail in comparison_details:
+        detail['abs_diff'] = abs(detail['predicted_importance'] - detail['original_importance'])
+    comparison_details.sort(key=lambda x: x['abs_diff'])
+    
+    # Similarly sort zero comparison details
+    for detail in zero_comparison_details:
+        detail['abs_diff'] = abs(detail['predicted_importance'] - detail['original_importance'])
+    zero_comparison_details.sort(key=lambda x: x['abs_diff'])
+    
+    # Also sort ridge comparison details if they exist
+    for detail in ridge_comparison_details:
+        detail['abs_diff'] = abs(detail['predicted_importance'] - detail['original_importance'])
+    ridge_comparison_details.sort(key=lambda x: x['abs_diff'])
 
     # Prepare output file paths
     data_dir = args.data_dir
@@ -305,6 +301,7 @@ def main():
     summary_path = os.path.join(data_dir, 'embedding_summary.json')
     details_path = os.path.join(data_dir, 'comparison_details.json')
     zero_details_path = os.path.join(data_dir, 'zero_comparison_details.json')
+    ridge_details_path = os.path.join(data_dir, 'ridge_comparison_details.json')
 
     # Write embedding matrix
     with open(emb_path, 'w') as f:
@@ -330,6 +327,10 @@ def main():
     # Write zero comparison details
     with open(zero_details_path, 'w') as f:
         json.dump(zero_comparison_details, f, indent=2)
+
+    # Write ridge comparison details
+    with open(ridge_details_path, 'w') as f:
+        json.dump(ridge_comparison_details, f, indent=2)
 
     print(f"Embedding matrix written to {emb_path}")
     print(f"Stats written to {stats_path}")
