@@ -7,12 +7,12 @@ async function main() {
   try {
     // compute a unique timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const baseDir = path.join(process.cwd(), 'generated', 'embedding', timestamp);
+    const baseDir = path.join(process.cwd(), 'src', 'generated', 'embedding', timestamp);
     fs.mkdirSync(baseDir, { recursive: true });
 
     // Fetch all inspiration insights
     const insights = await prisma.insight.findMany({
-      where: { source: InsightSource.INSPIRATION },
+      where: { source: InsightSource.ANSWER },
       include: { category: true },
     });
 
@@ -22,6 +22,7 @@ async function main() {
       topic: ins.category.topicHeader,
       subcategory: ins.category.subcategory,
       insightSubject: ins.category.insightSubject,
+      insightText: ins.insightText,
     }));
 
     fs.writeFileSync(
@@ -41,7 +42,7 @@ async function main() {
     });
 
     const strongInspComparisons = comparisons
-      .filter(c => c.presentation && c.insightA.source === InsightSource.INSPIRATION && c.insightB.source === InsightSource.INSPIRATION)
+      .filter(c => c.presentation && c.insightA.source === InsightSource.ANSWER && c.insightB.source === InsightSource.ANSWER)
       .map(c => ({
         insightAId: c.insightAId,
         insightBId: c.insightBId,
