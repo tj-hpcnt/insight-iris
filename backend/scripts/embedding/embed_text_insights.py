@@ -18,6 +18,7 @@ import numpy as np
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+from collections import defaultdict
 
 def load_json(file_path, file_desc):
     if not os.path.exists(file_path):
@@ -159,7 +160,6 @@ def main():
 
     ridge_predictions_importance = []
     ridge_actuals_importance = []
-    ridge_comparison_details = []
 
     # Build a map for actual comparisons for quick lookup
     original_comparisons_map_text = {}
@@ -196,15 +196,6 @@ def main():
         
         ridge_predictions_importance.append(pred_importance)
         ridge_actuals_importance.append(original_importance)
-        
-        insight_a_text_content = insights[idx_a_original].get('insightText', 'Unknown')
-        insight_b_text_content = insights[idx_b_original].get('insightText', 'Unknown')
-        ridge_comparison_details.append({
-            'insightA': insight_a_text_content,
-            'insightB': insight_b_text_content,
-            'original_importance': original_importance,
-            'predicted_importance': pred_importance
-        })
 
     ridge_predictions_importance_np = np.array(ridge_predictions_importance)
     ridge_actuals_importance_np = np.array(ridge_actuals_importance)
@@ -223,6 +214,7 @@ def main():
     all_pairs_text_predictions_importance = []
     all_pairs_text_actuals_importance = []
     all_pairs_text_comparison_details = []
+    subject_pairs = defaultdict(list)  # Group pairs by subject
     
     num_valid_insights = text_embeddings.shape[0]
 
@@ -253,14 +245,19 @@ def main():
                 all_pairs_text_predictions_importance.append(pred_importance_pair)
                 all_pairs_text_actuals_importance.append(actual_importance_pair)
                 
-                all_pairs_text_comparison_details.append({
+                pair_info = {
                     'insightAId': id_a,
                     'insightBId': id_b,
                     'insightAText': insight_a.get('insightText', 'Unknown'),
                     'insightBText': insight_b.get('insightText', 'Unknown'),
                     'original_importance': actual_importance_pair,
                     'predicted_importance': pred_importance_pair
-                })
+                }
+                all_pairs_text_comparison_details.append(pair_info)
+                
+                # Group by subject
+                subject = insight_a.get('insightSubject', 'Unknown')
+                subject_pairs[subject].append(pair_info)
 
     all_pairs_text_predictions_np = np.array(all_pairs_text_predictions_importance)
     all_pairs_text_actuals_np = np.array(all_pairs_text_actuals_importance)
@@ -279,9 +276,18 @@ def main():
         std_predictions = np.std(all_pairs_text_predictions_np)
         if std_actuals > 0 and std_predictions > 0:
             all_pairs_text_correlation = np.corrcoef(all_pairs_text_predictions_np, all_pairs_text_actuals_np)[0, 1]
-        elif std_actuals == 0 and std_predictions == 0 and np.array_equal(all_pairs_text_actuals_np, all_pairs_text_predictions_np) : # Both constant and equal
+        elif std_actuals == 0 and std_predictions == 0 and np.array_equal(all_pairs_text_actuals_np, all_pairs_text_predictions_np): # Both constant and equal
              all_pairs_text_correlation = 1.0
 
+    # Sort pairs by predicted score for each subject
+    subject_top_bottom_pairs = {}
+    for subject, pairs in subject_pairs.items():
+        # Sort by predicted importance
+        sorted_pairs = sorted(pairs, key=lambda x: x['predicted_importance'], reverse=True)
+        subject_top_bottom_pairs[subject] = {
+            'top_20': sorted_pairs[:20],
+            'bottom_20': sorted_pairs[-20:]
+        }
 
     regression_stats = {
         'text_embedding_dimension': text_embeddings.shape[1] if text_embeddings.ndim > 1 and text_embeddings.shape[0] > 0 else 0,
@@ -311,26 +317,11 @@ def main():
         json.dump(regression_stats, f, indent=2)
     print(f"Text-to-latent regression stats written to {regression_stats_path}")
 
-    if ridge_comparison_details:
-        for detail in ridge_comparison_details:
-            detail['abs_diff'] = abs(detail['predicted_importance'] - detail['original_importance'])
-        ridge_comparison_details.sort(key=lambda x: x['abs_diff'])
-    
-    ridge_details_path = os.path.join(args.data_dir, 'ridge_comparison_details.json')
-    with open(ridge_details_path, 'w') as f:
-        json.dump(ridge_comparison_details, f, indent=2)
-    print(f"Ridge comparison details written to {ridge_details_path}")
-
-    # Write all pairs text comparison details
-    if all_pairs_text_comparison_details:
-        for detail in all_pairs_text_comparison_details:
-            detail['abs_diff'] = abs(detail['predicted_importance'] - detail['original_importance'])
-        all_pairs_text_comparison_details.sort(key=lambda x: x['abs_diff'], reverse=True)
-
-    all_pairs_text_details_path = os.path.join(args.data_dir, 'ridge_all_pairs_comparison_details.json')
-    with open(all_pairs_text_details_path, 'w') as f:
-        json.dump(all_pairs_text_comparison_details, f, indent=2)
-    print(f"All pairs (text embedding based) comparison details written to {all_pairs_text_details_path}")
+    # Write top and bottom pairs for each subject
+    top_bottom_pairs_path = os.path.join(args.data_dir, 'text_ridge_subject_top_bottom_pairs.json')
+    with open(top_bottom_pairs_path, 'w') as f:
+        json.dump(subject_top_bottom_pairs, f, indent=2)
+    print(f"Top and bottom pairs by subject written to {top_bottom_pairs_path}")
 
 if __name__ == "__main__":
     main() 
