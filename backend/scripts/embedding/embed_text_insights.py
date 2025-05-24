@@ -161,6 +161,17 @@ def main():
     ridge_actuals_importance = []
     ridge_comparison_details = []
 
+    # Build a map for actual comparisons for quick lookup
+    original_comparisons_map_text = {}
+    for comp_item in comparisons:
+        a_id_comp = comp_item['insightAId']
+        b_id_comp = comp_item['insightBId']
+        importance_comp = comp_item.get('importance', 0)
+        polarity_comp = comp_item.get('polarity', 1)
+        weight_comp = importance_comp * polarity_comp
+        key_comp = tuple(sorted((a_id_comp, b_id_comp)))
+        original_comparisons_map_text[key_comp] = weight_comp
+
     for comp in comparisons:
         a_id = comp['insightAId']
         b_id = comp['insightBId']
@@ -208,6 +219,70 @@ def main():
     if ridge_predictions_importance_np.size > 1 and np.std(ridge_actuals_importance_np) > 0 and np.std(ridge_predictions_importance_np) > 0:
         ridge_correlation_importance = np.corrcoef(ridge_predictions_importance_np, ridge_actuals_importance_np)[0, 1]
 
+    # --- All Pairs Evaluation (for insights with text embeddings) ---
+    all_pairs_text_predictions_importance = []
+    all_pairs_text_actuals_importance = []
+    all_pairs_text_comparison_details = []
+    
+    num_valid_insights = text_embeddings.shape[0]
+
+    if num_valid_insights >= 2: # Need at least two insights to form a pair
+        for i in range(num_valid_insights):
+            for j in range(i + 1, num_valid_insights):
+                original_idx_a = valid_insight_indices[i]
+                original_idx_b = valid_insight_indices[j]
+
+                insight_a = insights[original_idx_a]
+                insight_b = insights[original_idx_b]
+
+                id_a = insight_a['id']
+                id_b = insight_b['id']
+
+                # Use pre-filtered text_embeddings
+                emb_a_text_pair = text_embeddings[i].reshape(1, -1)
+                emb_b_text_pair = text_embeddings[j].reshape(1, -1)
+
+                latent_a_pred_pair = ridge_model.predict(emb_a_text_pair)[0]
+                latent_b_pred_pair = ridge_model.predict(emb_b_text_pair)[0]
+                
+                pred_importance_pair = np.dot(latent_a_pred_pair, latent_b_pred_pair) * scaling_factor
+                
+                key_pair = tuple(sorted((id_a, id_b)))
+                actual_importance_pair = original_comparisons_map_text.get(key_pair, 0.0)
+                
+                all_pairs_text_predictions_importance.append(pred_importance_pair)
+                all_pairs_text_actuals_importance.append(actual_importance_pair)
+                
+                all_pairs_text_comparison_details.append({
+                    'insightAId': id_a,
+                    'insightBId': id_b,
+                    'insightAText': insight_a.get('insightText', 'Unknown'),
+                    'insightBText': insight_b.get('insightText', 'Unknown'),
+                    'original_importance': actual_importance_pair,
+                    'predicted_importance': pred_importance_pair
+                })
+
+    all_pairs_text_predictions_np = np.array(all_pairs_text_predictions_importance)
+    all_pairs_text_actuals_np = np.array(all_pairs_text_actuals_importance)
+
+    all_pairs_text_mse = 0
+    all_pairs_text_mae = 0
+    all_pairs_text_correlation = 0
+    num_all_pairs_evaluated = len(all_pairs_text_comparison_details)
+
+    if num_all_pairs_evaluated > 0:
+        all_pairs_text_mse = np.mean((all_pairs_text_predictions_np - all_pairs_text_actuals_np) ** 2)
+        all_pairs_text_mae = np.mean(np.abs(all_pairs_text_predictions_np - all_pairs_text_actuals_np))
+    
+    if num_all_pairs_evaluated > 1:
+        std_actuals = np.std(all_pairs_text_actuals_np)
+        std_predictions = np.std(all_pairs_text_predictions_np)
+        if std_actuals > 0 and std_predictions > 0:
+            all_pairs_text_correlation = np.corrcoef(all_pairs_text_predictions_np, all_pairs_text_actuals_np)[0, 1]
+        elif std_actuals == 0 and std_predictions == 0 and np.array_equal(all_pairs_text_actuals_np, all_pairs_text_predictions_np) : # Both constant and equal
+             all_pairs_text_correlation = 1.0
+
+
     regression_stats = {
         'text_embedding_dimension': text_embeddings.shape[1] if text_embeddings.ndim > 1 and text_embeddings.shape[0] > 0 else 0,
         'svd_latent_dimension': dimension,
@@ -223,7 +298,12 @@ def main():
         'importance_prediction_mse_via_ridge': ridge_mse_importance,
         'importance_prediction_mae_via_ridge': ridge_mae_importance,
         'importance_prediction_correlation_via_ridge': ridge_correlation_importance,
-        'num_comparisons_evaluated_for_importance': len(ridge_predictions_importance)
+        'num_comparisons_evaluated_for_importance': len(ridge_predictions_importance),
+        # New stats for all pairs
+        'all_pairs_text_embedding_importance_mse': all_pairs_text_mse,
+        'all_pairs_text_embedding_importance_mae': all_pairs_text_mae,
+        'all_pairs_text_embedding_importance_correlation': all_pairs_text_correlation,
+        'num_all_pairs_evaluated_text_ridge': num_all_pairs_evaluated
     }
 
     regression_stats_path = os.path.join(args.data_dir, 'text_to_latent_regression_stats.json')
@@ -240,6 +320,17 @@ def main():
     with open(ridge_details_path, 'w') as f:
         json.dump(ridge_comparison_details, f, indent=2)
     print(f"Ridge comparison details written to {ridge_details_path}")
+
+    # Write all pairs text comparison details
+    if all_pairs_text_comparison_details:
+        for detail in all_pairs_text_comparison_details:
+            detail['abs_diff'] = abs(detail['predicted_importance'] - detail['original_importance'])
+        all_pairs_text_comparison_details.sort(key=lambda x: x['abs_diff'], reverse=True)
+
+    all_pairs_text_details_path = os.path.join(args.data_dir, 'ridge_all_pairs_comparison_details.json')
+    with open(all_pairs_text_details_path, 'w') as f:
+        json.dump(all_pairs_text_comparison_details, f, indent=2)
+    print(f"All pairs (text embedding based) comparison details written to {all_pairs_text_details_path}")
 
 if __name__ == "__main__":
     main() 
