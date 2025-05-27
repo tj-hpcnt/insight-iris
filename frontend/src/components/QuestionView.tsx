@@ -47,16 +47,14 @@ interface QuestionViewProps {
 }
 
 const QuestionView: React.FC<QuestionViewProps> = ({
-  insightId, // This ID is used to fetch the FullQuestionContext
+  insightId,
   totalQuestionsInCategory,
   currentQuestionIndex,
   onNavigateQuestion,
   onSkipQuestion,
 }) => {
   const [fullContext, setFullContext] = useState<FullQuestionContextPayload | null>(null);
-  const [relatedAnswerInsights, setRelatedAnswerInsights] = useState<RelatedAnswerInsightDisplay[]>([]);
   const [loadingQuestionContext, setLoadingQuestionContext] = useState<boolean>(true);
-  const [loadingRelatedAnswers, setLoadingRelatedAnswers] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -66,7 +64,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     const fetchFullQuestionContext = async () => {
       try {
         setLoadingQuestionContext(true);
-        const response = await fetch(`/api/insights/${insightId}`);
+        const response = await fetch(`/api/insights/${insightId}/question-details`);
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
             throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
@@ -82,33 +80,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       }
     };
 
-    const fetchRelatedAnswers = async () => {
-      try {
-        setLoadingRelatedAnswers(true);
-        // Fetch related answers based on the current *inspiration* insight ID for consistency,
-        // which might be different from the initially passed `insightId` if it was an answer insight.
-        // This assumes `App.tsx` passes the ID of the INSPIRATION insight for question navigation.
-        // If `insightId` prop could be an answer insight, and we need related answers for *its* category,
-        // we might need to derive the category from `fullContext.initialInsightDetails.categoryId` after it loads.
-        // For now, using the `insightId` prop (which in `App.tsx` lifecycle for `QuestionView` is an INSPIRATION insight ID).
-        const response = await fetch(`/api/insights/${insightId}/related-answers`);
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
-            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-        }
-        const data: RelatedAnswerInsightDisplay[] = await response.json();
-        setRelatedAnswerInsights(data);
-      } catch (e) {
-        if (e instanceof Error) setError(e.message);
-        else setError('An unknown error occurred while fetching related answers');
-        setRelatedAnswerInsights([]);
-      } finally {
-        setLoadingRelatedAnswers(false);
-      }
-    };
-
     fetchFullQuestionContext();
-    fetchRelatedAnswers(); // This uses the currently displayed question's ID for its category context
   }, [insightId]);
 
   const handleAnswerSelect = (option: AnswerOptionPayload) => {
@@ -181,13 +153,13 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       {/* Related Answer Insights */}
       <div style={{ flex: 1, maxHeight: '812px', overflowY: 'auto' }}>
         <h4>Related Answer Insights (for this category)</h4>
-        {loadingRelatedAnswers ? (
+        {loadingQuestionContext ? (
           <p>Loading related answers...</p>
-        ) : relatedAnswerInsights.length > 0 ? (
+        ) : fullContext?.questionDetails?.answers.length > 0 ? (
           <ul>
-            {relatedAnswerInsights.map(answerInsight => (
-              <li key={answerInsight.id}>
-                <h5>{answerInsight.insightText.substring(0,100) + "..."}</h5>
+            {fullContext.questionDetails.answers.map(answer => (
+              <li key={answer.id}>
+                <h5>{answer.linkedAnswerInsight?.insightText || 'No insight available'}</h5>
               </li>
             ))}
           </ul>

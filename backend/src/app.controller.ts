@@ -1,7 +1,7 @@
 import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { AppService } from './app.service';
 
-@Controller()
+@Controller('api')
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
@@ -25,7 +25,7 @@ export class AppController {
     return this.appService.listAnswerInsightsInCategory(categoryId);
   }
 
-  @Get('insights/:insightId')
+  @Get('insights/:insightId/question-details')
   async getFullQuestionContextByInsightId(@Param('insightId', ParseIntPipe) insightId: number) {
     return this.appService.getFullQuestionContextByInsightId(insightId);
   }
