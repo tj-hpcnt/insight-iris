@@ -4,3 +4,4 @@ backend/prisma/*.db
 backend/src/generated
 .venv
 .DS_Store
+dist

@@ -1,0 +1,6 @@
+/* Add component-specific styles for App.tsx here */
+.App {
+  text-align: center; /* Or remove if you prefer left-align for content */
+}
+
+/* You can add more specific styles for the App component layout if needed */ 

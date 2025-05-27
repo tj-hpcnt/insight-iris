@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { AppService } from './app.service';
 
 @Controller()
@@ -8,5 +8,25 @@ export class AppController {
   @Get()
   getHello(): string {
     return this.appService.getHello();
+  }
+
+  @Get('categories')
+  async listCategories() {
+    return this.appService.listCategories();
+  }
+
+  @Get('categories/:categoryId/inspiration-insights')
+  async listInspirationInsightsInCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
+    return this.appService.listInspirationInsightsInCategory(categoryId);
+  }
+
+  @Get('categories/:categoryId/answer-insights')
+  async listAnswerInsightsInCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
+    return this.appService.listAnswerInsightsInCategory(categoryId);
+  }
+
+  @Get('insights/:insightId')
+  async getFullQuestionContextByInsightId(@Param('insightId', ParseIntPipe) insightId: number) {
+    return this.appService.getFullQuestionContextByInsightId(insightId);
   }
 } 

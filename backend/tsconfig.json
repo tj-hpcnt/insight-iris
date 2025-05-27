@@ -16,9 +16,6 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false,
-    "paths": {
-      "../src/generated/prisma/core": ["./src/generated/prisma/core"]
-    }
+    "noFallthroughCasesInSwitch": false
   }
 } 

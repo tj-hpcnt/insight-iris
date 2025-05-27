@@ -1803,7 +1803,7 @@ export async function reduceExactRedundancyForAnswers(): Promise<{oldInsight: In
           }
         }
 
-        // Delete the redundant insight itself
+        // Delete the redundant insight
         await tx.insight.delete({
           where: { id: redundantInsight.id },
         });

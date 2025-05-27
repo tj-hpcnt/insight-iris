@@ -1,0 +1,61 @@
+/* Add your global styles here */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.App-header {
+  background-color: #f0f0f0;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #ddd;
+}
+
+/* Basic table styling */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+th {
+  background-color: #f2f2f2;
+}
+
+button {
+  padding: 8px 12px;
+  margin: 0 5px;
+  cursor: pointer;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Specific button styles for inline text-like buttons if needed elsewhere */
+.text-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  color: blue;
+} 

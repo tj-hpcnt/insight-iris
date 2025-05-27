@@ -24,7 +24,8 @@
     "prisma:push": "npx prisma db push --schema=./prisma/schema.prisma && npx prisma db push --schema=./prisma/cache.prisma",
     "embed-insights": "python3 scripts/embedding/embed_insights.py --data_dir $(ls -dt src/generated/embedding/* | head -1)",
     "embed-insights-text": "python3 scripts/embedding/embed_text_insights.py --data_dir $(ls -dt src/generated/embedding/* | head -1)",
-    "sample-random-profiles": "python3 scripts/embedding/score_random_profiles.py --data_dir $(ls -dt src/generated/embedding/* | head -1) --num_pairs=10 --profile_size=25"
+    "sample-random-profiles": "python3 scripts/embedding/score_random_profiles.py --data_dir $(ls -dt src/generated/embedding/* | head -1) --num_pairs=10 --profile_size=25",
+    "explain-dimensions": "python3 scripts/embedding/explain_dimensions.py --data_dir $(ls -dt src/generated/embedding/* | head -1)"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
