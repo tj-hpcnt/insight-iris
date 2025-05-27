@@ -1,4 +1,4 @@
-import { PrismaClient, InsightSource, Category, Style, Insight, QuestionType, Question, Answer, CategoryOverlap, OverlapType, PolarityType, InsightComparison, InsightComparisonPresentation } from '../../src/generated/prisma/core';
+import { PrismaClient, InsightSource, Category, Style, Insight, QuestionType, Question, Answer, CategoryOverlap, OverlapType, PolarityType, InsightComparison, InsightComparisonPresentation } from '@prisma/client';
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
 import { fetchCachedExecution, cachePromptExecution } from './llmCaching';

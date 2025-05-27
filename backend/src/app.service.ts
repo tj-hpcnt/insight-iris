@@ -1,17 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaClient, InsightSource, Insight as PrismaInsight, Question as PrismaQuestion, Answer as PrismaAnswer, QuestionType } from '../src/generated/prisma/core';
+import { PrismaClient, InsightSource, OverlapType, PolarityType, Insight, Category, CategoryOverlap, InsightComparison, InsightComparisonPresentation, Question, Answer, QuestionType } from '@prisma/client';
 
 // Define a more specific type for the nested structure we're building
-type QuestionWithAnswersAndDetailedInsights = PrismaQuestion & {
-  answers: (PrismaAnswer & {
-    insight: PrismaInsight | null; // The detailed insight for this answer option
+type QuestionWithAnswersAndDetailedInsights = Question & {
+  answers: (Answer & {
+    insight: Insight | null; // The detailed insight for this answer option
   })[];
 };
 
 export interface FullQuestionContextPayload {
   retrievedById: number;
-  initialInsightDetails: PrismaInsight;
-  inspirationInsightDetails: PrismaInsight | null;
+  initialInsightDetails: Insight;
+  inspirationInsightDetails: Insight | null;
   questionDetails: {
     id: number;
     inspirationId: number;
@@ -20,7 +20,7 @@ export interface FullQuestionContextPayload {
     answers: {
       id: number;
       answerText: string;
-      linkedAnswerInsight: PrismaInsight | null; // The detailed Answer insight for this option
+      linkedAnswerInsight: Insight | null; // The detailed Answer insight for this option
     }[];
   } | null;
 }
@@ -66,7 +66,7 @@ export class AppService {
       throw new NotFoundException(`Insight with ID ${anyInsightId} not found`);
     }
 
-    let inspirationInsight: PrismaInsight | null = null;
+    let inspirationInsight: Insight | null = null;
     let fetchedQuestionData: QuestionWithAnswersAndDetailedInsights | null = null;
 
     if (initialInsight.source === InsightSource.INSPIRATION) {

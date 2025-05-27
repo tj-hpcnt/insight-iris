@@ -1,6 +1,6 @@
-import { PrismaClient as CachePrismaClient } from '../../src/generated/prisma/cache';
+import { PrismaClient } from '@prisma/client';
 
-const cachePrisma = new CachePrismaClient();
+const cachePrisma = new PrismaClient();
 
 /**
  * Fetches a cached embedding from the database

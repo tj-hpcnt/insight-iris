@@ -1,4 +1,4 @@
-import { PrismaClient, InsightSource, Category, Insight } from '../src/generated/prisma/core';
+import { PrismaClient, InsightSource, Category, Insight } from '@prisma/client';
 import * as dotenv from 'dotenv';
 import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancyOfInspirations, generateCategoryOverlapByRanking, generateInsightCategoryOverlap, generateInsightComparisonPresentation, generateInsightCategoryComparisonByRanking, reduceExactRedundancyForAnswers } from '../src/utils/aiGenerators';
 import { CATEGORIES } from './categories';

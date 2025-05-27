@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma/core"
 }
 
 datasource db {
@@ -114,4 +113,14 @@ model InsightComparisonPresentation {
   conciseBText      String
   importance        Int
   insightComparison InsightComparison @relation(fields: [insightComparisonId], references: [id])
+}
+
+model Cache {
+  id     Int    @id @default(autoincrement())
+  model  String
+  prompt String
+  format String
+  output String
+
+  @@index([model, prompt, format])
 }

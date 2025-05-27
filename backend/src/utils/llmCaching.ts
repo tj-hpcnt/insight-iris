@@ -1,7 +1,7 @@
-import { PrismaClient as CachePrismaClient } from '../../src/generated/prisma/cache';
+import { PrismaClient } from '@prisma/client';
 import OpenAI from 'openai';
 
-const cachePrisma = new CachePrismaClient();
+const cachePrisma = new PrismaClient();
 
 /**
  * Fetches a cached prompt execution from the database

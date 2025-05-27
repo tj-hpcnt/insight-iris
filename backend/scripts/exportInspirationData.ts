@@ -1,4 +1,4 @@
-import { PrismaClient, InsightSource, OverlapType, Insight, Category } from '../src/generated/prisma/core';
+import { PrismaClient, InsightSource, OverlapType, Insight, Category } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 import OpenAI from 'openai';
