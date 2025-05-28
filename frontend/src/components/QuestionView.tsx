@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 // --- Data Interfaces based on backend schema and new API payload ---
 interface PrismaInsight {
@@ -56,6 +56,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [fullContext, setFullContext] = useState<FullQuestionContextPayload | null>(null);
   const [loadingQuestionContext, setLoadingQuestionContext] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [hoveredAnswerOptionId, setHoveredAnswerOptionId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!insightId) return;
@@ -83,13 +84,24 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     fetchFullQuestionContext();
   }, [insightId]);
 
-  const handleAnswerSelect = (option: AnswerOptionPayload) => {
-    console.log(`Answer selected: ${option.answerText}`);
-    if (option.linkedAnswerInsight) {
-      console.log(`Linked Answer Insight ID: ${option.linkedAnswerInsight.id}, Text: ${option.linkedAnswerInsight.insightText}`);
-      // TODO: Implement navigation to this detailed answer insight if needed, or display it.
+  useEffect(() => {
+    if (hoveredAnswerOptionId !== null) {
+      const element = document.getElementById(`answer-insight-item-${hoveredAnswerOptionId}`);
+      element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-    // TODO: Implement answer submission logic
+  }, [hoveredAnswerOptionId]);
+
+  const handleAnswerHover = (option: AnswerOptionPayload | null) => {
+    if (option) {
+      console.log(`Answer hovered: ${option.answerText}`);
+      setHoveredAnswerOptionId(option.id);
+      if (option.linkedAnswerInsight) {
+        console.log(`Linked Answer Insight ID: ${option.linkedAnswerInsight.id}, Text: ${option.linkedAnswerInsight.insightText}`);
+      }
+      // TODO: Implement answer submission logic if needed on click eventually
+    } else {
+      setHoveredAnswerOptionId(null); // Clear hover when mouse leaves
+    }
   };
 
   if (loadingQuestionContext) return <p>Loading question context...</p>;
@@ -103,82 +115,150 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const options = fullContext.questionDetails.answers;
 
   return (
-    <div style={{ display: 'flex', gap: '20px' }}>
-      {/* Simulated Mobile Screen */}
-      <div style={{
-        width: '375px',
-        minHeight: '600px',
-        border: '1px solid #ccc',
-        borderRadius: '20px',
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: '#f9f9f9',
-        boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          {/* currentQuestionIndex and totalQuestionsInCategory are for the list of INSPIRATION insights */}
-          Question {currentQuestionIndex + 1} of {totalQuestionsInCategory}
-        </div>
-        <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
-          <h3>{displayQuestionText}</h3>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {options.map((option) => (
-            <button 
-              key={option.id} 
-              onClick={() => handleAnswerSelect(option)}
-              style={{
-                padding: '15px',
-                fontSize: '16px',
-                borderRadius: '8px',
-                border: '1px solid #ddd',
-                backgroundColor: 'white',
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              {option.answerText}
-            </button>
-          ))}
-        </div>
-        <button 
-            onClick={onSkipQuestion} 
-            style={{ marginTop: 'auto', paddingTop:'20px', padding: '10px', cursor: 'pointer' }}
-        >
-            Skip
-        </button>
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '20px', padding: '20px', width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}>
+      {/* Previous Question Button */}
+      <button 
+        onClick={() => onNavigateQuestion('prev')} 
+        disabled={currentQuestionIndex === 0}
+        style={{
+          background: 'red',
+          color: 'white',
+          border: 'none',
+          padding: '20px 30px',
+          fontSize: '24px',
+          cursor: 'pointer',
+          borderRadius: '10px',
+          height: '550px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          alignSelf: 'center',
+          flexShrink: 0
+        }}
+      >
+        &larr;
+      </button>
 
-      {/* Related Answer Insights */}
-      <div style={{ flex: 1, maxHeight: '812px', overflowY: 'auto' }}>
-        <h4>Related Answer Insights (for this category)</h4>
-        {loadingQuestionContext ? (
-          <p>Loading related answers...</p>
-        ) : fullContext?.questionDetails?.answers.length > 0 ? (
-          <ul>
-            {fullContext.questionDetails.answers.map(answer => (
-              <li key={answer.id}>
-                <h5>{answer.linkedAnswerInsight?.insightText || 'No insight available'}</h5>
-              </li>
+      {/* Central Content Area (iPhone on left, Insights on right) */}
+      <div style={{ display: 'flex', flex: 1, gap: '20px', alignItems: 'flex-start', minWidth: 0 }}>
+        {/* Simulated Mobile Screen */}
+        <div style={{
+          width: '375px',
+          minHeight: '600px',
+          border: '1px solid #ccc',
+          borderRadius: '20px',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: '#f9f9f9',
+          boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+          alignSelf: 'center',
+          flexShrink: 0,
+          boxSizing: 'border-box'
+        }}>
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            {/* currentQuestionIndex and totalQuestionsInCategory are for the list of INSPIRATION insights */}
+            Question {currentQuestionIndex + 1} of {totalQuestionsInCategory}
+          </div>
+          <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
+            <h3>{displayQuestionText}</h3>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {options.map((option) => (
+              <button 
+                key={option.id} 
+                onMouseEnter={() => handleAnswerHover(option)}
+                onMouseLeave={() => handleAnswerHover(null)}
+                style={{
+                  padding: '15px',
+                  fontSize: '16px',
+                  borderRadius: '8px',
+                  border: '1px solid #ddd',
+                  backgroundColor: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                {option.answerText}
+              </button>
             ))}
-          </ul>
-        ) : (
-          <p>No related answer insights found for this category.</p>
-        )}
-      </div>
+          </div>
+          <button 
+              onClick={onSkipQuestion}
+              style={{ marginTop: 'auto', paddingTop:'20px', padding: '10px', cursor: 'pointer' }}
+          >
+              Skip
+          </button>
+        </div>
 
-      {/* Navigation Arrows */}
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '10px'}}>
-        <button onClick={() => onNavigateQuestion('prev')} disabled={currentQuestionIndex === 0}>
-          &uarr; Previous Question
+        {/* Next Question Button (Now after iPhone, before Insights) */}
+        <button 
+          onClick={() => onNavigateQuestion('next')} 
+          disabled={currentQuestionIndex >= totalQuestionsInCategory - 1}
+          style={{
+            background: 'red',
+            color: 'white',
+            border: 'none',
+            padding: '20px 30px',
+            fontSize: '24px',
+            cursor: 'pointer',
+            borderRadius: '10px',
+            height: '550px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            alignSelf: 'center',
+            flexShrink: 0
+          }}
+        >
+          &rarr;
         </button>
-        <button onClick={() => onNavigateQuestion('next')} disabled={currentQuestionIndex >= totalQuestionsInCategory - 1}>
-          Next Question &darr;
-        </button>
+
+        {/* Related Answer Insights (Now to the very right, takes remaining space) */}
+        <div style={{ flex: 1, alignSelf: 'stretch', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', minWidth: 0 }}> 
+          <h4>Details</h4>
+          {fullContext.inspirationInsightDetails && (
+            <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0' }}>
+              <h5 style={{ marginTop: 0, marginBottom: '5px' }}>Original Inspiration:</h5>
+              <p style={{ margin: 0 }}>{fullContext.inspirationInsightDetails.insightText}</p>
+            </div>
+          )}
+          {loadingQuestionContext ? (
+            <p>Loading related answers...</p>
+          ) : fullContext?.questionDetails?.answers && fullContext.questionDetails.answers.length > 0 ? (
+            <ul style={{ listStyleType: 'none', paddingLeft: 0 }}>
+              {fullContext.questionDetails.answers.map(answer => {
+                const isHovered = hoveredAnswerOptionId === answer.id;
+                return (
+                  <li 
+                    key={answer.id} 
+                    id={`answer-insight-item-${answer.id}`}
+                    style={{
+                      marginBottom: '15px', 
+                      padding: '10px', 
+                      border: isHovered ? '2px solid #007bff' : '1px solid #eee',
+                      backgroundColor: isHovered ? '#e7f3ff' : 'transparent',
+                      borderRadius: '5px',
+                      transition: 'background-color 0.2s ease, border-color 0.2s ease'
+                    }}
+                  >
+                    <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>Answer Option: {answer.answerText}</p>
+                    {answer.linkedAnswerInsight ? (
+                      <p style={{ fontStyle: 'italic', marginLeft: '20px', color: '#555' }}>↪ Linked Insight: {answer.linkedAnswerInsight.insightText}</p>
+                    ) : (
+                      <p style={{ fontStyle: 'italic', marginLeft: '20px', color: '#777' }}>↪ No linked insight available for this option.</p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p>No related answer insights found for this question's options.</p>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-export default QuestionView; 
+export default QuestionView;

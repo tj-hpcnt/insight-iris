@@ -14,13 +14,14 @@ interface CategoryFromAPI { // Reflects Prisma model
 
 interface CategoryDisplay {
     id: number;
-    name: string; // This will be category.category
-    // You can add other fields here if you want to display them
+    name: string; 
     topicHeader?: string;
+    subcategory?: string; 
+    insightSubject?: string; 
 }
 
 interface CategoryTableProps {
-  onCategoryClick: (categoryId: number, categoryName: string) => void;
+  onCategoryClick: (categoryId: number, insightSubject: string) => void;
 }
 
 const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
@@ -38,11 +39,13 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data: CategoryFromAPI[] = await response.json();
-        // Map API data to display data
+        
         const displayData = data.map(cat => ({
             id: cat.id,
-            name: cat.category, // Use the 'category' field for display name
-            topicHeader: cat.topicHeader
+            name: cat.category, 
+            topicHeader: cat.topicHeader,
+            subcategory: cat.subcategory, 
+            insightSubject: cat.insightSubject 
         }));
         setCategories(displayData);
       } catch (e) {
@@ -68,28 +71,21 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
         <tr>
           <th>Category Name</th>
           <th>Topic</th>
-          {/* Add other headers as needed */}
+          <th>Subcategory</th>
+          <th>Insight Subject</th>
         </tr>
       </thead>
       <tbody>
         {categories.map((category) => (
-          <tr key={category.id}>
-            <td>
-              <button onClick={() => onCategoryClick(category.id, category.name)}
-                 style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    color: 'blue',
-                  }}
-              >
-                {category.name}
-              </button>
-            </td>
+          <tr 
+            key={category.id} 
+            onClick={() => category.insightSubject && onCategoryClick(category.id, category.insightSubject)}
+            style={{ cursor: 'pointer' }} 
+          >
+            <td>{category.name}</td>
             <td>{category.topicHeader}</td>
-            {/* Add other data cells as needed */}
+            <td>{category.subcategory}</td>
+            <td>{category.insightSubject}</td>
           </tr>
         ))}
       </tbody>

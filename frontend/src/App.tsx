@@ -150,12 +150,6 @@ function App() {
     <div className="App">
       <header className="App-header">
         <Breadcrumbs items={breadcrumbItems} />
-        {currentView === 'insights' && selectedCategoryId && (
-            <div style={{ marginTop: '10px', marginBottom: '10px'}}>
-                <button onClick={() => handleInsightTypeSelect('inspiration')} disabled={selectedInsightType === 'inspiration'}>Inspiration Insights</button>
-                <button onClick={() => handleInsightTypeSelect('answers')} disabled={selectedInsightType === 'answers'}>Answer Insights</button>
-            </div>
-        )}
       </header>
       <main>
         {currentView === 'categories' && <CategoryTable onCategoryClick={handleCategoryClick} />}
@@ -163,7 +157,8 @@ function App() {
           <InsightTable 
             categoryId={selectedCategoryId} 
             insightType={selectedInsightType} 
-            onInsightClick={handleInsightClick} 
+            onInsightClick={handleInsightClick}
+            onInsightTypeChange={handleInsightTypeSelect}
           />
         )}
         {currentView === 'question' && selectedInsightId && selectedCategoryId && (

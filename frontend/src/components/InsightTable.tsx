@@ -26,9 +26,15 @@ interface InsightTableProps {
   categoryId: number;
   insightType: InsightType; // 'inspiration' or 'answers'
   onInsightClick: (insightId: number, insightTitle: string) => void;
+  onInsightTypeChange: (type: InsightType) => void; // New prop for handling tab changes
 }
 
-const InsightTable: React.FC<InsightTableProps> = ({ categoryId, insightType, onInsightClick }) => {
+const InsightTable: React.FC<InsightTableProps> = ({ 
+  categoryId, 
+  insightType, 
+  onInsightClick, 
+  onInsightTypeChange 
+}) => {
   const [insights, setInsights] = useState<InsightDisplay[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,39 +80,111 @@ const InsightTable: React.FC<InsightTableProps> = ({ categoryId, insightType, on
   if (error) return <p>Error loading insights: {error}</p>;
   if (!categoryId) return <p>Please select a category first.</p>;
 
-  // Determine the title based on the insightType from the prop, which is more reliable here
-  const tableTitle = insightType.charAt(0).toUpperCase() + insightType.slice(1) + ' Insights';
+  const tabStyle = {
+    display: 'flex',
+    borderBottom: '2px solid #e0e0e0',
+    marginBottom: '20px',
+    backgroundColor: '#f8f9fa'
+  };
+
+  const tabButtonStyle = (isActive: boolean) => ({
+    flex: 1,
+    padding: '12px 24px',
+    border: 'none',
+    backgroundColor: isActive ? '#ffffff' : 'transparent',
+    color: isActive ? '#007bff' : '#6c757d',
+    fontWeight: isActive ? '600' : '400',
+    fontSize: '16px',
+    cursor: 'pointer',
+    borderBottom: isActive ? '3px solid #007bff' : '3px solid transparent',
+    transition: 'all 0.3s ease',
+    position: 'relative' as const,
+    top: isActive ? '2px' : '0px'
+  });
+
+  const tabButtonHoverStyle = {
+    backgroundColor: '#e9ecef',
+    color: '#495057'
+  };
 
   return (
     <div>
-      <h2>{tableTitle}</h2>
-      <table>
+      {/* Tabbed Header */}
+      <div style={tabStyle}>
+        <button
+          style={tabButtonStyle(insightType === 'inspiration')}
+          onClick={() => onInsightTypeChange('inspiration')}
+          onMouseEnter={(e) => {
+            if (insightType !== 'inspiration') {
+              Object.assign(e.currentTarget.style, tabButtonHoverStyle);
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (insightType !== 'inspiration') {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = '#6c757d';
+            }
+          }}
+        >
+          💡 Inspiration Insights
+        </button>
+        <button
+          style={tabButtonStyle(insightType === 'answers')}
+          onClick={() => onInsightTypeChange('answers')}
+          onMouseEnter={(e) => {
+            if (insightType !== 'answers') {
+              Object.assign(e.currentTarget.style, tabButtonHoverStyle);
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (insightType !== 'answers') {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = '#6c757d';
+            }
+          }}
+        >
+          💬 Answer Insights
+        </button>
+      </div>
+
+      {/* Table Content */}
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
-          <tr>
-            <th>Insight Text (Title)</th>
-            {/* <th>Source</th> You might want to display the source if it's useful */}
+          <tr style={{ backgroundColor: '#f8f9fa' }}>
+            <th style={{ 
+              padding: '12px', 
+              textAlign: 'left', 
+              borderBottom: '2px solid #dee2e6',
+              fontWeight: '600',
+              color: '#495057'
+            }}>
+              Insight Text
+            </th>
           </tr>
         </thead>
         <tbody>
           {insights.map((insight) => (
-            <tr key={insight.id}>
-              <td>
-                <button 
-                  onClick={() => onInsightClick(insight.id, insight.title)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    color: 'blue',
-                    textAlign: 'left'
-                  }}
-                >
-                  {insight.title}
-                </button>
+            <tr 
+              key={insight.id}
+              onClick={() => onInsightClick(insight.id, insight.title)}
+              style={{ 
+                cursor: 'pointer',
+                transition: 'background-color 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f8f9fa';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+            >
+              <td style={{ 
+                padding: '12px', 
+                borderBottom: '1px solid #dee2e6',
+                color: '#495057'
+              }}>
+                {insight.title}
               </td>
-              {/* <td>{insight.source}</td> */}
             </tr>
           ))}
         </tbody>

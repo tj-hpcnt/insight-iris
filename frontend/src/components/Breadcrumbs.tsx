@@ -25,8 +25,9 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
                 border: 'none',
                 padding: 0,
                 cursor: item.isCurrent ? 'default' : 'pointer',
-                textDecoration: item.isCurrent ? 'none' : 'underline',
-                color: item.isCurrent ? 'black' : 'blue',
+                textDecoration: 'none',
+                color: 'inherit',
+                font: 'inherit',
               }}
             >
               {item.label}
