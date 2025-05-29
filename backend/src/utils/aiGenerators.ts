@@ -317,126 +317,6 @@ ${questions.map(question => question.text).join('\n')}`;
 }
 
 /**
- * Generates a category overlap between two categories using AI to determine if their insights might overlap
- * @param categoryA The first category to compare
- * @param categoryB The second category to compare
- * @returns The created CategoryOverlap object and token usage statistics
- */
-export async function generateCategoryOverlap(
-  categoryA: Category,
-  categoryB: Category
-): Promise<[CategoryOverlap, OpenAI.Completions.CompletionUsage] | null> {
-  if (categoryA.id == categoryB.id) {
-    const overlap = await prisma.categoryOverlap.create({
-      data: {
-        categoryAId: categoryA.id,
-        categoryBId: categoryB.id,
-        overlap: OverlapType.STRONG,
-      },
-    });
-    const usage = { prompt_tokens: 0, prompt_tokens_details: { cached_tokens: 0 }, completion_tokens: 0, total_tokens: 0 };
-    return [overlap, usage];
-  }
-  //swap the two categories if their ids are out of order to maximize caching
-  if (categoryA.id > categoryB.id) {
-    const temp = categoryA;
-    categoryA = categoryB;
-    categoryB = temp;
-  }
-
-  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine if two categories of insights might have overlapping or related insights.  Ultimately we will take each pair of potential insights in categoryies that you determine to have overlapp and analyze them to see if they imply compatibility or incomaptibility between the two users.   
-
-Category A:
-Category: ${categoryA.category}
-Topic: ${categoryA.topicHeader}
-Subcategory: ${categoryA.subcategory}
-Subject: ${categoryA.insightSubject}
-
-Category B:
-Category: ${categoryB.category}
-Topic: ${categoryB.topicHeader}
-Subcategory: ${categoryB.subcategory}
-Subject: ${categoryB.insightSubject}
-
-Determine the likelihood of insights from category A and category B being implying compatibility between the two users. Output JSON only. Format:
-{"overlap":"STRONG"}
-{"overlap":"WEAK"}
-
-Inisghts from categories might look like:
-"I love to travel"
-"I prefer a partner who can provide for me"
-
-Use STRONG if the categories are likely to have insights that have strong implication for compatibility.
-Use WEAK if the categories are not likely to have insights that imply compatibility.`;
-
-  const model = "gpt-4.1";
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
-  const format = {
-    type: "json_schema" as const,
-    json_schema: {
-      strict: true,
-      name: "overlap",
-      schema: {
-        type: "object",
-        properties: {
-          overlap: {
-            type: "string",
-            enum: ["STRONG", "WEAK", "NONE"]
-          }
-        },
-        required: ["overlap"],
-        additionalProperties: false
-      }
-    }
-  };
-
-  // Try to fetch from cache first
-  const cachedCompletion = await fetchCachedExecution(model, messages, format);
-  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
-    messages,
-    model,
-    response_format: format,
-  });
-
-  try {
-    const overlapData = (completion.choices[0].message as any).parsed as {
-      overlap: OverlapType;
-    };
-    if (!overlapData) {
-      throw new Error("Parse error");
-    }
-
-    // Create or update the categoryOverlap record
-    const categoryOverlap = await prisma.categoryOverlap.upsert({
-      where: {
-        categoryAId_categoryBId: {
-          categoryAId: categoryA.id,
-          categoryBId: categoryB.id,
-        },
-      },
-      update: {
-        overlap: overlapData.overlap,
-      },
-      create: {
-        categoryAId: categoryA.id,
-        categoryBId: categoryB.id,
-        overlap: overlapData.overlap,
-      },
-    });
-
-    if (!cachedCompletion) {
-      await cachePromptExecution(model, messages, format, completion);
-    }
-
-    return [categoryOverlap, completion.usage];
-  } catch (error) {
-    console.error('Error creating category overlap:', error);
-    console.error('Raw response:', completion.choices[0].message);
-    return null;
-  }
-}
-
-/**
  * Generates a new category for an insight using AI to determine the best fit
  * @param insight The insight to recategorize
  * @returns Tuple containing the new category object and token usage statistics
@@ -570,160 +450,39 @@ Please select the most appropriate leaf category (insightSubject) for this insig
   }
 }
 
-/**
- * Generates an insight comparison between two insights using AI to determine compatibility, strength, and presentation
- * @param insightA The first user's insight
- * @param insightB The second user's insight
- * @returns The created InsightComparison object and token usage statistics
- */
-export async function generateInsightComparison(
-  insightA: Insight,
-  insightB: Insight
-): Promise<[InsightComparison, InsightComparisonPresentation | undefined, OpenAI.Completions.CompletionUsage] | null> {
-  // Swap the two insights if their ids are out of order to maximize caching
-  if (insightA.id > insightB.id) {
-    const temp = insightA;
-    insightA = insightB;
-    insightB = temp;
-  }
-
-  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers.   We have extracted many insights, but now we need to determine if an insight for one user and an insight for another user imply compatibility.
-
-You must analyze the insight for user A and for user B and determine how they relate. You must classify them as either compatible, unrelated, or incompatible.  You must also rank the strength of relationship as strong or weak.  If the strength relationship is strong, you need to provide a title to show as a header to describe what links these insights together since they will be presented side by side.  Also provide a maximally shortened version of the essence of the insights so it can fit cleanly in the UI.  Use n/a if it is a weak relationship.  Output JSON in the following format:
-
-{"relation":"compatible","strength":"weak","presentation":"filler","title":"Favorite sport", "user_a":"Tennis", "user_b":"Baseball"}
-
-User A Insight:
-${insightA.insightText}
-User B Insight:
-${insightB.insightText}`;
-
-  const model = "gpt-4.1";
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
-  const format = {
-    type: "json_schema" as const,
-    json_schema: {
-      strict: true,
-      name: "insight_comparison",
-      schema: {
-        type: "object",
-        properties: {
-          relation: { type: "string", enum: ["compatible", "unrelated", "incompatible"] },
-          strength: { type: "string", enum: ["strong", "weak"] },
-          title: { type: "string" },
-          user_a: { type: "string" },
-          user_b: { type: "string" }
-        },
-        required: ["relation", "strength", "title", "user_a", "user_b"],
-        additionalProperties: false
-      }
-    }
-  };
-
-  const cachedCompletion = await fetchCachedExecution(model, messages, format);
-  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
-    messages,
-    model,
-    response_format: format,
-  });
-
-  try {
-    const comparisonData = (completion.choices[0].message as any).parsed as {
-      relation: string;
-      strength: string;
-      title: string;
-      user_a: string;
-      user_b: string;
-    };
-    if (!comparisonData) {
-      throw new Error("Parse error");
-    }
-
-    let polarity: PolarityType = null;
-    if (comparisonData.relation === "compatible") polarity = "POSITIVE";
-    else if (comparisonData.relation === "incompatible") polarity = "NEGATIVE";
-    else if (comparisonData.relation === "unrelated") polarity = "NEUTRAL";
-
-    let overlap: OverlapType = null;
-    if (comparisonData.strength === "strong") overlap = "STRONG";
-    else if (comparisonData.strength === "weak") overlap = "WEAK";
-
-    const insightComparison = await prisma.insightComparison.upsert({
-      where: {
-        insightAId_insightBId: {
-          insightAId: insightA.id,
-          insightBId: insightB.id,
-        },
-      },
-      update: {
-        polarity: polarity,
-        overlap: overlap,
-      },
-      create: {
-        insightA: {
-          connect: { id: insightA.id }
-        },
-        insightB: {
-          connect: { id: insightB.id }
-        },
-        polarity: polarity,
-        overlap: overlap,
-      },
-    });
-
-    await prisma.insightComparisonPresentation.deleteMany({
-      where: {
-        insightComparisonId: insightComparison.id
-      }
-    });
-    var insightComparisonPresentation = undefined;
-    if (overlap == "STRONG") {
-      insightComparisonPresentation = await prisma.insightComparisonPresentation.create({
-        data: {
-          insightComparison: {
-            connect: { id: insightComparison.id }
-          },
-          presentationTitle: comparisonData.title,
-          conciseAText: comparisonData.user_a,
-          conciseBText: comparisonData.user_b,
-          importance: 5,
-        }
-      });
-    }
-
-    if (!cachedCompletion) {
-      await cachePromptExecution(model, messages, format, completion);
-    }
-
-    return [insightComparison, insightComparisonPresentation, completion.usage];
-  } catch (error) {
-    console.error('Error creating insight comparison:', error);
-    console.error('Raw response:', completion.choices[0].message);
-    return null;
-  }
-}
 
 /**
  * Reduces redundancy in inspiration insights for a given category by identifying and removing duplicate insights
  * @param category The category to reduce redundancy in
- * @returns Tuple containing array of deleted insight IDs and token usage statistics
+ * @returns Tuple containing array of deleted insight objects and token usage statistics
  */
-export async function reduceRedundancyOfInspirations(
+export async function reduceRedundancyForInspirations(
   category: Category
-): Promise<[number[], OpenAI.Completions.CompletionUsage] | null> {
+): Promise<[Insight[], OpenAI.Completions.CompletionUsage] | null> {
   // Get all inspiration insights for this category
   const insights = await prisma.insight.findMany({
     where: {
       categoryId: category.id,
       source: InsightSource.INSPIRATION,
     },
+    include: {
+      question: {
+        include: {
+          answers: {
+            include: {
+              insight: true,
+            }
+          }
+        }
+      }
+    }, // Include question to check if insight already has one
   });
 
   if (insights.length <= 1) {
     return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
   }
 
-  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and remove redundant insights that essentially convey the same information.
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and remove redundant inspiration insights that essentially convey the same information.
 
 Category Classification:
 Category: ${category.category}
@@ -731,12 +490,12 @@ Topic: ${category.topicHeader}
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
-Here are all the insights for this category:
+Here are all the inspiration insights for this category:
 ${insights.map(insight => insight.insightText).join('\n')}
 
-Please analyze these insights and identify which ones are redundant (i.e., they convey essentially the same information or meaning). Output JSON only. Format:
+Please analyze these insights and group together those that are equivalent (i.e., they convey essentially the same information or meaning). For each group, the first insight in the list should be the clearest or most preferred representation. Don't output single insights, only groups of 2 or more. Output JSON only. Format:
 
-{"redundantInsights": ["I love Italian food", "I enjoy pasta dishes"]}`;
+{"equivalentInsightGroups": [["I love Italian food", "I enjoy pasta dishes", "Italian cuisine is my favorite"], ["I dislike sports", "I'm not a sports fan"]]}`;
 
   const model = "o3";
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
@@ -744,19 +503,22 @@ Please analyze these insights and identify which ones are redundant (i.e., they 
     type: "json_schema" as const,
     json_schema: {
       strict: true,
-      name: "redundant_insights",
+      name: "equivalent_inspiration_insights",
       schema: {
         type: "object",
         properties: {
-          redundantInsights: {
+          equivalentInsightGroups: {
             type: "array",
             items: {
-              type: "string",
-              enum: insights.map(insight => insight.insightText)
+              type: "array",
+              items: {
+                type: "string",
+                enum: insights.map(insight => insight.insightText)
+              }
             }
           }
         },
-        required: ["redundantInsights"],
+        required: ["equivalentInsightGroups"],
         additionalProperties: false
       }
     }
@@ -771,24 +533,61 @@ Please analyze these insights and identify which ones are redundant (i.e., they 
 
   try {
     const redundancyData = (completion.choices[0].message as any).parsed as {
-      redundantInsights: string[];
+      equivalentInsightGroups: string[][];
     };
-    if (!redundancyData) {
-      throw new Error("Parse error");
+    if (!redundancyData || !redundancyData.equivalentInsightGroups) {
+      console.error("Parse error or no equivalentInsightGroups in response:", redundancyData);
+      throw new Error("Parse error or malformed response for equivalent insights");
     }
 
-    // Get unique insight IDs to delete based on the redundant insight texts
-    const insightsToDelete = insights.filter(insight =>
-      redundancyData.redundantInsights.includes(insight.insightText)
-    );
+    const insightsMap = new Map(insights.map(i => [i.insightText, i]));
+    const deletedInsights: Insight[] = [];
 
-    const deletedIds = [];
-    for (const insight of insightsToDelete) {
-      await prisma.insight.delete({
-        where: { id: insight.id }
-      });
-      deletedIds.push(insight.id);
-    }
+    // Wrap in a transaction
+    await prisma.$transaction(async (tx) => {
+      for (const group of redundancyData.equivalentInsightGroups) {
+        if (group.length < 2) {
+          continue; // No redundancy in this group
+        }
+
+        // Get all insights in this group
+        const groupInsights = group
+          .map(text => insightsMap.get(text))
+          .filter(insight => insight !== undefined) as (typeof insights)[0][];
+
+        if (groupInsights.length < 2) {
+          console.warn(`Not enough valid insights found for group in category ${category.id}. Skipping group.`);
+          continue;
+        }
+
+        // Separate insights with and without questions
+        const insightsWithQuestions = groupInsights.filter(insight => insight.question);
+        const insightsWithoutQuestions = groupInsights.filter(insight => !insight.question);
+
+        let insightsToDelete: (typeof insights)[0][] = [];
+
+        if (insightsWithQuestions.length > 0) {
+          // If any insights have questions, keep all of those and delete the ones without questions
+          insightsToDelete = insightsWithoutQuestions;
+          if (insightsWithQuestions.length > 1) {
+            insightsToDelete = insightsToDelete.concat(insightsWithQuestions.slice(1));
+            for (const insight of insightsWithQuestions.slice(1)) {
+              await deleteQuestionWithCascade(tx, insight.question);
+            }
+          }
+        } else {
+          insightsToDelete = groupInsights.slice(1);
+        }
+
+        // Delete the identified redundant insights
+        for (const redundantInsight of insightsToDelete) {
+          await tx.insight.delete({
+            where: { id: redundantInsight.id }
+          });
+          deletedInsights.push(redundantInsight);
+        }
+      }
+    });
 
     // o3 costs 5x more than gpt-4.1
     const usage = {
@@ -798,7 +597,8 @@ Please analyze these insights and identify which ones are redundant (i.e., they 
         cached_tokens: completion.usage.prompt_tokens_details.cached_tokens * 5,
       }
     } as OpenAI.Completions.CompletionUsage;
-    return [deletedIds, usage];
+    
+    return [deletedInsights, usage];
 
   } catch (error) {
     console.error('Error reducing redundancy:', error);
@@ -989,7 +789,6 @@ Please analyze these insights and group together those that are equivalent. For 
             where: { id: redundantInsight.id },
           });
           mergedInsights.push({oldInsight: redundantInsight, newInsight: primaryInsight});
-          console.log(`Merged insight "${redundantInsight.insightText}" (ID: ${redundantInsight.id}) into "${primaryInsight.insightText}" (ID: ${primaryInsight.id}) in category ${category.insightSubject}`);
         }
       }
     });
@@ -1808,7 +1607,6 @@ export async function reduceExactRedundancyForAnswers(): Promise<{oldInsight: In
           where: { id: redundantInsight.id },
         });
         mergedInsightsInfo.push({oldInsight: redundantInsight, newInsight: primaryInsight});
-        console.log(`Exactly merged insight (ID: ${redundantInsight.id}) "${redundantInsight.insightText}" into (ID: ${primaryInsight.id}) "${primaryInsight.insightText}"`);
       }
     }
   },
@@ -1819,4 +1617,424 @@ export async function reduceExactRedundancyForAnswers(): Promise<{oldInsight: In
   ); // End of transaction
 
   return mergedInsightsInfo;
+}
+
+/**
+ * Reduces redundancy in questions for a given category by identifying and removing equivalent questions.
+ * This involves cleaning up related answers, orphaned answer insights, inspiration insights, and insight comparisons.
+ * @param category The category to reduce question redundancy in
+ * @returns Tuple containing array of objects with details about deleted questions and token usage statistics
+ */
+export async function reduceRedundancyForQuestions(
+  category: Category
+): Promise<[{oldQuestion: Question, newQuestion: Question}[], OpenAI.Completions.CompletionUsage] | null> {
+  // Get all questions for this category via their inspiration insights
+  const inspirationInsights = await prisma.insight.findMany({
+    where: {
+      categoryId: category.id,
+      source: InsightSource.INSPIRATION,
+      question: {
+        isNot: null,
+      },
+    },
+    include: {
+      question: {
+        include: {
+          answers: {
+            include: {
+              insight: true,
+            }
+          }
+        }
+      }
+    },
+  });
+
+  if (inspirationInsights.length <= 1) {
+    return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
+  }
+
+  const questions = inspirationInsights.map(insight => insight.question);
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and remove equivalent questions within a category that essentially ask the same thing.
+
+Category Classification:
+Category: ${category.category}
+Topic: ${category.topicHeader}
+Subcategory: ${category.subcategory}
+Subject: ${category.insightSubject}
+
+Here are all the questions for this category:
+${questions.map((question) => `"${question.questionText}"`).join('\n')}
+
+Please analyze these questions and group together those that are equivalent or ask essentially the same thing. For each group, the first question in the list should be the clearest or most preferred representation. Don't output single questions, only groups of 2 or more. Output JSON only. Format:
+
+{"equivalentQuestionGroups": [["What's your favorite food?", "Which food do you enjoy most?", "What food do you love eating?"], ["Do you like sports?", "Are you into athletics?"]]}`;
+
+  const model = "o3"; // Using o3 for better grouping analysis
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "equivalent_questions",
+      schema: {
+        type: "object",
+        properties: {
+          equivalentQuestionGroups: {
+            type: "array",
+            items: {
+              type: "array",
+              items: {
+                type: "string",
+                // Ensure the LLM only outputs questions that actually exist in this category
+                enum: questions.map(question => question.questionText)
+              },
+            }
+          }
+        },
+        required: ["equivalentQuestionGroups"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Skip cache as this process should always use the latest set of questions
+  const completion = await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const redundancyData = (completion.choices[0].message as any).parsed as {
+      equivalentQuestionGroups: string[][];
+    };
+    if (!redundancyData || !redundancyData.equivalentQuestionGroups) {
+      console.error("Parse error or no equivalentQuestionGroups in response:", redundancyData);
+      throw new Error("Parse error or malformed response for equivalent questions");
+    }
+
+    const questionsMap = new Map(questions.map(q => [q.questionText, q]));
+    const mergedQuestionsInfo: {oldQuestion: Question, newQuestion: Question}[] = [];
+    // Wrap in a transaction
+    await prisma.$transaction(async (tx) => {
+      for (const group of redundancyData.equivalentQuestionGroups) {
+        if (group.length < 2) { // If only one question in a group, nothing to delete
+          continue;
+        }
+
+        const primaryQuestionText = group[0];
+        const primaryQuestion = questionsMap.get(primaryQuestionText);
+
+        if (!primaryQuestion) {
+          console.warn(`Primary question text "${primaryQuestionText}" not found in category ${category.id}. Skipping group.`);
+          continue;
+        }
+
+        // Delete redundant questions (all except the first one)
+        for (let i = 1; i < group.length; i++) {
+          const redundantQuestionText = group[i];
+          const redundantQuestion = questionsMap.get(redundantQuestionText);
+
+          if (!redundantQuestion) {
+            console.warn(`Redundant question text "${redundantQuestionText}" not found in category ${category.id}. Skipping.`);
+            continue;
+          }
+
+          if (redundantQuestion.id === primaryQuestion.id) {
+            console.warn(`Primary and redundant question are the same for text "${primaryQuestionText}". Skipping deletion for this item.`);
+            continue;
+          }
+
+
+          // Get the inspiration insight for this question
+          const inspirationInsight = inspirationInsights.find(insight => insight.id === redundantQuestion.inspirationId);
+
+          // Delete the question and all its cascading relationships
+          await deleteQuestionWithCascade(tx, redundantQuestion);
+
+          // Delete the inspiration insight that generated this question
+          if (inspirationInsight) {
+            await tx.insight.delete({
+              where: { id: inspirationInsight.id },
+            });
+          }
+
+          mergedQuestionsInfo.push({oldQuestion: redundantQuestion, newQuestion: primaryQuestion});
+        }
+      }
+    },
+    {
+      maxWait: 10000, // default 2000
+      timeout: 20000, // default 5000
+    });
+
+    // o3 costs 5x more than gpt-4.1
+    const usage = {
+      prompt_tokens: (completion.usage?.prompt_tokens || 0) * 5,
+      completion_tokens: (completion.usage?.completion_tokens || 0) * 5,
+      prompt_tokens_details: {
+        cached_tokens: (completion.usage?.prompt_tokens_details?.cached_tokens || 0) * 5,
+      }
+    } as OpenAI.Completions.CompletionUsage;
+
+    return [mergedQuestionsInfo, usage];
+
+  } catch (error) {
+    console.error(`Error reducing redundancy for questions in category ${category.insightSubject}:`, error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
 } 
+
+/**
+ * Reduces redundancy in INSPIRATION insights by identifying and merging insights with identical text.
+ * It identifies groups of insights with identical insightText, keeps one as primary,
+ * handles cascading deletion of questions, answers, and orphaned answer insights,
+ * and then deletes the redundant insights. This version does not use AI and operates globally.
+ * @returns Array of objects detailing each merge, with oldInsight and newInsight.
+ */
+export async function reduceExactRedundancyForInspirations(): Promise<{oldInsight: Insight, newInsight: Insight}[]> {
+  // 1. Fetch ALL Inspiration insights, ordered by ID to consistently pick a primary.
+  const allInspirationInsights = await prisma.insight.findMany({
+    where: {
+      source: InsightSource.INSPIRATION,
+    },
+    include: {
+      question: {
+        include: {
+          answers: {
+            include: {
+              insight: true,
+            }
+          }
+        }
+      }
+    },
+    orderBy: {
+      id: 'asc',
+    }
+  });
+
+  if (allInspirationInsights.length <= 1) {
+    return [];
+  }
+
+  // 2. Group insights by insightText
+  const insightsByText = new Map<string, (typeof allInspirationInsights)[0][]>();
+  for (const insight of allInspirationInsights) {
+    if (!insightsByText.has(insight.insightText)) {
+      insightsByText.set(insight.insightText, []);
+    }
+    insightsByText.get(insight.insightText)!.push(insight);
+  }
+
+  const mergedInsightsInfo: {oldInsight: Insight, newInsight: Insight}[] = [];
+
+  await prisma.$transaction(async (tx) => {
+    for (const [_text, group] of insightsByText) {
+      if (group.length < 2) {
+        continue; // No redundancy in this group
+      }
+
+      // Prioritize insights with questions, then by ID (ascending)
+      const insightsWithQuestions = group.filter(insight => insight.question);
+      const insightsWithoutQuestions = group.filter(insight => !insight.question);
+      
+      let primaryInsight: typeof group[0];
+      let redundantInsights: typeof group;
+
+      if (insightsWithQuestions.length > 0) {
+        // If any insights have questions, keep the first one with a question and delete the rest
+        primaryInsight = insightsWithQuestions[0];
+        redundantInsights = [...insightsWithQuestions.slice(1), ...insightsWithoutQuestions];
+      } else {
+        // If none have questions, keep the first one by ID
+        primaryInsight = group[0];
+        redundantInsights = group.slice(1);
+      }
+
+      // Iterate over redundant insights in the current group
+      for (const redundantInsight of redundantInsights) {
+        // Should not happen given unique IDs and selection logic, but as a safeguard:
+        if (redundantInsight.id === primaryInsight.id) {
+          console.warn(`Primary and redundant insight are the same (ID: ${primaryInsight.id}, Text: "${primaryInsight.insightText}"). Skipping merge for this item.`);
+          continue;
+        }
+
+        // If the redundant insight has a question, we need to clean up the associated data
+        if (redundantInsight.question) {
+          await deleteQuestionWithCascade(tx, redundantInsight.question);
+        }
+
+        // Delete the redundant inspiration insight
+        await tx.insight.delete({
+          where: { id: redundantInsight.id },
+        });
+        
+        mergedInsightsInfo.push({oldInsight: redundantInsight, newInsight: primaryInsight});
+      }
+    }
+  },
+  {
+    maxWait: 10000, // default 2000
+    timeout: 20000, // default 5000
+  }
+  ); // End of transaction
+
+  return mergedInsightsInfo;
+}
+
+/**
+ * Helper function to delete a question and all its cascading relationships within a transaction
+ * @param tx The Prisma transaction context
+ * @param question The question to delete (with answers and insights included)
+ * @returns void
+ */
+async function deleteQuestionWithCascade(
+  tx: any, // Prisma transaction type
+  question: {
+    id: number;
+    answers: Array<{
+      insight: Insight | null;
+    }>;
+  }
+): Promise<void> {
+  // Get all answer insights for this question
+  const answerInsights = question.answers.map(answer => answer.insight).filter(insight => insight !== null) as Insight[];
+  
+  // For each answer insight, check if it's referenced by other answers outside this question
+  const orphanedAnswerInsights: Map<number, Insight> = new Map();
+  for (const answerInsight of answerInsights) {
+    const otherAnswerReferences = await tx.answer.count({
+      where: {
+        insightId: answerInsight.id,
+        questionId: { not: question.id },
+      },
+    });
+
+    if (otherAnswerReferences === 0) {
+      // This answer insight is only referenced by answers from this question
+      orphanedAnswerInsights.set(answerInsight.id, answerInsight);
+    }
+  }
+
+  // Delete insight comparisons for orphaned answer insights
+  for (const orphanedInsight of orphanedAnswerInsights.values()) {
+    // Delete presentations first
+    const comparisons = await tx.insightComparison.findMany({
+      where: {
+        OR: [
+          { insightAId: orphanedInsight.id },
+          { insightBId: orphanedInsight.id },
+        ],
+      },
+    });
+
+    for (const comparison of comparisons) {
+      await tx.insightComparisonPresentation.deleteMany({
+        where: { insightComparisonId: comparison.id },
+      });
+    }
+
+    // Delete the comparisons themselves
+    await tx.insightComparison.deleteMany({
+      where: {
+        OR: [
+          { insightAId: orphanedInsight.id },
+          { insightBId: orphanedInsight.id },
+        ],
+      },
+    });
+  }
+
+  // Delete all answers for this question
+  await tx.answer.deleteMany({
+    where: { questionId: question.id },
+  });
+
+  // Delete orphaned answer insights
+  for (const orphanedInsight of orphanedAnswerInsights.values()) {
+    await tx.insight.delete({
+      where: { id: orphanedInsight.id },
+    });
+  }
+
+  // Delete the question itself
+  await tx.question.delete({
+    where: { id: question.id },
+  });
+}
+
+/**
+ * Reduces redundancy in questions by identifying and merging questions with identical text.
+ * It identifies groups of questions with identical questionText, keeps one as primary,
+ * handles cascading deletion of answers and orphaned answer insights,
+ * and then deletes the redundant questions. This version does not use AI and operates globally.
+ * @returns Array of objects detailing each merge, with oldQuestion and newQuestion.
+ */
+export async function reduceExactRedundancyForQuestions(): Promise<{oldQuestion: Question, newQuestion: Question}[]> {
+  // 1. Fetch ALL questions, ordered by ID to consistently pick a primary.
+  const allQuestions = await prisma.question.findMany({
+    include: {
+      answers: {
+        include: {
+          insight: true,
+        }
+      }
+    },
+    orderBy: {
+      id: 'asc',
+    }
+  });
+
+  if (allQuestions.length <= 1) {
+    return [];
+  }
+
+  // 2. Group questions by questionText
+  const questionsByText = new Map<string, (typeof allQuestions)[0][]>();
+  for (const question of allQuestions) {
+    if (!questionsByText.has(question.questionText)) {
+      questionsByText.set(question.questionText, []);
+    }
+    questionsByText.get(question.questionText)!.push(question);
+  }
+
+  const mergedQuestionsInfo: {oldQuestion: Question, newQuestion: Question}[] = [];
+
+  await prisma.$transaction(async (tx) => {
+    for (const [_text, group] of questionsByText) {
+      if (group.length < 2) {
+        continue; // No redundancy in this group
+      }
+
+      // The first question in the group is the primary (due to orderBy id: 'asc')
+      const primaryQuestion = group[0];
+
+      // Iterate over redundant questions in the current group
+      for (let i = 1; i < group.length; i++) {
+        const redundantQuestion = group[i];
+
+        // Should not happen given unique IDs and group[0] being primary, but as a safeguard:
+        if (redundantQuestion.id === primaryQuestion.id) {
+          console.warn(`Primary and redundant question are the same (ID: ${primaryQuestion.id}, Text: "${primaryQuestion.questionText}"). Skipping merge for this item.`);
+          continue;
+        }
+
+        // Delete the redundant question and all its cascading relationships
+        await deleteQuestionWithCascade(tx, redundantQuestion);
+
+        mergedQuestionsInfo.push({oldQuestion: redundantQuestion, newQuestion: primaryQuestion});
+      }
+    }
+  },
+  {
+    maxWait: 10000, // default 2000
+    timeout: 20000, // default 5000
+  }
+  ); // End of transaction
+
+  return mergedQuestionsInfo;
+}

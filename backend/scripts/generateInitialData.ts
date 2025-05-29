@@ -1,6 +1,6 @@
 import { PrismaClient, InsightSource, Category, Insight } from '@prisma/client';
 import * as dotenv from 'dotenv';
-import { generateInspirationInsights, generateBaseQuestion, generateCategoryOverlap, reassignCategory, generateInsightComparison, reduceRedundancyOfInspirations, generateCategoryOverlapByRanking, generateInsightCategoryOverlap, generateInsightComparisonPresentation, generateInsightCategoryComparisonByRanking, reduceExactRedundancyForAnswers } from '../src/utils/aiGenerators';
+import { generateInspirationInsights, generateBaseQuestion, reassignCategory, reduceRedundancyForInspirations, generateCategoryOverlapByRanking, generateInsightCategoryOverlap, generateInsightComparisonPresentation, generateInsightCategoryComparisonByRanking, reduceExactRedundancyForAnswers, reduceRedundancyForQuestions, reduceExactRedundancyForQuestions, reduceExactRedundancyForInspirations } from '../src/utils/aiGenerators';
 import { CATEGORIES } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
@@ -128,7 +128,7 @@ async function main() {
         }
         totalInsights = await prisma.insight.count({ where: { categoryId: category.id, source: InsightSource.INSPIRATION } });
         console.log(`Reducing redundancy for category: ${category.insightSubject}`);
-        const [deletedIds, usage] = await reduceRedundancyOfInspirations(category);
+        const [deletedIds, usage] = await reduceRedundancyForInspirations(category);
         totalUsage.promptTokens += usage.prompt_tokens;
         totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
         totalUsage.completionTokens += usage.completion_tokens;
@@ -137,6 +137,12 @@ async function main() {
       },
       BATCH_COUNT
     );
+
+    console.log('Reducing redundancy for INSPIRATION insights exact matches...');
+    const inspirationInsightExactDupes = await reduceExactRedundancyForInspirations();
+    for (const mergedInsight of inspirationInsightExactDupes) {
+      console.log(`Merged insight: ${mergedInsight.oldInsight.insightText} -> ${mergedInsight.newInsight.insightText}`);
+    }
 
     console.log('Generating questions...');
     const insights = await prisma.insight.findMany({ where: { source: InsightSource.INSPIRATION } });
@@ -193,11 +199,34 @@ async function main() {
       },
       BATCH_COUNT
     );
-    
+
+    console.log('Reducing redundancy for QUESTION exact matches...');
+    const questionExactDupes = await reduceExactRedundancyForQuestions();
+    for (const mergedQuestion of questionExactDupes) {
+      console.log(`Merged question: "${mergedQuestion.oldQuestion.questionText}" -> "${mergedQuestion.newQuestion.questionText}"`);
+    }
+     
+    console.log('Reducing redundancy for questions...');
+    await processInParallel<Category, void>(
+      categories,
+      async (category) => {
+        const result = await reduceRedundancyForQuestions(category);
+        if (result) {
+          const [mergedQuestions, usage] = result;
+          totalUsage.promptTokens += usage.prompt_tokens;
+          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+          totalUsage.completionTokens += usage.completion_tokens;
+          for (const mergedQuestion of mergedQuestions) {
+            console.log(`Merged question: "${mergedQuestion.oldQuestion.questionText}" -> "${mergedQuestion.newQuestion.questionText}"`);
+          }
+        }
+      },
+      BATCH_COUNT
+    );
 
     console.log('Reducing redundancy for ANSWER insights exact matches...');
-    const exactRedundancyResult = await reduceExactRedundancyForAnswers();
-    for (const mergedInsight of exactRedundancyResult) {
+    const answerInsightExactDupes = await reduceExactRedundancyForAnswers();
+    for (const mergedInsight of answerInsightExactDupes) {
       console.log(`Merged insight: ${mergedInsight.oldInsight.insightText} -> ${mergedInsight.newInsight.insightText}`);
     }
     console.log('Reducing redundancy for ANSWER insights AI matches...');

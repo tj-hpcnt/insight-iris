@@ -52,6 +52,7 @@ model Insight {
   answers           Answer[]
   insightCompareA   InsightComparison[] @relation("InsightA")
   insightCompareB   InsightComparison[] @relation("InsightB")
+  question          Question? @relation("QuestionInspiration") // Relation to Question if this insight is an inspiration
 
   @@index([categoryId])
 }
@@ -64,10 +65,11 @@ model Style {
 
 model Question {
   id            Int          @id @default(autoincrement())
-  inspirationId Int
+  inspirationId Int          @unique // Each question is inspired by a unique insight
   questionType  QuestionType
   questionText  String
   answers       Answer[]
+  inspiration   Insight      @relation("QuestionInspiration", fields: [inspirationId], references: [id])
 }
 
 model Answer {
@@ -77,6 +79,8 @@ model Answer {
   insightId  Int
   question   Question @relation(fields: [questionId], references: [id])
   insight    Insight  @relation(fields: [insightId], references: [id])
+
+  @@index([insightId])
 }
 
 model CategoryOverlap {

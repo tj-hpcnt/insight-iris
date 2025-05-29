@@ -20,36 +20,57 @@ function App() {
   const [selectedInsightId, setSelectedInsightId] = useState<number | null>(null);
   // const [selectedInsightTitle, setSelectedInsightTitle] = useState<string | null>(null); // To be used for breadcrumb
 
-  // For Question View navigation
+  // For Question View navigation - should only track inspiration insights
   const [currentQuestionableInsights, setCurrentQuestionableInsights] = useState<InsightPlaceholder[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
 
-  // Fetch questionable insights when a category and insight type are selected, 
-  // and we are about to go to the question view or are in it.
+  // When in question view, ensure the currentQuestionIndex matches the actual inspiration insight
   useEffect(() => {
-    if (selectedCategoryId && selectedInsightType) {
-      const fetchInsightsForQuestionNavigation = async () => {
+    if (currentView === 'question' && selectedInsightId) {
+      // Fetch the question context to get the inspiration insight ID
+      const updateQuestionIndex = async () => {
         try {
-          //This is to populate the list of questions for next/prev navigation in QuestionView
-          const apiPath = selectedInsightType === 'inspiration' ? 
-          `/api/categories/${selectedCategoryId}/inspiration-insights` :
-          `/api/categories/${selectedCategoryId}/answer-insights`;
+          const response = await fetch(`/api/insights/${selectedInsightId}/question-details`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.inspirationInsightDetails) {
+              const inspirationIndex = currentQuestionableInsights.findIndex(
+                insight => insight.id === data.inspirationInsightDetails.id
+              );
+              if (inspirationIndex !== -1 && inspirationIndex !== currentQuestionIndex) {
+                setCurrentQuestionIndex(inspirationIndex);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to update question index:', error);
+        }
+      };
+      updateQuestionIndex();
+    }
+  }, [currentView, selectedInsightId, currentQuestionableInsights, currentQuestionIndex]);
 
-          const response = await fetch(apiPath);
+  // Fetch inspiration insights when a category is selected for question navigation
+  // This should only fetch inspiration insights since questions are based on inspiration insights
+  useEffect(() => {
+    if (selectedCategoryId) {
+      const fetchInspirationInsightsForQuestionNavigation = async () => {
+        try {
+          // Always fetch inspiration insights for question navigation, regardless of current view type
+          const response = await fetch(`/api/categories/${selectedCategoryId}/inspiration-insights`);
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           const data: InsightPlaceholder[] = await response.json();
           setCurrentQuestionableInsights(data);
         } catch (error) {
-          console.error('Failed to fetch insights for question navigation:', error);
+          console.error('Failed to fetch inspiration insights for question navigation:', error);
           setCurrentQuestionableInsights([]); // Reset on error
         }
       };
-      fetchInsightsForQuestionNavigation();
+      fetchInspirationInsightsForQuestionNavigation();
     }
-  }, [selectedCategoryId, selectedInsightType]);
-
+  }, [selectedCategoryId]); // Only depend on selectedCategoryId, not selectedInsightType
 
   const handleCategoryClick = (categoryId: number, categoryName: string) => {
     setSelectedCategoryId(categoryId);
@@ -70,9 +91,20 @@ function App() {
     setSelectedInsightId(insightId);
     // setSelectedInsightTitle(insightTitle); // insightTitle is passed from InsightTable (which now uses insightText)
     
+    // For question navigation, we need to find the correct inspiration insight index
+    // If clicking on an inspiration insight, find its index directly
+    // If clicking on an answer insight, we need to find the corresponding inspiration insight
     const insightIndex = currentQuestionableInsights.findIndex(insight => insight.id === insightId);
     if (insightIndex !== -1) {
+        // This is an inspiration insight, use its index directly
         setCurrentQuestionIndex(insightIndex);
+    } else {
+        // This might be an answer insight, we'll let the QuestionView component handle finding the right inspiration
+        // For now, keep the current index or reset to 0 if no current index
+        if (currentQuestionIndex >= currentQuestionableInsights.length) {
+            setCurrentQuestionIndex(0);
+        }
+        // The QuestionView will fetch the full context and determine the correct inspiration insight
     }
     setCurrentView('question');
   };
@@ -103,10 +135,10 @@ function App() {
       newIndex = Math.max(currentQuestionIndex - 1, 0);
     }
     if (newIndex !== currentQuestionIndex && currentQuestionableInsights[newIndex]) {
+      // Always navigate to the inspiration insight ID since questions are based on inspiration insights
       setSelectedInsightId(currentQuestionableInsights[newIndex].id);
-      // setSelectedInsightTitle(currentQuestionableInsights[newIndex].insightText); // Update title from insightText
       setCurrentQuestionIndex(newIndex);
-      // The QuestionView component will re-fetch based on the new selectedInsightId
+      // The QuestionView component will re-fetch based on the new selectedInsightId (inspiration insight)
     }
   };
 
