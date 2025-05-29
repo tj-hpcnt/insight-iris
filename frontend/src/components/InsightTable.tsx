@@ -2,30 +2,54 @@ import React, { useEffect, useState } from 'react';
 
 export type InsightType = 'inspiration' | 'answers'; // This matches the frontend logic
 
-// Interface for data coming from the API (matches Prisma Insight model)
-interface InsightFromAPI {
+// Interface for inspiration insights from the API (matches Prisma Insight model with question)
+interface InspirationInsightFromAPI {
   id: number;
   categoryId: number;
   insightText: string;
-  source: string; // Should be 'INSPIRATION' or 'ANSWER' from InsightSource enum
+  source: string; // Should be 'INSPIRATION' from InsightSource enum
   generationOrder?: number | null;
-  // category: any; // Not fetching category details here
-  // answers: any[]; // Not fetching related answers here for this table
-  // insightCompareA: any[];
-  // insightCompareB: any[];
+  question?: {
+    questionText: string;
+  } | null;
 }
 
-// Interface for what the table will display
-interface InsightDisplay {
+// Interface for answer insights from the API (matches Prisma Insight model with answers)
+interface AnswerInsightFromAPI {
+  id: number;
+  categoryId: number;
+  insightText: string;
+  source: string; // Should be 'ANSWER' from InsightSource enum
+  generationOrder?: number | null;
+  answers: {
+    answerText: string;
+    question: {
+      questionText: string;
+    };
+  }[];
+}
+
+// Interface for what the table will display - inspiration insights
+interface InspirationInsightDisplay {
     id: number;
-    title: string; // This will be insightText from the API
+    questionText: string;
+    insightText: string;
+    source: string;
+}
+
+// Interface for what the table will display - answer insights
+interface AnswerInsightDisplay {
+    id: number;
+    questionText: string;
+    answerText: string;
+    insightText: string;
     source: string;
 }
 
 interface InsightTableProps {
   categoryId: number;
   insightType: InsightType; // 'inspiration' or 'answers'
-  onInsightClick: (insightId: number, insightTitle: string) => void;
+  onInsightClick: (insightId: number) => void;
   onInsightTypeChange: (type: InsightType) => void; // New prop for handling tab changes
 }
 
@@ -35,7 +59,8 @@ const InsightTable: React.FC<InsightTableProps> = ({
   onInsightClick, 
   onInsightTypeChange 
 }) => {
-  const [insights, setInsights] = useState<InsightDisplay[]>([]);
+  const [inspirationInsights, setInspirationInsights] = useState<InspirationInsightDisplay[]>([]);
+  const [answerInsights, setAnswerInsights] = useState<AnswerInsightDisplay[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,14 +79,29 @@ const InsightTable: React.FC<InsightTableProps> = ({
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const data: InsightFromAPI[] = await response.json();
-        // Map API data to display data
-        const displayData = data.map(ins => ({
+        
+        if (insightType === 'inspiration') {
+          const data: InspirationInsightFromAPI[] = await response.json();
+          // Map API data to display data for inspiration insights
+          const displayData = data.map(ins => ({
             id: ins.id,
-            title: ins.insightText, // Use insightText as the title for display
+            questionText: ins.question?.questionText || 'No question generated',
+            insightText: ins.insightText,
             source: ins.source,
-        }));
-        setInsights(displayData);
+          }));
+          setInspirationInsights(displayData);
+        } else {
+          const data: AnswerInsightFromAPI[] = await response.json();
+          // Map API data to display data for answer insights
+          const displayData = data.map(ins => ({
+            id: ins.id,
+            questionText: ins.answers[0]?.question?.questionText || 'No question found',
+            answerText: ins.answers[0]?.answerText || 'No answer found',
+            insightText: ins.insightText,
+            source: ins.source,
+          }));
+          setAnswerInsights(displayData);
+        }
       } catch (e) {
         if (e instanceof Error) {
           setError(e.message);
@@ -158,35 +198,103 @@ const InsightTable: React.FC<InsightTableProps> = ({
               fontWeight: '600',
               color: '#495057'
             }}>
-              Insight Text
+              Question
+            </th>
+            {insightType === 'answers' && (
+              <th style={{ 
+                padding: '12px', 
+                textAlign: 'left', 
+                borderBottom: '2px solid #dee2e6',
+                fontWeight: '600',
+                color: '#495057'
+              }}>
+                Answer
+              </th>
+            )}
+            <th style={{ 
+              padding: '12px', 
+              textAlign: 'left', 
+              borderBottom: '2px solid #dee2e6',
+              fontWeight: '600',
+              color: '#495057'
+            }}>
+              Insight
             </th>
           </tr>
         </thead>
         <tbody>
-          {insights.map((insight) => (
-            <tr 
-              key={insight.id}
-              onClick={() => onInsightClick(insight.id, insight.title)}
-              style={{ 
-                cursor: 'pointer',
-                transition: 'background-color 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#f8f9fa';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              <td style={{ 
-                padding: '12px', 
-                borderBottom: '1px solid #dee2e6',
-                color: '#495057'
-              }}>
-                {insight.title}
-              </td>
-            </tr>
-          ))}
+          {insightType === 'inspiration' ? (
+            inspirationInsights.map((insight) => (
+              <tr 
+                key={insight.id}
+                onClick={() => onInsightClick(insight.id)}
+                style={{ 
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f8f9fa';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <td style={{ 
+                  padding: '12px', 
+                  borderBottom: '1px solid #dee2e6',
+                  color: '#495057'
+                }}>
+                  {insight.questionText}
+                </td>
+                <td style={{ 
+                  padding: '12px', 
+                  borderBottom: '1px solid #dee2e6',
+                  color: '#495057'
+                }}>
+                  {insight.insightText}
+                </td>
+              </tr>
+            ))
+          ) : (
+            answerInsights.map((insight) => (
+              <tr 
+                key={insight.id}
+                onClick={() => onInsightClick(insight.id)}
+                style={{ 
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f8f9fa';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <td style={{ 
+                  padding: '12px', 
+                  borderBottom: '1px solid #dee2e6',
+                  color: '#495057'
+                }}>
+                  {insight.questionText}
+                </td>
+                <td style={{ 
+                  padding: '12px', 
+                  borderBottom: '1px solid #dee2e6',
+                  color: '#495057'
+                }}>
+                  {insight.answerText}
+                </td>
+                <td style={{ 
+                  padding: '12px', 
+                  borderBottom: '1px solid #dee2e6',
+                  color: '#495057'
+                }}>
+                  {insight.insightText}
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>

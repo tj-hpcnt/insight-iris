@@ -1,17 +1,31 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaClient, InsightSource, OverlapType, PolarityType, Insight, Category, CategoryOverlap, InsightComparison, InsightComparisonPresentation, Question, Answer, QuestionType } from '@prisma/client';
 
+// Define category information structure
+type CategoryInfo = {
+  id: number;
+  category: string;
+  topicHeader: string;
+  subcategory: string;
+  insightSubject: string;
+};
+
+// Extended Insight type that includes category information
+type InsightWithCategory = Insight & {
+  category: CategoryInfo;
+};
+
 // Define a more specific type for the nested structure we're building
 type QuestionWithAnswersAndDetailedInsights = Question & {
   answers: (Answer & {
-    insight: Insight | null; // The detailed insight for this answer option
+    insight: InsightWithCategory | null; // The detailed insight for this answer option
   })[];
 };
 
 export interface FullQuestionContextPayload {
   retrievedById: number;
-  initialInsightDetails: Insight;
-  inspirationInsightDetails: Insight | null;
+  initialInsightDetails: InsightWithCategory;
+  inspirationInsightDetails: InsightWithCategory | null;
   questionDetails: {
     id: number;
     inspirationId: number;
@@ -20,7 +34,7 @@ export interface FullQuestionContextPayload {
     answers: {
       id: number;
       answerText: string;
-      linkedAnswerInsight: Insight | null; // The detailed Answer insight for this option
+      linkedAnswerInsight: InsightWithCategory | null; // The detailed Answer insight for this option
     }[];
   } | null;
 }
@@ -44,6 +58,13 @@ export class AppService {
         categoryId,
         source: InsightSource.INSPIRATION,
       },
+      include: {
+        question: {
+          select: {
+            questionText: true,
+          },
+        },
+      },
     });
   }
 
@@ -53,6 +74,21 @@ export class AppService {
         categoryId,
         source: InsightSource.ANSWER,
       },
+      include: {
+        answers: {
+          select: {
+            answerText: true,
+            question: {
+              select: {
+                questionText: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        id: 'asc'
+      },
     });
   }
 
@@ -60,13 +96,24 @@ export class AppService {
   async getFullQuestionContextByInsightId(anyInsightId: number): Promise<FullQuestionContextPayload> {
     const initialInsight = await this.prisma.insight.findUnique({
       where: { id: anyInsightId },
+      include: {
+        category: {
+          select: {
+            id: true,
+            category: true,
+            topicHeader: true,
+            subcategory: true,
+            insightSubject: true,
+          },
+        },
+      },
     });
 
     if (!initialInsight) {
       throw new NotFoundException(`Insight with ID ${anyInsightId} not found`);
     }
 
-    let inspirationInsight: Insight | null = null;
+    let inspirationInsight: InsightWithCategory | null = null;
     let fetchedQuestionData: QuestionWithAnswersAndDetailedInsights | null = null;
 
     if (initialInsight.source === InsightSource.INSPIRATION) {
@@ -76,7 +123,21 @@ export class AppService {
         include: {
           answers: {
             orderBy: { id: 'asc' },
-            include: { insight: true }, // Include the detailed Answer Insight for each option
+            include: { 
+              insight: {
+                include: {
+                  category: {
+                    select: {
+                      id: true,
+                      category: true,
+                      topicHeader: true,
+                      subcategory: true,
+                      insightSubject: true,
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       });
@@ -93,16 +154,42 @@ export class AppService {
           include: {
             answers: { // Fetch all answers for this question
               orderBy: { id: 'asc' },
-              include: { insight: true },
+              include: { 
+                insight: {
+                  include: {
+                    category: {
+                      select: {
+                        id: true,
+                        category: true,
+                        topicHeader: true,
+                        subcategory: true,
+                        insightSubject: true,
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
         });
 
         if (questionForAnswer) {
           fetchedQuestionData = questionForAnswer;
-          inspirationInsight = await this.prisma.insight.findUnique({
+          const inspirationInsightResult = await this.prisma.insight.findUnique({
             where: { id: questionForAnswer.inspirationId },
+            include: {
+              category: {
+                select: {
+                  id: true,
+                  category: true,
+                  topicHeader: true,
+                  subcategory: true,
+                  insightSubject: true,
+                },
+              },
+            },
           });
+          inspirationInsight = inspirationInsightResult;
           if (!inspirationInsight) {
              // This would indicate a data integrity issue if a question's inspirationId doesn't point to a valid insight
              console.warn(`Data integrity issue: Inspiration insight ID ${questionForAnswer.inspirationId} not found for question ID ${questionForAnswer.id}`);

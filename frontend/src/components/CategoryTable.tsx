@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getInsightSubjectStyle } from '../utils/colorUtils';
 
 interface CategoryFromAPI { // Reflects Prisma model
   id: number;
@@ -85,7 +86,13 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
             <td>{category.name}</td>
             <td>{category.topicHeader}</td>
             <td>{category.subcategory}</td>
-            <td>{category.insightSubject}</td>
+            <td>
+              {category.insightSubject && (
+                <span style={getInsightSubjectStyle(category.insightSubject)}>
+                  {category.insightSubject}
+                </span>
+              )}
+            </td>
           </tr>
         ))}
       </tbody>

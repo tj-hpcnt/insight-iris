@@ -1,9 +1,11 @@
 import React from 'react';
+import { getInsightSubjectStyle } from '../utils/colorUtils';
 
-interface BreadcrumbItem {
+export interface BreadcrumbItem {
   label: string;
   onClick: () => void;
   isCurrent?: boolean;
+  insightSubject?: string;
 }
 
 interface BreadcrumbsProps {
@@ -28,9 +30,17 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
                 textDecoration: 'none',
                 color: 'inherit',
                 font: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
               }}
             >
               {item.label}
+              {item.insightSubject && (
+                <span style={getInsightSubjectStyle(item.insightSubject, 'inherit')}>
+                  {item.insightSubject}
+                </span>
+              )}
             </button>
           </li>
         ))}

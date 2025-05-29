@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Breadcrumbs from './components/Breadcrumbs';
+import Breadcrumbs, { BreadcrumbItem } from './components/Breadcrumbs';
 import CategoryTable from './components/CategoryTable';
 import InsightTable, { InsightType } from './components/InsightTable';
 import QuestionView from './components/QuestionView';
@@ -15,10 +15,11 @@ interface InsightPlaceholder {
 function App() {
   const [currentView, setCurrentView] = useState<View>('categories');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [selectedInsightSubject, setSelectedInsightSubject] = useState<string | null>(null);
   const [selectedInsightType, setSelectedInsightType] = useState<InsightType | null>(null);
   const [selectedInsightId, setSelectedInsightId] = useState<number | null>(null);
   // const [selectedInsightTitle, setSelectedInsightTitle] = useState<string | null>(null); // To be used for breadcrumb
+  const [currentQuestionText, setCurrentQuestionText] = useState<string | null>(null);
 
   // For Question View navigation - should only track inspiration insights
   const [currentQuestionableInsights, setCurrentQuestionableInsights] = useState<InsightPlaceholder[]>([]);
@@ -33,6 +34,12 @@ function App() {
           const response = await fetch(`/api/insights/${selectedInsightId}/question-details`);
           if (response.ok) {
             const data = await response.json();
+            
+            // Store the question text for breadcrumb
+            if (data.questionText) {
+              setCurrentQuestionText(data.questionText);
+            }
+            
             if (data.inspirationInsightDetails) {
               const inspirationIndex = currentQuestionableInsights.findIndex(
                 insight => insight.id === data.inspirationInsightDetails.id
@@ -47,6 +54,9 @@ function App() {
         }
       };
       updateQuestionIndex();
+    } else {
+      // Clear question text when not in question view
+      setCurrentQuestionText(null);
     }
   }, [currentView, selectedInsightId, currentQuestionableInsights, currentQuestionIndex]);
 
@@ -72,9 +82,9 @@ function App() {
     }
   }, [selectedCategoryId]); // Only depend on selectedCategoryId, not selectedInsightType
 
-  const handleCategoryClick = (categoryId: number, categoryName: string) => {
+  const handleCategoryClick = async (categoryId: number, insightSubject: string) => {
     setSelectedCategoryId(categoryId);
-    setSelectedCategoryName(categoryName);
+    setSelectedInsightSubject(insightSubject);
     // Default to inspiration insights, or let user choose via UI elements not yet defined
     setSelectedInsightType('inspiration'); 
     setCurrentView('insights');
@@ -87,7 +97,7 @@ function App() {
     setCurrentQuestionIndex(0); // Reset index when type changes
   };
 
-  const handleInsightClick = (insightId: number, insightTitle: string) => {
+  const handleInsightClick = (insightId: number) => {
     setSelectedInsightId(insightId);
     // setSelectedInsightTitle(insightTitle); // insightTitle is passed from InsightTable (which now uses insightText)
     
@@ -112,11 +122,12 @@ function App() {
   const navigateToCategories = () => {
     setCurrentView('categories');
     setSelectedCategoryId(null);
-    setSelectedCategoryName(null);
+    setSelectedInsightSubject(null);
     setSelectedInsightType(null);
     setSelectedInsightId(null);
     setCurrentQuestionableInsights([]);
     setCurrentQuestionIndex(0);
+    setCurrentQuestionText(null);
   };
 
   const navigateToInsightsView = (type?: InsightType) => {
@@ -124,6 +135,7 @@ function App() {
     setSelectedInsightType(type || selectedInsightType || 'inspiration');
     setCurrentView('insights');
     setSelectedInsightId(null);
+    setCurrentQuestionText(null);
     // currentQuestionIndex is preserved if just switching between inspiration/answers for same category
   };
   
@@ -153,15 +165,16 @@ function App() {
   };
 
 
-  const breadcrumbItems = [
+  const breadcrumbItems: BreadcrumbItem[] = [
     { label: 'Categories', onClick: navigateToCategories, isCurrent: currentView === 'categories' },
   ];
 
-  if (selectedCategoryId && selectedCategoryName) {
+  if (selectedCategoryId && selectedInsightSubject) {
     breadcrumbItems.push({
-      label: selectedCategoryName,
+      label: '',
       onClick: () => navigateToInsightsView(), // Defaults to current or inspiration type
-      isCurrent: currentView === 'insights' && !selectedInsightId
+      isCurrent: currentView === 'insights' && !selectedInsightId,
+      insightSubject: selectedInsightSubject || undefined
     });
      // Add button group for Inspiration/Answers if in insights view or deeper
   }
@@ -170,9 +183,9 @@ function App() {
   // Actual UI for this selection needs to be designed. For now, it's handled by direct state changes.
 
   if (selectedInsightId && currentView === 'question') {
-    const currentInsightTitle = currentQuestionableInsights[currentQuestionIndex]?.insightText || "Question";
+    const currentTitle = currentQuestionableInsights[currentQuestionIndex]?.insightText || "Question";
     breadcrumbItems.push({
-      label: currentInsightTitle, // Display the insightText of the current question
+      label: currentTitle ||  "Question", // Use question text if available, fallback to insight text
       onClick: () => { /* Clicking current question in breadcrumb might do nothing or reload */ },
       isCurrent: true
     });

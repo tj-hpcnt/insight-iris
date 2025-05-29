@@ -1,12 +1,22 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { getInsightSubjectStyle } from '../utils/colorUtils';
 
 // --- Data Interfaces based on backend schema and new API payload ---
+interface CategoryInfo {
+  id: number;
+  category: string;
+  topicHeader: string;
+  subcategory: string;
+  insightSubject: string;
+}
+
 interface PrismaInsight {
   id: number;
   categoryId: number;
   insightText: string;
   source: string; // 'INSPIRATION', 'ANSWER', 'DESCRIPTOR'
   generationOrder?: number | null;
+  category: CategoryInfo;
   // ... other fields from Prisma Insight model if needed
 }
 
@@ -57,6 +67,8 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [loadingQuestionContext, setLoadingQuestionContext] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredAnswerOptionId, setHoveredAnswerOptionId] = useState<number | null>(null);
+  const [hoveredPrevButton, setHoveredPrevButton] = useState<boolean>(false);
+  const [hoveredNextButton, setHoveredNextButton] = useState<boolean>(false);
 
   useEffect(() => {
     if (!insightId) return;
@@ -104,6 +116,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     }
   };
 
+  // New function to handle hover on detail items (for bidirectional highlighting)
+  const handleDetailItemHover = (answerId: number | null) => {
+    setHoveredAnswerOptionId(answerId);
+  };
+
   if (loadingQuestionContext) return <p>Loading question context...</p>;
   if (error) return <p>Error: {error}</p>;
   if (!fullContext || !fullContext.questionDetails || !fullContext.inspirationInsightDetails) {
@@ -115,15 +132,15 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const options = fullContext.questionDetails.answers;
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '20px', padding: '20px', width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '20px', padding: '10px', width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}>
       {/* Previous Question Button */}
       <button 
         onClick={() => onNavigateQuestion('prev')} 
         disabled={currentQuestionIndex === 0}
         style={{
-          background: 'red',
+          background: hoveredPrevButton ? '#777' : '#555',
           color: 'white',
-          border: 'none',
+          border: hoveredPrevButton ? '2px solid #999' : '2px solid transparent',
           padding: '20px 30px',
           fontSize: '24px',
           cursor: 'pointer',
@@ -133,8 +150,12 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           alignItems: 'center',
           justifyContent: 'center',
           alignSelf: 'center',
-          flexShrink: 0
+          flexShrink: 0,
+          boxShadow: hoveredPrevButton ? '0 0 10px rgba(255,255,255,0.3)' : 'none',
+          transition: 'all 0.2s ease'
         }}
+        onMouseEnter={() => setHoveredPrevButton(true)}
+        onMouseLeave={() => setHoveredPrevButton(false)}
       >
         &larr;
       </button>
@@ -152,7 +173,6 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           flexDirection: 'column',
           backgroundColor: '#f9f9f9',
           boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-          alignSelf: 'center',
           flexShrink: 0,
           boxSizing: 'border-box'
         }}>
@@ -164,24 +184,28 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             <h3>{displayQuestionText}</h3>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {options.map((option) => (
-              <button 
-                key={option.id} 
-                onMouseEnter={() => handleAnswerHover(option)}
-                onMouseLeave={() => handleAnswerHover(null)}
-                style={{
-                  padding: '15px',
-                  fontSize: '16px',
-                  borderRadius: '8px',
-                  border: '1px solid #ddd',
-                  backgroundColor: 'white',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                {option.answerText}
-              </button>
-            ))}
+            {options.map((option) => {
+              const isHovered = hoveredAnswerOptionId === option.id;
+              return (
+                <button 
+                  key={option.id} 
+                  onMouseEnter={() => handleAnswerHover(option)}
+                  onMouseLeave={() => handleAnswerHover(null)}
+                  style={{
+                    padding: '15px',
+                    fontSize: '16px',
+                    borderRadius: '8px',
+                    border: isHovered ? '2px solid #007bff' : '2px solid transparent',
+                    backgroundColor: isHovered ? '#e7f3ff' : 'white',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'background-color 0.2s ease, border-color 0.2s ease'
+                  }}
+                >
+                  {option.answerText}
+                </button>
+              );
+            })}
           </div>
           <button 
               onClick={onSkipQuestion}
@@ -196,9 +220,9 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           onClick={() => onNavigateQuestion('next')} 
           disabled={currentQuestionIndex >= totalQuestionsInCategory - 1}
           style={{
-            background: 'red',
+            background: hoveredNextButton ? '#777' : '#555',
             color: 'white',
-            border: 'none',
+            border: hoveredNextButton ? '2px solid #999' : '2px solid transparent',
             padding: '20px 30px',
             fontSize: '24px',
             cursor: 'pointer',
@@ -208,14 +232,18 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             alignSelf: 'center',
-            flexShrink: 0
+            flexShrink: 0,
+            boxShadow: hoveredNextButton ? '0 0 10px rgba(255,255,255,0.3)' : 'none',
+            transition: 'all 0.2s ease'
           }}
+          onMouseEnter={() => setHoveredNextButton(true)}
+          onMouseLeave={() => setHoveredNextButton(false)}
         >
           &rarr;
         </button>
 
         {/* Related Answer Insights (Now to the very right, takes remaining space) */}
-        <div style={{ flex: 1, alignSelf: 'stretch', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', minWidth: 0 }}> 
+        <div style={{ flex: 1, maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', minWidth: 0 }}> 
           <h4>Details</h4>
           {fullContext.inspirationInsightDetails && (
             <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0' }}>
@@ -233,18 +261,29 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                   <li 
                     key={answer.id} 
                     id={`answer-insight-item-${answer.id}`}
+                    onMouseEnter={() => handleDetailItemHover(answer.id)}
+                    onMouseLeave={() => handleDetailItemHover(null)}
                     style={{
                       marginBottom: '15px', 
                       padding: '10px', 
-                      border: isHovered ? '2px solid #007bff' : '1px solid #eee',
+                      border: isHovered ? '2px solid #007bff' : '2px solid transparent',
                       backgroundColor: isHovered ? '#e7f3ff' : 'transparent',
                       borderRadius: '5px',
-                      transition: 'background-color 0.2s ease, border-color 0.2s ease'
+                      transition: 'background-color 0.2s ease, border-color 0.2s ease',
+                      cursor: 'pointer'
                     }}
                   >
-                    <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>Answer Option: {answer.answerText}</p>
                     {answer.linkedAnswerInsight ? (
-                      <p style={{ fontStyle: 'italic', marginLeft: '20px', color: '#555' }}>↪ Linked Insight: {answer.linkedAnswerInsight.insightText}</p>
+                      <div>
+                        <div style={{ marginLeft: '20px', marginBottom: '5px' }}>
+                          <span style={getInsightSubjectStyle(answer.linkedAnswerInsight.category?.insightSubject || 'Unknown')}>
+                            {answer.linkedAnswerInsight.category?.insightSubject || 'Unknown'}
+                          </span>
+                        </div>
+                        <p style={{ fontStyle: 'italic', marginLeft: '20px', color: '#555', margin: 0 }}>
+                          ↪ {answer.linkedAnswerInsight.insightText}
+                        </p>
+                      </div>
                     ) : (
                       <p style={{ fontStyle: 'italic', marginLeft: '20px', color: '#777' }}>↪ No linked insight available for this option.</p>
                     )}
