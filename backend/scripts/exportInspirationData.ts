@@ -4,6 +4,9 @@ import * as path from 'path';
 import OpenAI from 'openai';
 import { fetchCachedEmbedding, cacheEmbedding } from '../src/utils/embeddingCaching';
 import { processInParallel } from '../src/utils/parallelProcessor';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 const BATCH_COUNT = 10;
 
