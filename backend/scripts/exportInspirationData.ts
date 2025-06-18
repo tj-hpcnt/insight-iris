@@ -76,6 +76,9 @@ async function main() {
         insightBId: c.insightBId,
         importance: c.presentation!.importance,
         polarity: c.polarity == "NEGATIVE" ? -1 : 1,
+        overlapTitle: c.presentation!.presentationTitle,
+        overlapConciseTextA: c.presentation!.conciseAText,
+        overlapConciseTextB: c.presentation!.conciseBText,
       }));
 
     fs.writeFileSync(
