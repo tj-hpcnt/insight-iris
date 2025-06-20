@@ -2,6 +2,7 @@ export const CATEGORIES = [
   { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Communication', insightSubject: 'Conflict resolution', expandedHints: null },
   { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Communication', insightSubject: 'Conversation medium', expandedHints: null },
   { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Communication', insightSubject: 'Directness', expandedHints: null },
+  { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Communication', insightSubject: 'Flirting style', expandedHints: null },
   { category: 'Dating', topicHeader: 'Personality', subcategory: 'Intention', insightSubject: 'Dating intention', expandedHints: null },
   { category: 'Dating', topicHeader: '', subcategory: 'Romanticism', insightSubject: 'Love language', expandedHints: null },
   { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Sex', insightSubject: 'Sex adventurousness', expandedHints: null },
