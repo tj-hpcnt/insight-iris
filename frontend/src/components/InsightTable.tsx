@@ -14,19 +14,18 @@ interface InspirationInsightFromAPI {
   } | null;
 }
 
-// Interface for answer insights from the API (matches Prisma Insight model with answers)
+// Interface for answer insights from the API - now returns Answer records with included data
 interface AnswerInsightFromAPI {
-  id: number;
-  categoryId: number;
-  insightText: string;
-  source: string; // Should be 'ANSWER' from InsightSource enum
-  generationOrder?: number | null;
-  answers: {
-    answerText: string;
-    question: {
-      questionText: string;
-    };
-  }[];
+  id: number; // This is the Answer ID
+  answerText: string;
+  question: {
+    questionText: string;
+  };
+  insight: {
+    id: number; // This is the Insight ID
+    insightText: string;
+    source: string;
+  } | null;
 }
 
 // Interface for what the table will display - inspiration insights
@@ -93,13 +92,15 @@ const InsightTable: React.FC<InsightTableProps> = ({
         } else {
           const data: AnswerInsightFromAPI[] = await response.json();
           // Map API data to display data for answer insights
-          const displayData = data.map(ins => ({
-            id: ins.id,
-            questionText: ins.answers[0]?.question?.questionText || 'No question found',
-            answerText: ins.answers[0]?.answerText || 'No answer found',
-            insightText: ins.insightText,
-            source: ins.source,
-          }));
+          const displayData = data
+            .filter(answer => answer.insight) // Only include answers that have insights
+            .map(answer => ({
+              id: answer.insight!.id, // Use the insight ID for the click handler
+              questionText: answer.question?.questionText || 'No question found',
+              answerText: answer.answerText,
+              insightText: answer.insight!.insightText,
+              source: answer.insight!.source,
+            }));
           setAnswerInsights(displayData);
         }
       } catch (e) {

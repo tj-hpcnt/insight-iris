@@ -69,20 +69,43 @@ export class AppService {
   }
 
   async listAnswerInsightsInCategory(categoryId: number) {
-    return this.prisma.insight.findMany({
+    // First, find all questions that have at least one answer with an insight in this category
+    const questionsWithAnswersInCategory = await this.prisma.question.findMany({
       where: {
-        categoryId,
-        source: InsightSource.ANSWER,
+        answers: {
+          some: {
+            insight: {
+              categoryId,
+              source: InsightSource.ANSWER,
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const questionIds = questionsWithAnswersInCategory.map(q => q.id);
+
+    // Then fetch all answers for those questions
+    return this.prisma.answer.findMany({
+      where: {
+        questionId: {
+          in: questionIds,
+        },
       },
       include: {
-        answers: {
+        question: {
           select: {
-            answerText: true,
-            question: {
-              select: {
-                questionText: true,
-              },
-            },
+            questionText: true,
+          },
+        },
+        insight: {
+          select: {
+            id: true,
+            insightText: true,
+            source: true,
           },
         },
       },
