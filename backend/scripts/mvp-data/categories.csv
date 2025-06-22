@@ -1,0 +1,52 @@
+category,topic_header,subcategory,subcategory_alias,hidden_on_topics_selection,insight_subject,Content tag checklist
+Dating,Lifestyle,Communication,Communication,FALSE,Conflict resolution,v
+Dating,Lifestyle,Communication,Communication,FALSE,Conversation medium,v
+Dating,Lifestyle,Communication,Communication,FALSE,Directness,v
+Dating,Personality,Dating expectations,Intention,FALSE,Dating intention,v
+Dating,-,Romanticism,-,TRUE,Love language,v
+Dating,Lifestyle,Sex,Sex,FALSE,Sex adventurousness,v
+Dating,Lifestyle,Sex,Sex,FALSE,Expectations around sex,v
+Dating,Personality,Relationship expectations,Loyal,FALSE,Attitudes toward monogamy/polyamory,v
+Dating,Personality,Relationship expectations,Loyal,FALSE,Independence,v
+Dating,Personality,Relationship expectations,Loyal,FALSE,Relationship Values,v
+Interests,Lifestyle,Hobbies & Interest,Shared interests,FALSE,Creative date preferences,v
+Interests,Lifestyle,Hobbies & Interest,Shared interests,FALSE,Hobby compatibility,v
+Interests,Lifestyle,Hobbies & Interest,Shared interests,FALSE,Gaming compatibility,v
+Interests,Lifestyle,Hobbies & Interest,Shared interests,FALSE,Cooking,v
+Interests,Lifestyle,Hobbies & Interest,Shared interests,FALSE,Unique interests,v
+Interests,Lifestyle,Arts & Science,Intellectual,FALSE,Artistry,v
+Interests,Lifestyle,Arts & Science,Intellectual,FALSE,Pastimes,v
+Interests,-,Entertainment,-,TRUE,Favorite Movie,v
+Interests,-,Entertainment,-,TRUE,Music,v
+Interests,Personality,Outdoor & Adventure,Adventurous,FALSE,Adventurousness,v
+Interests,Personality,Outdoor & Adventure,Adventurous,FALSE,Outdoor experiences,v
+Interests,Personality,Outdoor & Adventure,Adventurous,FALSE,Travel compatibility,v
+Interests,Lifestyle,Fitness,Fitness,FALSE,Active lifestyle compatibility,v
+Interests,Lifestyle,Fitness,Fitness,FALSE,Fitness/Sports,v
+Interests,-,Pets,-,TRUE,Pet compatibility,v
+Interests,-,Pets,-,TRUE,Pet friendliness,v
+Interests,-,Recreational Drugs,-,TRUE,Views on recreational drugs,v
+Lifestyle,Lifestyle,Food & Cooking,Diet,FALSE,Dining compatibility,v
+Lifestyle,Lifestyle,Food & Cooking,Diet,FALSE,Food preference,v
+Lifestyle,Lifestyle,Food & Cooking,Diet,FALSE,Dietary restrictions,v
+Lifestyle,-,Drinking,-,TRUE,Alcohol consumption,v
+Lifestyle,Lifestyle,Career,Career,FALSE,Career priorities,v
+Lifestyle,Lifestyle,Career,Career,FALSE,Work vibes,v
+Lifestyle,-,Sleep pattern,-,TRUE,Daily routine compatibility,v
+Lifestyle,-,Smoking,-,TRUE,Smoking,v
+Values,Lifestyle,Spendy/thrifty,Money habits,FALSE,Financial tendencies,v
+Values,Lifestyle,Spendy/thrifty,Money habits,FALSE,Money talks,v
+Values,-,Personality,-,TRUE,Ambition,v
+Values,Personality,Personality,Outgoing,FALSE,Extroversion compatibility,v
+Values,-,Personality,-,TRUE,Personality,v
+Values,Personality,Cleanliness,Organized,FALSE,Organization,v
+Values,-,Current Family,-,TRUE,Current family situation,v
+Values,Lifestyle,Future Family,Family,FALSE,Family planning,v
+Values,Lifestyle,Future Family,Family,FALSE,Family values,v
+Values,Personality,Political views,Political views,FALSE,Political alignment,v
+Values,Personality,Political views,Political views,FALSE,Social views,v
+Values,Personality,Political views,Political views,FALSE,View on Gender Roles,v
+Values,Lifestyle,Religion,Religion,FALSE,Religion,v
+Values,Personality,Open-mindedness,Open-minded,FALSE,Open-mindedness,v
+Values,Personality,Open-mindedness,Open-minded,FALSE,Cultural Background,
+,,,,,,

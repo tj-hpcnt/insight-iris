@@ -1,7 +1,7 @@
 import { PrismaClient, InsightSource, Category, Insight } from '@prisma/client';
 import * as dotenv from 'dotenv';
 import { generateInspirationInsights, generateBaseQuestion, reassignCategory, reduceRedundancyForInspirations, generateCategoryOverlapByRanking, generateInsightCategoryOverlap, generateInsightComparisonPresentation, generateInsightCategoryComparisonByRanking, reduceExactRedundancyForAnswers, reduceRedundancyForQuestions, reduceExactRedundancyForQuestions, reduceExactRedundancyForInspirations } from '../src/utils/aiGenerators';
-import { CATEGORIES } from './categories';
+import { EXTRA_CATEGORIES, parseCategoriesFromCSV } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
 import { reduceRedundancyForAnswers } from '../src/utils/aiGenerators';
@@ -14,12 +14,34 @@ const INSIGHT_INITAL_POOL_COUNT = 10
 
 async function main() {
   try {
-    const categories = await prisma.category.findMany();
-    // Insert categories from CATEGORIES constant
-    if (categories.length == 0) {
-      console.log('Inserting categories...');
-      for (const categoryData of CATEGORIES) {
-        const category = await prisma.category.create({
+    let categories = await prisma.category.findMany();
+    
+    // Combine categories from CSV and extra categories
+    const csvCategories = parseCategoriesFromCSV();
+    const allCategoryData = [...csvCategories, ...EXTRA_CATEGORIES];
+    
+    // Upsert categories (create or update)
+    console.log('Upserting categories...');
+    for (const categoryData of allCategoryData) {
+      // Check if category already exists
+      const existingCategory = categories.find(c => 
+        c.category === categoryData.category &&
+        c.topicHeader === categoryData.topicHeader &&
+        c.subcategory === categoryData.subcategory &&
+        c.insightSubject === categoryData.insightSubject
+      );
+
+      let category;
+      if (existingCategory) {
+        // Update existing category
+        category = await prisma.category.update({
+          where: { id: existingCategory.id },
+          data: { expandedHints: categoryData.expandedHints },
+        });
+        console.log(`Updated category: ${category.category} - ${category.topicHeader} - ${category.subcategory} - ${category.insightSubject}`);
+      } else {
+        // Create new category
+        category = await prisma.category.create({
           data: categoryData,
         });
         categories.push(category);

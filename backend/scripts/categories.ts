@@ -1,53 +1,27 @@
-export const CATEGORIES = [
-  { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Communication', insightSubject: 'Conflict resolution', expandedHints: null },
-  { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Communication', insightSubject: 'Conversation medium', expandedHints: null },
-  { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Communication', insightSubject: 'Directness', expandedHints: null },
+import * as fs from 'fs';
+import * as path from 'path';
+
+export function parseCategoriesFromCSV(): Array<{category: string, topicHeader: string, subcategory: string, insightSubject: string, expandedHints: null}> {
+  const csvPath = path.join(__dirname, 'mvp-data', 'categories.csv');
+  const csvContent = fs.readFileSync(csvPath, 'utf-8');
+  const lines = csvContent.split('\n').slice(1); // Skip header
+  
+  return lines
+    .filter(line => line.trim() && !line.startsWith(',')) // Filter out empty lines
+    .map(line => {
+      const [category, topicHeader, subcategory, , , insightSubject] = line.split(',');
+      return {
+        category: category.trim(),
+        topicHeader: topicHeader === '-' ? '' : topicHeader.trim(),
+        subcategory: subcategory.trim(),
+        insightSubject: insightSubject.trim(),
+        expandedHints: null
+      };
+    })
+    .filter(cat => cat.insightSubject); // Filter out any with empty insight subjects
+}
+
+// Extra categories that are not in the CSV or definitions of categories with expanded hints to override the CSV
+export const EXTRA_CATEGORIES = [
   { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Communication', insightSubject: 'Flirting style', expandedHints: null },
-  { category: 'Dating', topicHeader: 'Personality', subcategory: 'Dating expectations', insightSubject: 'Dating intention', expandedHints: null },
-  { category: 'Dating', topicHeader: '', subcategory: 'Romanticism', insightSubject: 'Love language', expandedHints: null },
-  { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Sex', insightSubject: 'Sex adventurousness', expandedHints: null },
-  { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Sex', insightSubject: 'Expectations around sex', expandedHints: null },
-  { category: 'Dating', topicHeader: 'Personality', subcategory: 'Relationship expectations', insightSubject: 'Attitudes toward monogamy/polyamory', expandedHints: null },
-  { category: 'Dating', topicHeader: 'Personality', subcategory: 'Relationship expectations', insightSubject: 'Independence', expandedHints: null },
-  { category: 'Dating', topicHeader: 'Personality', subcategory: 'Relationship expectations', insightSubject: 'Relationship Values', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Lifestyle', subcategory: 'Hobbies & Interest', insightSubject: 'Creative date preferences', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Lifestyle', subcategory: 'Hobbies & Interest', insightSubject: 'Hobby compatibility', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Lifestyle', subcategory: 'Hobbies & Interest', insightSubject: 'Gaming compatibility', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Lifestyle', subcategory: 'Hobbies & Interest', insightSubject: 'Cooking', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Lifestyle', subcategory: 'Hobbies & Interest', insightSubject: 'Unique interests', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Lifestyle', subcategory: 'Arts & Science', insightSubject: 'Artistry', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Lifestyle', subcategory: 'Arts & Science', insightSubject: 'Pastimes', expandedHints: null },
-  { category: 'Interests', topicHeader: '', subcategory: 'Entertainment', insightSubject: 'Favorite Movie', expandedHints: null },
-  { category: 'Interests', topicHeader: '', subcategory: 'Entertainment', insightSubject: 'Music', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Personality', subcategory: 'Outdoor & Adventure', insightSubject: 'Adventurousness', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Personality', subcategory: 'Outdoor & Adventure', insightSubject: 'Outdoor experiences', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Personality', subcategory: 'Outdoor & Adventure', insightSubject: 'Travel compatibility', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Lifestyle', subcategory: 'Fitness', insightSubject: 'Active lifestyle compatibility', expandedHints: null },
-  { category: 'Interests', topicHeader: 'Lifestyle', subcategory: 'Fitness', insightSubject: 'Fitness/Sports', expandedHints: null },
-  { category: 'Interests', topicHeader: '', subcategory: 'Pets', insightSubject: 'Pet compatibility', expandedHints: null },
-  { category: 'Interests', topicHeader: '', subcategory: 'Pets', insightSubject: 'Pet friendliness', expandedHints: null },
-  { category: 'Interests', topicHeader: '', subcategory: 'Recreational Drugs', insightSubject: 'Views on recreational drugs', expandedHints: null },
-  { category: 'Lifestyle', topicHeader: 'Lifestyle', subcategory: 'Food & Cooking', insightSubject: 'Dining compatibility', expandedHints: null },
-  { category: 'Lifestyle', topicHeader: 'Lifestyle', subcategory: 'Food & Cooking', insightSubject: 'Food preference', expandedHints: null },
-  { category: 'Lifestyle', topicHeader: 'Lifestyle', subcategory: 'Food & Cooking', insightSubject: 'Dietary restrictions', expandedHints: null },
-  { category: 'Lifestyle', topicHeader: '', subcategory: 'Drinking', insightSubject: 'Alcohol consumption', expandedHints: null },
-  { category: 'Lifestyle', topicHeader: 'Lifestyle', subcategory: 'Career', insightSubject: 'Career priorities', expandedHints: null },
-  { category: 'Lifestyle', topicHeader: 'Lifestyle', subcategory: 'Career', insightSubject: 'Work vibes', expandedHints: null },
-  { category: 'Lifestyle', topicHeader: '', subcategory: 'Sleep pattern', insightSubject: 'Daily routine compatibility', expandedHints: null },
-  { category: 'Lifestyle', topicHeader: '', subcategory: 'Smoking', insightSubject: 'Smoking', expandedHints: null },
-  { category: 'Values', topicHeader: 'Lifestyle', subcategory: 'Spendy/thrifty', insightSubject: 'Financial tendencies', expandedHints: null },
-  { category: 'Values', topicHeader: 'Lifestyle', subcategory: 'Spendy/thrifty', insightSubject: 'Money talks', expandedHints: null },
-  { category: 'Values', topicHeader: '', subcategory: 'Personality', insightSubject: 'Ambition', expandedHints: null },
-  { category: 'Values', topicHeader: 'Personality', subcategory: 'Personality', insightSubject: 'Extroversion compatibility', expandedHints: null },
-  { category: 'Values', topicHeader: '', subcategory: 'Personality', insightSubject: 'Personality', expandedHints: null },
-  { category: 'Values', topicHeader: 'Personality', subcategory: 'Cleanliness', insightSubject: 'Organization', expandedHints: null },
-  { category: 'Values', topicHeader: '', subcategory: 'Current Family', insightSubject: 'Current family situation', expandedHints: null },
-  { category: 'Values', topicHeader: 'Lifestyle', subcategory: 'Future Family', insightSubject: 'Family planning', expandedHints: null },
-  { category: 'Values', topicHeader: 'Lifestyle', subcategory: 'Future Family', insightSubject: 'Family values', expandedHints: null },
-  { category: 'Values', topicHeader: 'Personality', subcategory: 'Political views', insightSubject: 'Political alignment', expandedHints: null },
-  { category: 'Values', topicHeader: 'Personality', subcategory: 'Political views', insightSubject: 'Social views', expandedHints: null },
-  { category: 'Values', topicHeader: 'Personality', subcategory: 'Political views', insightSubject: 'View on Gender Roles', expandedHints: null },
-  { category: 'Values', topicHeader: 'Lifestyle', subcategory: 'Religion', insightSubject: 'Religion', expandedHints: null },
-  { category: 'Values', topicHeader: 'Personality', subcategory: 'Open-mindedness', insightSubject: 'Open-mindedness', expandedHints: null },
-  { category: 'Values', topicHeader: 'Personality', subcategory: 'Open-mindedness', insightSubject: 'Cultural Background', expandedHints: null },
 ];
