@@ -267,14 +267,15 @@ ${questions.map(question => question.text).join('\n')}`;
       });
       // TODO: need to do setup for cascading
 
-      // Create the question
-      const question = await tx.question.create({
-        data: {
-          questionText: questionData.question,
-          questionType: questionData.type as QuestionType,
-          inspirationId: insight.id,
-        },
-      });
+              // Create the question
+        const question = await tx.question.create({
+          data: {
+            questionText: questionData.question,
+            questionType: questionData.type as QuestionType,
+            inspirationId: insight.id,
+            isPublished: false,
+          },
+        });
 
       const answers: Answer[] = [];
       const newInsights: Insight[] = [];
@@ -2037,4 +2038,69 @@ export async function reduceExactRedundancyForQuestions(): Promise<{oldQuestion:
   ); // End of transaction
 
   return mergedQuestionsInfo;
+}
+
+/**
+ * Generates proper insight text from an insight tag using AI
+ * @param insightTag The original insight tag from CSV
+ * @param category The category this insight belongs to
+ * @returns Tuple containing the generated insight text and token usage statistics
+ */
+export async function generateInsightTextFromTag(
+  insightTag: string,
+  category: Category
+): Promise<[string, OpenAI.Completions.CompletionUsage] | null> {
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to convert insight tags into proper insight statements.
+
+Convert the following insight tag into a proper insight statement that would be true for a user. The statement should be in first person and follow these patterns:
+- "I enjoy [activity]" 
+- "I prefer [preference]"
+- "I value [value]"
+- "I want a partner who [characteristic]"
+- "I am [trait/characteristic]"
+- "I don't [negative preference]"
+- "I seek [what they're looking for]"
+
+Make it sound natural and conversational, as if the user is describing themselves or their preferences.
+
+Category Classification:
+Category: ${category.category}
+Topic: ${category.topicHeader}
+Subcategory: ${category.subcategory}
+Subject: ${category.insightSubject}
+
+Insight Tag: "${insightTag}"
+
+Output only the insight statement, no quotes or additional text.`;
+
+  const model = "gpt-4.1";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  
+  // For this simple text generation, we don't need structured output
+  const format = null;
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.chat.completions.create({
+    messages,
+    model,
+  });
+
+  try {
+    const insightText = completion.choices[0].message.content?.trim();
+    
+    if (!insightText) {
+      throw new Error("Empty insight text generated");
+    }
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+
+    return [insightText, completion.usage];
+  } catch (error) {
+    console.error('Error generating insight text from tag:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
 }

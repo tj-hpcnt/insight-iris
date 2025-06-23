@@ -48,6 +48,7 @@ model Insight {
   insightText       String
   source            InsightSource
   generationOrder   Int?
+  publishedTag      String?
   category          Category  @relation(fields: [categoryId], references: [id])
   answers           Answer[]
   insightCompareA   InsightComparison[] @relation("InsightA")
@@ -68,6 +69,7 @@ model Question {
   inspirationId Int          @unique // Each question is inspired by a unique insight
   questionType  QuestionType
   questionText  String
+  isPublished   Boolean      @default(false)
   answers       Answer[]
   inspiration   Insight      @relation("QuestionInspiration", fields: [inspirationId], references: [id])
 }
