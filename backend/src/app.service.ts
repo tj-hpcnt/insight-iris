@@ -31,6 +31,7 @@ export interface FullQuestionContextPayload {
     inspirationId: number;
     questionType: QuestionType;
     questionText: string;
+    publishedId: string | null;
     answers: {
       id: number;
       answerText: string;
@@ -62,6 +63,7 @@ export class AppService {
         question: {
           select: {
             questionText: true,
+            publishedId: true,
           },
         },
       },
@@ -99,6 +101,7 @@ export class AppService {
         question: {
           select: {
             questionText: true,
+            publishedId: true,
           },
         },
         insight: {
@@ -106,6 +109,7 @@ export class AppService {
             id: true,
             insightText: true,
             source: true,
+            publishedTag: true,
           },
         },
       },
@@ -233,6 +237,7 @@ export class AppService {
         inspirationId: fetchedQuestionData.inspirationId,
         questionType: fetchedQuestionData.questionType,
         questionText: fetchedQuestionData.questionText,
+        publishedId: fetchedQuestionData.publishedId,
         answers: fetchedQuestionData.answers.map(ans => ({
           id: ans.id,
           answerText: ans.answerText,

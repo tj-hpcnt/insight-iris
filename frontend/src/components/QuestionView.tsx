@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { getInsightSubjectStyle } from '../utils/colorUtils';
+import PublishedIdChip from './PublishedIdChip';
+import PublishedTagChip from './PublishedTagChip';
 
 // --- Data Interfaces based on backend schema and new API payload ---
 interface CategoryInfo {
@@ -16,6 +18,7 @@ interface PrismaInsight {
   insightText: string;
   source: string; // 'INSPIRATION', 'ANSWER', 'DESCRIPTOR'
   generationOrder?: number | null;
+  publishedTag?: string | null;
   category: CategoryInfo;
   // ... other fields from Prisma Insight model if needed
 }
@@ -31,6 +34,7 @@ interface QuestionDetailsPayload {
   inspirationId: number; // ID of the root Inspiration Insight
   questionType: string; // e.g., SINGLE_CHOICE
   questionText: string; // Specific question text from Question model
+  publishedId: string | null; // Published ID if the question was previously published
   answers: AnswerOptionPayload[];
 }
 
@@ -181,7 +185,12 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             Question {currentQuestionIndex + 1} of {totalQuestionsInCategory}
           </div>
           <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
-            <h3>{displayQuestionText}</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+              <h3 style={{ margin: 0 }}>{displayQuestionText}</h3>
+              {fullContext.questionDetails.publishedId && (
+                <PublishedIdChip publishedId={fullContext.questionDetails.publishedId} />
+              )}
+            </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {options.map((option) => {
@@ -248,7 +257,12 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           {fullContext.inspirationInsightDetails && (
             <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0' }}>
               <h5 style={{ marginTop: 0, marginBottom: '5px' }}>Original Inspiration:</h5>
-              <p style={{ margin: 0 }}>{fullContext.inspirationInsightDetails.insightText}</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <p style={{ margin: 0 }}>{fullContext.inspirationInsightDetails.insightText}</p>
+                {fullContext.inspirationInsightDetails.publishedTag && (
+                  <PublishedTagChip publishedTag={fullContext.inspirationInsightDetails.publishedTag} />
+                )}
+              </div>
             </div>
           )}
           {loadingQuestionContext ? (
@@ -274,15 +288,20 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                     }}
                   >
                     {answer.linkedAnswerInsight ? (
-                      <div>
+                      <div style={{ position: 'relative' }}>
                         <div style={{ marginLeft: '20px', marginBottom: '5px' }}>
                           <span style={getInsightSubjectStyle(answer.linkedAnswerInsight.category?.insightSubject || 'Unknown')}>
                             {answer.linkedAnswerInsight.category?.insightSubject || 'Unknown'}
                           </span>
                         </div>
-                        <p style={{ fontStyle: 'italic', marginLeft: '20px', color: '#555', margin: 0 }}>
-                          ↪ {answer.linkedAnswerInsight.insightText}
-                        </p>
+                        <div style={{ marginLeft: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <p style={{ fontStyle: 'italic', color: '#555', margin: 0 }}>
+                            ↪ {answer.linkedAnswerInsight.insightText}
+                          </p>
+                          {answer.linkedAnswerInsight.publishedTag && (
+                            <PublishedTagChip publishedTag={answer.linkedAnswerInsight.publishedTag} />
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <p style={{ fontStyle: 'italic', marginLeft: '20px', color: '#777' }}>↪ No linked insight available for this option.</p>

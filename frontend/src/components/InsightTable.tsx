@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import PublishedIdChip from './PublishedIdChip';
+import PublishedTagChip from './PublishedTagChip';
 
 export type InsightType = 'inspiration' | 'answers'; // This matches the frontend logic
 
@@ -9,8 +11,10 @@ interface InspirationInsightFromAPI {
   insightText: string;
   source: string; // Should be 'INSPIRATION' from InsightSource enum
   generationOrder?: number | null;
+  publishedTag?: string | null;
   question?: {
     questionText: string;
+    publishedId: string | null;
   } | null;
 }
 
@@ -20,11 +24,13 @@ interface AnswerInsightFromAPI {
   answerText: string;
   question: {
     questionText: string;
+    publishedId: string | null;
   };
   insight: {
     id: number; // This is the Insight ID
     insightText: string;
     source: string;
+    publishedTag: string | null;
   } | null;
 }
 
@@ -32,7 +38,9 @@ interface AnswerInsightFromAPI {
 interface InspirationInsightDisplay {
     id: number;
     questionText: string;
+    publishedId: string | null;
     insightText: string;
+    publishedTag: string | null;
     source: string;
 }
 
@@ -40,8 +48,10 @@ interface InspirationInsightDisplay {
 interface AnswerInsightDisplay {
     id: number;
     questionText: string;
+    publishedId: string | null;
     answerText: string;
     insightText: string;
+    publishedTag: string | null;
     source: string;
 }
 
@@ -85,7 +95,9 @@ const InsightTable: React.FC<InsightTableProps> = ({
           const displayData = data.map(ins => ({
             id: ins.id,
             questionText: ins.question?.questionText || 'No question generated',
+            publishedId: ins.question?.publishedId || null,
             insightText: ins.insightText,
+            publishedTag: ins.publishedTag || null,
             source: ins.source,
           }));
           setInspirationInsights(displayData);
@@ -97,8 +109,10 @@ const InsightTable: React.FC<InsightTableProps> = ({
             .map(answer => ({
               id: answer.insight!.id, // Use the insight ID for the click handler
               questionText: answer.question?.questionText || 'No question found',
+              publishedId: answer.question?.publishedId || null,
               answerText: answer.answerText,
               insightText: answer.insight!.insightText,
+              publishedTag: answer.insight!.publishedTag || null,
               source: answer.insight!.source,
             }));
           setAnswerInsights(displayData);
@@ -245,14 +259,24 @@ const InsightTable: React.FC<InsightTableProps> = ({
                   borderBottom: '1px solid #dee2e6',
                   color: '#495057'
                 }}>
-                  {insight.questionText}
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    {insight.questionText}
+                    {insight.publishedId && (
+                      <PublishedIdChip publishedId={insight.publishedId} />
+                    )}
+                  </div>
                 </td>
                 <td style={{ 
                   padding: '12px', 
                   borderBottom: '1px solid #dee2e6',
                   color: '#495057'
                 }}>
-                  {insight.insightText}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>{insight.insightText}</span>
+                    {insight.publishedTag && (
+                      <PublishedTagChip publishedTag={insight.publishedTag} />
+                    )}
+                  </div>
                 </td>
               </tr>
             ))
@@ -277,7 +301,12 @@ const InsightTable: React.FC<InsightTableProps> = ({
                   borderBottom: '1px solid #dee2e6',
                   color: '#495057'
                 }}>
-                  {insight.questionText}
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    {insight.questionText}
+                    {insight.publishedId && (
+                      <PublishedIdChip publishedId={insight.publishedId} />
+                    )}
+                  </div>
                 </td>
                 <td style={{ 
                   padding: '12px', 
@@ -291,7 +320,12 @@ const InsightTable: React.FC<InsightTableProps> = ({
                   borderBottom: '1px solid #dee2e6',
                   color: '#495057'
                 }}>
-                  {insight.insightText}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>{insight.insightText}</span>
+                    {insight.publishedTag && (
+                      <PublishedTagChip publishedTag={insight.publishedTag} />
+                    )}
+                  </div>
                 </td>
               </tr>
             ))
