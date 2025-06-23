@@ -1,11 +1,15 @@
-import { PrismaClient, InsightSource, Category, Insight } from '@prisma/client';
+import { PrismaClient, InsightSource, Category, Insight, InsightDirection } from '@prisma/client';
 import * as dotenv from 'dotenv';
-import { generateInspirationInsights, generateBaseQuestion, reassignCategory, reduceRedundancyForInspirations, generateCategoryOverlapByRanking, generateInsightCategoryOverlap, generateInsightComparisonPresentation, generateInsightCategoryComparisonByRanking, reduceExactRedundancyForAnswers, reduceRedundancyForQuestions, reduceExactRedundancyForQuestions, reduceExactRedundancyForInspirations, generateInsightTextFromTag } from '../src/utils/aiGenerators';
+import { 
+  generateInspirationInsights, generateBaseQuestion, generateInsightTextFromImportedQuestion,
+  reassignCategory, generateCategoryOverlapByRanking, generateInsightCategoryComparisonByRanking, 
+  generateInsightCategoryOverlap, generateInsightComparisonPresentation,
+  reduceExactRedundancyForQuestions, reduceExactRedundancyForInspirations, reduceExactRedundancyForAnswers, 
+  reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
+  } from '../src/utils/aiGenerators';
 import { EXTRA_CATEGORIES, parseCategoriesFromCSV } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
-import { reduceRedundancyForAnswers } from '../src/utils/aiGenerators';
-import { parseInsightsFromCSV } from './insights';
 import { parseQuestionsFromCSV, parseMappingFromCSV, parseQuestionType, extractAnswersFromRow } from './questions';
 dotenv.config();
 const prisma = new PrismaClient();
@@ -76,98 +80,6 @@ async function main() {
       }
     }
 
-    console.log('Importing pre-existing insights from CSV...');
-    const csvInsights = await parseInsightsFromCSV();
-    console.log(`Found ${csvInsights.length} insights in CSV`);
-
-    // Phase 1: Insert all CSV insights as DESCRIPTOR type
-    const insertedDescriptorInsights: Insight[] = [];
-    for (const csvInsight of csvInsights) {
-      // Find matching category
-      const matchingCategory = categories.find(c => 
-        c.category === csvInsight.category &&
-        c.subcategory === csvInsight.subcategory &&
-        c.insightSubject === csvInsight.insightSubject
-      );
-
-      if (!matchingCategory) {
-        console.warn(`No matching category found for insight: ${csvInsight.insightTag} (${csvInsight.category} > ${csvInsight.subcategory} > ${csvInsight.insightSubject})`);
-        continue;
-      }
-
-      // Check if this insight already exists (by publishedTag)
-      const existingInsight = await prisma.insight.findFirst({
-        where: {
-          publishedTag: csvInsight.insightTag,
-          source: InsightSource.DESCRIPTOR,
-        },
-      });
-
-      if (existingInsight) {
-        console.log(`Insight already exists: ${csvInsight.insightTag}`);
-        insertedDescriptorInsights.push(existingInsight);
-        continue;
-      }
-
-      // Create the insight with placeholder text
-      const insight = await prisma.insight.create({
-        data: {
-          categoryId: matchingCategory.id,
-          insightText: "IMPORTED",
-          source: InsightSource.DESCRIPTOR,
-          publishedTag: csvInsight.insightTag,
-        },
-      });
-      
-      insertedDescriptorInsights.push(insight);
-      console.log(`Inserted descriptor insight: ${csvInsight.insightTag}`);
-    }
-
-    console.log('Phase 2: Generating proper insight text for descriptor insights...');
-    const insightsNeedingGeneration = insertedDescriptorInsights.filter(insight => 
-      insight.insightText === "IMPORTED" // Only generate for insights that still have placeholder text
-    );
-    
-    if (insightsNeedingGeneration.length > 0) {
-      console.log(`Generating insight text for ${insightsNeedingGeneration.length} insights`);
-      
-      await processInParallel<Insight, void>(
-        insightsNeedingGeneration,
-        async (insight) => {
-          try {
-            const category = categories.find(c => c.id === insight.categoryId);
-            if (!category) {
-              console.error(`Category not found for insight ${insight.id}`);
-              return;
-            }
-
-            const result = await generateInsightTextFromTag(insight.publishedTag!, category);
-            if (result) {
-              const [generatedText, usage] = result;
-              totalUsage.promptTokens += usage.prompt_tokens;
-              totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
-              totalUsage.completionTokens += usage.completion_tokens;
-
-              // Update the insight with the generated text
-              await prisma.insight.update({
-                where: { id: insight.id },
-                data: { insightText: generatedText },
-              });
-
-              console.log(`Generated insight text for "${insight.publishedTag}": ${generatedText}`);
-            } else {
-              console.error(`Failed to generate insight text for "${insight.publishedTag}"`);
-            }
-          } catch (error) {
-            console.error(`Error processing insight ${insight.id}:`, error);
-          }
-        },
-        BATCH_COUNT
-      );
-    } else {
-      console.log('All descriptor insights already have generated text, skipping generation phase');
-    }
-
     console.log('Importing questions from CSV...');
     const [questionsData, mappingData] = await Promise.all([
       parseQuestionsFromCSV(),
@@ -177,12 +89,12 @@ async function main() {
     console.log(`Loaded ${questionsData.length} questions and ${mappingData.length} mappings`);
 
     // Create a mapping from question_id + answer_option to insight_tag
-    const answerToInsightMap = new Map<string, string>();
+    const answerToInsightMap = new Map<string, { tag: string, direction: string }>();
     for (const mapping of mappingData) {
       console.log(mapping)
-      if (mapping.source === 'question' && mapping.mapped_to_insight_tag && mapping.mapped_to_insight_tag !== 'nan') {
+      if (mapping.source === 'question' && mapping.mapped_to_insight_tag && mapping.insight_direction) {
         const key = `${mapping.question_id}:::${mapping.raw_value_answer_option}`;
-        answerToInsightMap.set(key, mapping.mapped_to_insight_tag);
+        answerToInsightMap.set(key, { tag: mapping.mapped_to_insight_tag, direction: mapping.insight_direction });
       }
     }
     console.log(answerToInsightMap)
@@ -249,29 +161,35 @@ async function main() {
       for (let i = 0; i < answers.length; i++) {
         const answerText = answers[i];
         const mapKey = `${questionRow.question_id}:::${answerText}`;
-        const insightTag = answerToInsightMap.get(mapKey);
+        const insightTag : { tag: string, direction: string } = answerToInsightMap.get(mapKey);
 
         if (!insightTag) {
           console.error(`failed to find answer insight: ${insightTag}`);
           continue
         }
+
         // Find or create the insight for this answer
-        let insight = await prisma.insight.findFirst({
-          where: { publishedTag: insightTag }
+        var insight = await prisma.insight.findFirst({
+          where: { 
+            publishedTag: insightTag.tag,
+            legacyDirection: insightTag.direction as InsightDirection
+           }
         });
 
         if (!insight) {
-          console.error(`failed to lookup answer insight: ${insightTag}`);
-          continue
-        } 
-        // Convert existing insight to ANSWER type if it's not already
-        if (insight.source !== InsightSource.ANSWER) {
-          insight = await prisma.insight.update({
-            where: { id: insight.id },
-            data: { source: InsightSource.ANSWER },
+          // Create new insight with placeholder text
+          insight = await prisma.insight.create({
+            data: {
+              categoryId: matchingCategory.id,
+              insightText: "IMPORTED",
+              source: InsightSource.ANSWER,
+              publishedTag: insightTag.tag == 'nan' ? undefined : insightTag.tag,
+              legacyDirection: insightTag.direction as InsightDirection 
+            },
           });
-          console.log(`Converted insight to ANSWER type: ${insightTag}`);
-        }
+          console.log(`Created new insight: ${insightTag.tag} ${insightTag.direction}`);
+        } 
+
         // Create the answer
         await prisma.answer.create({
           data: {
@@ -284,6 +202,64 @@ async function main() {
     }
 
     console.log('Questions import completed successfully!');
+
+    // Phase: Generate proper insight text for insights that need it
+    console.log('Generating insight text for imported insights...');
+    const insightsNeedingGeneration = await prisma.insight.findMany({
+      where: {
+        insightText: "IMPORTED",
+      }
+    });
+    
+    if (insightsNeedingGeneration.length > 0) {
+      console.log(`Generating insight text for ${insightsNeedingGeneration.length} insights`);
+      
+      await processInParallel<Insight, void>(
+        insightsNeedingGeneration,
+        async (insight) => {
+          try {
+            const category = categories.find(c => c.id === insight.categoryId);
+            if (!category) {
+              console.error(`Category not found for insight ${insight.id}`);
+              return;
+            }
+            const answer = await prisma.answer.findFirst({ where: { insightId: insight.id } });
+            if (!answer) {
+              console.error(`Answer not found for insight ${insight.id}`);
+              return;
+            }
+            const question = await prisma.question.findFirst({ where: { id: answer.questionId } });
+            if (!question) {
+              console.error(`Question not found for answer ${answer.id}`);
+              return;
+            }
+
+            const result = await generateInsightTextFromImportedQuestion(question.questionText, answer.answerText, category, insight.publishedTag);
+            if (result) {
+              const [generatedText, usage] = result;
+              totalUsage.promptTokens += usage.prompt_tokens;
+              totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
+              totalUsage.completionTokens += usage.completion_tokens;
+
+              // Update the insight with the generated text
+              await prisma.insight.update({
+                where: { id: insight.id },
+                data: { insightText: generatedText },
+              });
+
+              console.log(`Generated insight text for "${insight.publishedTag}": ${generatedText}`);
+            } else {
+              console.error(`Failed to generate insight text for "${insight.publishedTag}"`);
+            }
+          } catch (error) {
+            console.error(`Error processing insight ${insight.id}:`, error);
+          }
+        },
+        BATCH_COUNT
+      );
+    } else {
+      console.log('No insights need text generation, skipping generation phase');
+    }
 
     // Generate category overlaps by ranking, in parallel for each category
     console.log('Generating category overlaps by ranking...');

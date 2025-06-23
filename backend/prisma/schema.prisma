@@ -30,6 +30,11 @@ enum QuestionType {
   MULTIPLE_CHOICE
 }
 
+enum InsightDirection {
+  WHO_I_AM
+  WHO_I_WANT
+}
+
 model Category {
   id                Int       @id @default(autoincrement())
   category         String
@@ -49,6 +54,7 @@ model Insight {
   source            InsightSource
   generationOrder   Int?
   publishedTag      String?
+  legacyDirection   InsightDirection?
   category          Category  @relation(fields: [categoryId], references: [id])
   answers           Answer[]
   insightCompareA   InsightComparison[] @relation("InsightA")

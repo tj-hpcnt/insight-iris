@@ -2070,18 +2070,21 @@ export async function reduceExactRedundancyForQuestions(): Promise<{oldQuestion:
 }
 
 /**
- * Generates proper insight text from an insight tag using AI
- * @param insightTag The original insight tag from CSV
+ * Generates proper insight text from an imported question and answer using AI
+ * @param questionText The question that was asked
+ * @param answerText The answer that was given
  * @param category The category this insight belongs to
  * @returns Tuple containing the generated insight text and token usage statistics
  */
-export async function generateInsightTextFromTag(
-  insightTag: string,
-  category: Category
+export async function generateInsightTextFromImportedQuestion(
+  questionText: string,
+  answerText: string,
+  category: Category,
+  publishedTag: string | undefined
 ): Promise<[string, OpenAI.Completions.CompletionUsage] | null> {
-  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to convert insight tags into proper insight statements.
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to generate insight statements based on how someone answered a specific question.
 
-Convert the following insight tag into a proper insight statement that would be true for a user. The statement should be in first person and follow these patterns:
+Based on the question and answer provided, generate a proper insight statement that captures what this answer reveals about the person. The statement should be in first person and follow these patterns:
 - "I enjoy [activity]" 
 - "I prefer [preference]"
 - "I value [value]"
@@ -2090,7 +2093,10 @@ Convert the following insight tag into a proper insight statement that would be 
 - "I don't [negative preference]"
 - "I seek [what they're looking for]"
 
-Make it sound natural and conversational, as if the user is describing themselves or their preferences.
+Make it sound natural and conversational, as if the user is describing themselves or their preferences based on their answer. Focus on the underlying preference, value, or characteristic that the answer reveals about them.
+
+Output JSON only. Format:
+{"insight":"I enjoy outdoor activities and hiking"}
 
 Category Classification:
 Category: ${category.category}
@@ -2098,37 +2104,54 @@ Topic: ${category.topicHeader}
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
-Insight Tag: "${insightTag}"
-
-Output only the insight statement, no quotes or additional text.`;
+${publishedTag ? `Make the insight concisely focus on this topic: ${publishedTag}\n` : ''}Question: "${questionText}"
+Answer: "${answerText}"`;
 
   const model = "gpt-4.1";
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   
-  // For this simple text generation, we don't need structured output
-  const format = null;
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "insight_generation",
+      schema: {
+        type: "object",
+        properties: {
+          insight: {
+            type: "string"
+          }
+        },
+        required: ["insight"],
+        additionalProperties: false
+      }
+    }
+  };
 
   // Try to fetch from cache first
   const cachedCompletion = await fetchCachedExecution(model, messages, format);
-  const completion = cachedCompletion || await openai.chat.completions.create({
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
     messages,
     model,
+    response_format: format,
   });
 
   try {
-    const insightText = completion.choices[0].message.content?.trim();
+    const insightData = (completion.choices[0].message as any).parsed as {
+      insight: string;
+    };
     
-    if (!insightText) {
-      throw new Error("Empty insight text generated");
+    if (!insightData || !insightData.insight) {
+      throw new Error("Parse error or empty insight text");
     }
 
     if (!cachedCompletion) {
       await cachePromptExecution(model, messages, format, completion);
     }
 
-    return [insightText, completion.usage];
+    return [insightData.insight, completion.usage];
   } catch (error) {
-    console.error('Error generating insight text from tag:', error);
+    console.error('Error generating insight text from imported question:', error);
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
