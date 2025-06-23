@@ -12,8 +12,9 @@ const openai = new OpenAI({
 const prisma = new PrismaClient();
 
 export function fixIllegalEnumCharacters(str: string): string {
-  str = str.replaceAll('“', '"')
-  str = str.replaceAll('”', '"')
+  str = str.replaceAll('“', "\'")
+  str = str.replaceAll('”', "\'")
+  str = str.replaceAll('"', "\'")
   str = str.replaceAll('…', '...')
   return str
 }
@@ -104,7 +105,7 @@ ${extraHints}${existingInsightsText}`;
     for (const insightText of insightData.insights) {
       const insight = await prisma.insight.create({
         data: {
-          insightText,
+          insightText: fixIllegalEnumCharacters(insightText),
           categoryId: category.id,
           source: InsightSource.INSPIRATION,
         },
@@ -276,7 +277,7 @@ ${questions.map(question => question.text).join('\n')}`;
         // Create the question
         const question = await tx.question.create({
           data: {
-            questionText: questionData.question,
+            questionText: fixIllegalEnumCharacters(questionData.question),
             questionType: questionData.type as QuestionType,
             inspirationId: insight.id,
           },
@@ -289,7 +290,7 @@ ${questions.map(question => question.text).join('\n')}`;
         // Create new insight for each answer
         const newInsight = await tx.insight.create({
           data: {
-            insightText: questionData.insights[i],
+            insightText: fixIllegalEnumCharacters(questionData.insights[i]),
             categoryId: category.id,
             source: InsightSource.ANSWER,
           },
