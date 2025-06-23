@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as csv from 'csv-parser';
+import { fixIllegalEnumCharacters } from '../src/utils/aiGenerators';
 
 interface InsightFromCSV {
   category: string;
@@ -25,17 +26,16 @@ export function parseInsightsFromCSV(): Promise<InsightFromCSV[]> {
     const insights: InsightFromCSV[] = [];
 
     fs.createReadStream(csvPath)
-      .pipe(csv())
-      .on('data', (row: any) => {
-        console.log(row);
+    .pipe(csv({ mapHeaders: ({ header, index }) => header == '' ? "h" + index : header.replace(/\s*\([^)]*\)/g, '')}))
+    .on('data', (row: any) => {
+
         // Map CSV columns to our interface
         const insight: InsightFromCSV = {
-          category: row['category (auto-filled)'].trim() || '',
-          subcategory: row['subcategory (auto-filled)'].trim() || '',
+          category: row['category'].trim() || '',
+          subcategory: row['subcategory'].trim() || '',
           insightSubject: row.insight_subject?.trim() || '',
           insightTag: row.insight_tag?.trim() || '',
         };
-        console.log(insight);
 
         // Skip rows with empty essential fields
         if (insight.category && insight.subcategory && insight.insightSubject && insight.insightTag) {
@@ -49,5 +49,5 @@ export function parseInsightsFromCSV(): Promise<InsightFromCSV[]> {
         console.error('Error parsing insights CSV:', error);
         reject(error);
       });
-  });
+    });
 }

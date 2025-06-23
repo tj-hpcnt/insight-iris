@@ -69,7 +69,7 @@ model Question {
   inspirationId Int          @unique // Each question is inspired by a unique insight
   questionType  QuestionType
   questionText  String
-  isPublished   Boolean      @default(false)
+  publishedId   String?
   answers       Answer[]
   inspiration   Insight      @relation("QuestionInspiration", fields: [inspirationId], references: [id])
 }

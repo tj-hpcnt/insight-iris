@@ -11,6 +11,12 @@ const openai = new OpenAI({
 
 const prisma = new PrismaClient();
 
+export function fixIllegalEnumCharacters(str: string): string {
+  str = str.replaceAll('“', '"')
+  str = str.replaceAll('”', '"')
+  str = str.replaceAll('…', '...')
+  return str
+}
 /**
  * Generates a specified number of insights for a given category
  * @param category The category to generate insights for
@@ -267,13 +273,12 @@ ${questions.map(question => question.text).join('\n')}`;
       });
       // TODO: need to do setup for cascading
 
-              // Create the question
+        // Create the question
         const question = await tx.question.create({
           data: {
             questionText: questionData.question,
             questionType: questionData.type as QuestionType,
             inspirationId: insight.id,
-            isPublished: false,
           },
         });
 
@@ -480,7 +485,7 @@ export async function reduceRedundancyForInspirations(
   });
 
   if (insights.length <= 1) {
-    return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
+    return [[], NO_TOKEN_USAGE];
   }
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and remove redundant inspiration insights that essentially convey the same information.
@@ -627,7 +632,7 @@ export async function reduceRedundancyForAnswers(
   });
 
   if (insights.length <= 1) {
-    return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
+    return [[], NO_TOKEN_USAGE];
   }
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and merge equivalent insights within a category that essentially convey the same information.
@@ -824,7 +829,7 @@ export async function generateCategoryOverlapByRanking(
   const allCategories = await prisma.category.findMany();
 
   if (allCategories.length === 0) {
-    return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
+    return [[], NO_TOKEN_USAGE];
   }
 
   // Get all valid insight subjects for validation
@@ -1188,6 +1193,7 @@ Subject: ${insightCategory.insightSubject}
   }
 }
 
+const NO_TOKEN_USAGE = { prompt_tokens: 0, completion_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } } as OpenAI.Completions.CompletionUsage;
 /**
  * Generates insight comparisons between a target insight and all insights in a given category
  * @param insight The target insight to compare against
@@ -1207,7 +1213,7 @@ export async function generateInsightCategoryComparisonByRanking(
   });
 
   if (categoryInsights.length === 0) {
-    return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
+    return [[], NO_TOKEN_USAGE]
   }
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine how a specific insight relates to other insights in a category.
@@ -1652,7 +1658,7 @@ export async function reduceRedundancyForQuestions(
   });
 
   if (inspirationInsights.length <= 1) {
-    return [[], { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }];
+    return [[], NO_TOKEN_USAGE];
   }
 
   const questions = inspirationInsights.map(insight => insight.question);
@@ -1700,12 +1706,19 @@ Please analyze these questions and group together those that are equivalent or a
     }
   };
 
-  // Skip cache as this process should always use the latest set of questions
-  const completion = await openai.beta.chat.completions.parse({
-    messages,
-    model,
-    response_format: format,
-  });
+  var completion: OpenAI.Chat.ChatCompletion;
+  try {
+    // Skip cache as this process should always use the latest set of questions
+    completion = await openai.beta.chat.completions.parse({
+      messages,
+      model,
+      response_format: format,
+    });
+  } catch (e) {
+    console.log(messages)
+    console.log(JSON.stringify(format, null, 2))
+    throw e
+  }
 
   try {
     const redundancyData = (completion.choices[0].message as any).parsed as {

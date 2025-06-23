@@ -31,7 +31,7 @@ export function parseCategoriesFromCSV(): Promise<CategoryFromCSV[]> {
 
         const category = {
           category: row.category?.trim() || '',
-          topicHeader: row.topic_header === '-' ? '' : (row.topicHeader?.trim() || ''),
+          topicHeader: row.topic_header === '-' ? '' : (row.topic_header?.trim() || ''),
           subcategory: row.subcategory?.trim() || '',
           insightSubject: row.insight_subject?.trim() || '',
           expandedHints: null

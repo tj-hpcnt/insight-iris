@@ -6,6 +6,7 @@ import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
 import { reduceRedundancyForAnswers } from '../src/utils/aiGenerators';
 import { parseInsightsFromCSV } from './insights';
+import { parseQuestionsFromCSV, parseMappingFromCSV, parseQuestionType, extractAnswersFromRow } from './questions';
 dotenv.config();
 const prisma = new PrismaClient();
 const BATCH_COUNT = 10;
@@ -14,6 +15,17 @@ const INSIGHT_INITAL_POOL_COUNT = 10
 
 async function main() {
   try {
+    let totalUsage = {
+      promptTokens: 0,
+      cachedPromptTokens: 0,
+      completionTokens: 0,
+    };
+
+    // Start periodic logging of token usage every 5 seconds
+    const usageLogger = setInterval(() => {
+      console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
+    }, 5000);
+
     let categories = await prisma.category.findMany();
     
     // Combine categories from CSV and extra categories
@@ -111,12 +123,6 @@ async function main() {
       console.log(`Inserted descriptor insight: ${csvInsight.insightTag}`);
     }
 
-    let totalUsage = {
-      promptTokens: 0,
-      cachedPromptTokens: 0,
-      completionTokens: 0,
-    };
-
     console.log('Phase 2: Generating proper insight text for descriptor insights...');
     const insightsNeedingGeneration = insertedDescriptorInsights.filter(insight => 
       insight.insightText === "IMPORTED" // Only generate for insights that still have placeholder text
@@ -162,10 +168,122 @@ async function main() {
       console.log('All descriptor insights already have generated text, skipping generation phase');
     }
 
-    // Start periodic logging of token usage every 5 seconds
-    const usageLogger = setInterval(() => {
-      console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
-    }, 5000);
+    console.log('Importing questions from CSV...');
+    const [questionsData, mappingData] = await Promise.all([
+      parseQuestionsFromCSV(),
+      parseMappingFromCSV()
+    ]);
+
+    console.log(`Loaded ${questionsData.length} questions and ${mappingData.length} mappings`);
+
+    // Create a mapping from question_id + answer_option to insight_tag
+    const answerToInsightMap = new Map<string, string>();
+    for (const mapping of mappingData) {
+      console.log(mapping)
+      if (mapping.source === 'question' && mapping.mapped_to_insight_tag && mapping.mapped_to_insight_tag !== 'nan') {
+        const key = `${mapping.question_id}:::${mapping.raw_value_answer_option}`;
+        answerToInsightMap.set(key, mapping.mapped_to_insight_tag);
+      }
+    }
+    console.log(answerToInsightMap)
+
+    console.log(`Created ${answerToInsightMap.size} answer-to-insight mappings`);
+
+    // Process each question
+    for (const questionRow of questionsData) {
+      if (questionRow.status !== 'ACTIVE') {
+        console.log(`Skipping inactive question: ${questionRow.question_stem}`);
+        continue;
+      }
+
+      const existingQuestion = await prisma.question.findFirst({
+        where: { 
+          questionText: questionRow.question_stem
+        },
+      });
+
+      if (existingQuestion) {
+        console.log(`Question already exists: ${questionRow.question_stem}`);
+        continue;
+      }
+
+      // Extract answers from the row
+      const answers = extractAnswersFromRow(questionRow);
+
+      if (answers.length === 0) {
+        console.warn(`No answers found for question: ${questionRow.question_stem}`);
+        continue;
+      }
+
+      console.log(`Processing question: ${questionRow.question_stem} : ${answers}`);
+
+      // Find matching category for the question's insights
+      const matchingCategory = categories.find(c => 
+        c.insightSubject === questionRow.insight_subject
+      );
+
+      if (!matchingCategory) {
+        console.warn(`No matching category found for question: ${questionRow.question_id} (${questionRow.insight_subject})`);
+        continue;
+      }
+
+      const inspirationInsight = await prisma.insight.create({
+        data: {
+          categoryId: matchingCategory.id,
+          insightText: `Question imported: ${questionRow.question_stem}`,
+          source: InsightSource.INSPIRATION,
+        },
+      });      
+      
+      // Create the question linked to the inspiration insight
+      const question = await prisma.question.create({
+        data: {
+          inspirationId: inspirationInsight.id,
+          questionText: questionRow.question_stem,
+          questionType: parseQuestionType(questionRow.question_type, questionRow.multi_select),
+          publishedId: questionRow.question_id,
+        },
+      });
+
+      // Create answers and link to insights
+      for (let i = 0; i < answers.length; i++) {
+        const answerText = answers[i];
+        const mapKey = `${questionRow.question_id}:::${answerText}`;
+        const insightTag = answerToInsightMap.get(mapKey);
+
+        if (!insightTag) {
+          console.error(`failed to find answer insight: ${insightTag}`);
+          continue
+        }
+        // Find or create the insight for this answer
+        let insight = await prisma.insight.findFirst({
+          where: { publishedTag: insightTag }
+        });
+
+        if (!insight) {
+          console.error(`failed to lookup answer insight: ${insightTag}`);
+          continue
+        } 
+        // Convert existing insight to ANSWER type if it's not already
+        if (insight.source !== InsightSource.ANSWER) {
+          insight = await prisma.insight.update({
+            where: { id: insight.id },
+            data: { source: InsightSource.ANSWER },
+          });
+          console.log(`Converted insight to ANSWER type: ${insightTag}`);
+        }
+        // Create the answer
+        await prisma.answer.create({
+          data: {
+            questionId: question.id,
+            answerText: answerText,
+            insightId: insight.id,
+          },
+        });
+      }
+    }
+
+    console.log('Questions import completed successfully!');
 
     // Generate category overlaps by ranking, in parallel for each category
     console.log('Generating category overlaps by ranking...');
