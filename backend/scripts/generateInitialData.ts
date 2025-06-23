@@ -17,7 +17,7 @@ async function main() {
     let categories = await prisma.category.findMany();
     
     // Combine categories from CSV and extra categories
-    const csvCategories = parseCategoriesFromCSV();
+    const csvCategories = await parseCategoriesFromCSV();
     const allCategoryData = [...csvCategories, ...EXTRA_CATEGORIES];
     
     // Upsert categories (create or update)
@@ -65,7 +65,7 @@ async function main() {
     }
 
     console.log('Importing pre-existing insights from CSV...');
-    const csvInsights = parseInsightsFromCSV();
+    const csvInsights = await parseInsightsFromCSV();
     console.log(`Found ${csvInsights.length} insights in CSV`);
 
     // Phase 1: Insert all CSV insights as DESCRIPTOR type
