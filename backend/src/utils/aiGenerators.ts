@@ -700,16 +700,20 @@ Please analyze these insights and group together those that are equivalent. For 
 
     //wrap in a transaction
     await prisma.$transaction(async (tx) => {
-      for (const group of redundancyData.equivalentInsightGroups) {
-        if (group.length < 2) { // If only one insight in a group, nothing to merge
+      for (const rawGroup of redundancyData.equivalentInsightGroups) {
+        if (rawGroup.length < 2) { // If only one insight in a group, nothing to merge
           continue;
         }
 
-        const primaryInsightText = group[0];
-        const primaryInsight = insightsMap.get(primaryInsightText);
+        const allInGroup = rawGroup.map(insightText => insightsMap.get(insightText));
+        const existing = allInGroup.filter(insight => insight.publishedTag)
+        const generated = allInGroup.filter(insight => !insight.publishedTag)
+        const group = existing.concat(generated)
+
+        const primaryInsight = group[0]
 
         if (!primaryInsight) {
-          console.warn(`Primary insight text "${primaryInsightText}" not found in category ${category.id}. Skipping group.`);
+          console.warn(`Primary insight text "${primaryInsight.insightText}" not found in category ${category.id}. Skipping group.`);
           continue;
         }
 
@@ -730,16 +734,20 @@ Please analyze these insights and group together those that are equivalent. For 
         
 
         for (let i = 1; i < group.length; i++) {
-          const redundantInsightText = group[i];
-          const redundantInsight = insightsMap.get(redundantInsightText);
+          const redundantInsight = group[i];
 
           if (!redundantInsight) {
-            console.warn(`Redundant insight text "${redundantInsightText}" not found in category ${category.id}. Skipping.`);
+            console.warn(`Redundant insight text "${redundantInsight.insightText}" not found in category ${category.id}. Skipping.`);
             continue;
           }
 
           if (redundantInsight.id === primaryInsight.id) {
-            console.warn(`Primary and redundant insight are the same for text "${primaryInsightText}". Skipping merge for this item.`);
+            console.warn(`Primary and redundant insight are the same for text "${primaryInsight.insightText}". Skipping merge for this item.`);
+            continue;
+          }
+
+          if (redundantInsight.publishedTag) {
+            console.warn(`Redundant insight text "${redundantInsight.insightText}" is published. Skipping merge for this item.`);
             continue;
           }
 
@@ -1734,34 +1742,41 @@ Please analyze these questions and group together those that are equivalent or a
     const mergedQuestionsInfo: {oldQuestion: Question, newQuestion: Question}[] = [];
     // Wrap in a transaction
     await prisma.$transaction(async (tx) => {
-      for (const group of redundancyData.equivalentQuestionGroups) {
-        if (group.length < 2) { // If only one question in a group, nothing to delete
+      for (const rawGroup of redundancyData.equivalentQuestionGroups) {
+        if (rawGroup.length < 2) { // If only one question in a group, nothing to delete
           continue;
         }
 
-        const primaryQuestionText = group[0];
-        const primaryQuestion = questionsMap.get(primaryQuestionText);
+        const allInGroup = rawGroup.map(questionText => questionsMap.get(questionText));
+        const existing = allInGroup.filter(question => question.publishedId)
+        const generated  = allInGroup.filter(question => !question.publishedId)
+        const group = existing.concat(generated)
+
+        const primaryQuestion = group[0];
 
         if (!primaryQuestion) {
-          console.warn(`Primary question text "${primaryQuestionText}" not found in category ${category.id}. Skipping group.`);
+          console.warn(`Primary question text "${primaryQuestion.questionText}" not found in category ${category.id}. Skipping group.`);
           continue;
         }
 
         // Delete redundant questions (all except the first one)
         for (let i = 1; i < group.length; i++) {
-          const redundantQuestionText = group[i];
-          const redundantQuestion = questionsMap.get(redundantQuestionText);
+          const redundantQuestion = group[i];
 
           if (!redundantQuestion) {
-            console.warn(`Redundant question text "${redundantQuestionText}" not found in category ${category.id}. Skipping.`);
+            console.warn(`Redundant question text "${redundantQuestion.questionText}" not found in category ${category.id}. Skipping.`);
             continue;
           }
 
           if (redundantQuestion.id === primaryQuestion.id) {
-            console.warn(`Primary and redundant question are the same for text "${primaryQuestionText}". Skipping deletion for this item.`);
+            console.warn(`Primary and redundant question are the same for text "${primaryQuestion.questionText}". Skipping deletion for this item.`);
             continue;
           }
 
+          if (redundantQuestion.publishedId) {
+            console.warn(`Redundant question text "${redundantQuestion.questionText}" is published. Skipping deletion for this item.`);
+            continue;
+          }
 
           // Get the inspiration insight for this question
           const inspirationInsight = inspirationInsights.find(insight => insight.id === redundantQuestion.inspirationId);
