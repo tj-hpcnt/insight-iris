@@ -14,8 +14,9 @@ import { parseQuestionsFromCSV, parseMappingFromCSV, parseQuestionType, extractA
 dotenv.config();
 const prisma = new PrismaClient();
 const BATCH_COUNT = 10;
-const MINIMUM_BASE_INSIGHTS = 5
-const INSIGHT_INITAL_POOL_COUNT = 10
+const MINIMUM_TARGET_INSIGHTS = 10
+const MAX_NEW_INSIGHTS_PER_GENERATION = 30
+const MIN_NEW_INSIGHTS_PER_GENERATION = 5
 
 async function main() {
   try {
@@ -301,11 +302,11 @@ async function main() {
       async (category) => {
         var totalInsights = await prisma.insight.count({ where: { categoryId: category.id, source: InsightSource.INSPIRATION } });
         // This is not a perfect check to see if we already did the correct job
-        if (totalInsights > MINIMUM_BASE_INSIGHTS) return;
+        if (totalInsights > MINIMUM_TARGET_INSIGHTS) return;
         let done = false;
         let round_fails = 0;
         totalInsights = -1; // first pass is never a failure
-        while (!done && totalInsights < INSIGHT_INITAL_POOL_COUNT) {
+        while (!done && totalInsights < MINIMUM_TARGET_INSIGHTS) {
           const newTotalInsights = await prisma.insight.count({ where: { categoryId: category.id, source: InsightSource.INSPIRATION } });
           if (newTotalInsights == totalInsights) {
             round_fails++;
@@ -316,7 +317,7 @@ async function main() {
             continue;
           }
           totalInsights = newTotalInsights;
-          const target = Math.max(3, Math.min(30, INSIGHT_INITAL_POOL_COUNT - totalInsights));
+          const target = Math.max(MIN_NEW_INSIGHTS_PER_GENERATION, Math.min(MAX_NEW_INSIGHTS_PER_GENERATION, MINIMUM_TARGET_INSIGHTS - totalInsights));
           const [newInsights, isDone, usage] = await generateInspirationInsights(category, target);
           totalUsage.promptTokens += usage.prompt_tokens;
           totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
