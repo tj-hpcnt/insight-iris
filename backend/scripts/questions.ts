@@ -33,6 +33,80 @@ export interface MappingCSVRow {
   insight_tag_suggestions: string;
 }
 
+export interface ExampleQuestion {
+  question: string;
+  answers: string[];
+  insights: string[];
+  type: 'BINARY' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE';
+}
+
+// Load example questions at script load time and cache in memory
+const loadExampleQuestions = (): { [key: string]: ExampleQuestion[] } => {
+  const exampleQuestions: { [key: string]: ExampleQuestion[] } = {
+    BINARY: [],
+    SINGLE_CHOICE: [],
+    MULTIPLE_CHOICE: []
+  };
+
+  const files = [
+    { path: 'example_binary.jsonl', type: 'BINARY' },
+    { path: 'example_single_choice.jsonl', type: 'SINGLE_CHOICE' },
+    { path: 'example_multiple_choice.jsonl', type: 'MULTIPLE_CHOICE' }
+  ];
+
+  files.forEach(({ path: fileName, type }) => {
+    const filePath = path.join(__dirname, 'mvp-data', fileName);
+    try {
+      const fileContent = fs.readFileSync(filePath, 'utf-8');
+      const lines = fileContent.trim().split('\n');
+      
+      lines.forEach(line => {
+        if (line.trim()) {
+          const question = JSON.parse(line) as ExampleQuestion;
+          exampleQuestions[type].push(question);
+        }
+      });
+    } catch (error) {
+      console.error(`Error loading ${fileName}:`, error);
+    }
+  });
+
+  return exampleQuestions;
+};
+
+// Cache the example questions at module load time
+const CACHED_EXAMPLE_QUESTIONS = loadExampleQuestions();
+
+export function pickSampleQuestions(totalCount: number): string {
+  const questionsPerType = Math.floor(totalCount / 3);
+  const remainder = totalCount % 3;
+  
+  const selectedQuestions: ExampleQuestion[] = [];
+  const types: Array<'BINARY' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE'> = ['BINARY', 'SINGLE_CHOICE', 'MULTIPLE_CHOICE'];
+  
+  types.forEach((type, index) => {
+    const questions = CACHED_EXAMPLE_QUESTIONS[type];
+    const countForThisType = questionsPerType + (index < remainder ? 1 : 0);
+    
+    if (questions.length > 0) {
+      // Randomly sample questions from this type
+      const shuffled = [...questions].sort(() => 0.5 - Math.random());
+      const sampled = shuffled.slice(0, Math.min(countForThisType, questions.length));
+      selectedQuestions.push(...sampled);
+    }
+  });
+  
+  // Shuffle the final selection to mix the types
+  const finalSelection = selectedQuestions.sort(() => 0.5 - Math.random());
+  
+  // Format as strings separated by \n
+  return finalSelection.map(q => {
+    const answersStr = q.answers.join(', ');
+    const insightsStr = q.insights.join(' | ');
+    return `[${q.type}] ${q.question}\nAnswers: ${answersStr}\nInsights: ${insightsStr}`;
+  }).join('\n\n');
+}
+
 export async function parseQuestionsFromCSV(): Promise<QuestionCSVRow[]> {
   const csvPath = path.join(__dirname, 'mvp-data', 'questions.csv');
   return new Promise((resolve, reject) => {
