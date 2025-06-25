@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Breadcrumbs, { BreadcrumbItem } from './components/Breadcrumbs';
 import CategoryTable from './components/CategoryTable';
 import InsightTable, { InsightType } from './components/InsightTable';
@@ -19,7 +19,6 @@ function App() {
   const [selectedInsightType, setSelectedInsightType] = useState<InsightType | null>(null);
   const [selectedInsightId, setSelectedInsightId] = useState<number | null>(null);
   // const [selectedInsightTitle, setSelectedInsightTitle] = useState<string | null>(null); // To be used for breadcrumb
-  const [currentQuestionText, setCurrentQuestionText] = useState<string | null>(null);
 
   // For Question View navigation - should only track inspiration insights
   const [currentQuestionableInsights, setCurrentQuestionableInsights] = useState<InsightPlaceholder[]>([]);
@@ -35,11 +34,6 @@ function App() {
           if (response.ok) {
             const data = await response.json();
             
-            // Store the question text for breadcrumb
-            if (data.questionText) {
-              setCurrentQuestionText(data.questionText);
-            }
-            
             if (data.inspirationInsightDetails) {
               const inspirationIndex = currentQuestionableInsights.findIndex(
                 insight => insight.id === data.inspirationInsightDetails.id
@@ -54,31 +48,32 @@ function App() {
         }
       };
       updateQuestionIndex();
-    } else {
-      // Clear question text when not in question view
-      setCurrentQuestionText(null);
     }
   }, [currentView, selectedInsightId, currentQuestionableInsights, currentQuestionIndex]);
 
-  // Fetch inspiration insights when a category is selected for question navigation
-  // This should only fetch inspiration insights since questions are based on inspiration insights
+  // Fetch questions when a category is selected for question navigation
+  // Extract inspiration insights from questions for navigation consistency
   useEffect(() => {
     if (selectedCategoryId) {
-      const fetchInspirationInsightsForQuestionNavigation = async () => {
+      const fetchQuestionsForNavigation = async () => {
         try {
-          // Always fetch inspiration insights for question navigation, regardless of current view type
-          const response = await fetch(`/api/categories/${selectedCategoryId}/inspiration-insights`);
+          const response = await fetch(`/api/categories/${selectedCategoryId}/questions`);
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
-          const data: InsightPlaceholder[] = await response.json();
-          setCurrentQuestionableInsights(data);
+          const questions = await response.json();
+          // Extract inspiration insights for navigation
+          const inspirationInsights: InsightPlaceholder[] = questions.map((question: any) => ({
+            id: question.inspiration.id,
+            insightText: question.inspiration.insightText,
+          }));
+          setCurrentQuestionableInsights(inspirationInsights);
         } catch (error) {
-          console.error('Failed to fetch inspiration insights for question navigation:', error);
+          console.error('Failed to fetch questions for navigation:', error);
           setCurrentQuestionableInsights([]); // Reset on error
         }
       };
-      fetchInspirationInsightsForQuestionNavigation();
+      fetchQuestionsForNavigation();
     }
   }, [selectedCategoryId]); // Only depend on selectedCategoryId, not selectedInsightType
 
@@ -127,7 +122,6 @@ function App() {
     setSelectedInsightId(null);
     setCurrentQuestionableInsights([]);
     setCurrentQuestionIndex(0);
-    setCurrentQuestionText(null);
   };
 
   const navigateToInsightsView = (type?: InsightType) => {
@@ -135,7 +129,6 @@ function App() {
     setSelectedInsightType(type || selectedInsightType || 'inspiration');
     setCurrentView('insights');
     setSelectedInsightId(null);
-    setCurrentQuestionText(null);
     // currentQuestionIndex is preserved if just switching between inspiration/answers for same category
   };
   

@@ -4,62 +4,45 @@ import PublishedTagChip from './PublishedTagChip';
 
 export type InsightType = 'inspiration' | 'answers'; // This matches the frontend logic
 
-// Interface for inspiration insights from the API (matches Prisma Insight model with question)
-interface InspirationInsightFromAPI {
+// Interface for the question data from the new unified API
+interface QuestionFromAPI {
   id: number;
-  categoryId: number;
-  insightText: string;
-  source: string; // Should be 'INSPIRATION' from InsightSource enum
-  generationOrder?: number | null;
-  publishedTag?: string | null;
-  question?: {
-    questionText: string;
-    publishedId: string | null;
-  } | null;
-}
-
-// Interface for answer insights from the API - now returns Answer records with included data
-interface AnswerInsightFromAPI {
-  id: number; // This is the Answer ID
-  answerText: string;
-  question: {
-    questionText: string;
-    publishedId: string | null;
+  questionText: string;
+  publishedId: string | null;
+  inspiration: {
+    id: number;
+    insightText: string;
+    publishedTag: string | null;
+    source: string;
   };
-  insight: {
-    id: number; // This is the Insight ID
-    insightText: string;
-    source: string;
-    publishedTag: string | null;
-  } | null;
-}
-
-// Interface for what the table will display - inspiration insights
-interface InspirationInsightDisplay {
+  answers: {
     id: number;
-    questionText: string;
-    publishedId: string | null;
-    insightText: string;
-    publishedTag: string | null;
-    source: string;
-}
-
-// Interface for what the table will display - answer insights
-interface AnswerInsightDisplay {
-    id: number;
-    questionText: string;
-    publishedId: string | null;
     answerText: string;
-    insightText: string;
-    publishedTag: string | null;
-    source: string;
+    insight: {
+      id: number;
+      insightText: string;
+      publishedTag: string | null;
+      source: string;
+    };
+  }[];
+}
+
+// Interface for what the table will display - now unified for both tabs
+interface QuestionDisplay {
+  id: number; // This will be the insight ID for clicking purposes
+  questionText: string;
+  publishedId: string | null;
+  insightText: string;
+  publishedTag: string | null;
+  source: string;
+  answerText?: string; // Only used for answer insights tab
 }
 
 interface InsightTableProps {
   categoryId: number;
   insightType: InsightType; // 'inspiration' or 'answers'
   onInsightClick: (insightId: number) => void;
-  onInsightTypeChange: (type: InsightType) => void; // New prop for handling tab changes
+  onInsightTypeChange: (type: InsightType) => void;
 }
 
 const InsightTable: React.FC<InsightTableProps> = ({ 
@@ -68,55 +51,26 @@ const InsightTable: React.FC<InsightTableProps> = ({
   onInsightClick, 
   onInsightTypeChange 
 }) => {
-  const [inspirationInsights, setInspirationInsights] = useState<InspirationInsightDisplay[]>([]);
-  const [answerInsights, setAnswerInsights] = useState<AnswerInsightDisplay[]>([]);
+  const [questions, setQuestions] = useState<QuestionFromAPI[]>([]);
+  const [displayData, setDisplayData] = useState<QuestionDisplay[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!categoryId) return;
 
-    const fetchInsights = async () => {
+    const fetchQuestions = async () => {
       try {
         setLoading(true);
         setError(null);
-        const apiPath = insightType === 'inspiration' ? 
-          `/api/categories/${categoryId}/inspiration-insights` :
-          `/api/categories/${categoryId}/answer-insights`;
         
-        const response = await fetch(apiPath);
+        const response = await fetch(`/api/categories/${categoryId}/questions`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        if (insightType === 'inspiration') {
-          const data: InspirationInsightFromAPI[] = await response.json();
-          // Map API data to display data for inspiration insights
-          const displayData = data.map(ins => ({
-            id: ins.id,
-            questionText: ins.question?.questionText || 'No question generated',
-            publishedId: ins.question?.publishedId || null,
-            insightText: ins.insightText,
-            publishedTag: ins.publishedTag || null,
-            source: ins.source,
-          }));
-          setInspirationInsights(displayData);
-        } else {
-          const data: AnswerInsightFromAPI[] = await response.json();
-          // Map API data to display data for answer insights
-          const displayData = data
-            .filter(answer => answer.insight) // Only include answers that have insights
-            .map(answer => ({
-              id: answer.insight!.id, // Use the insight ID for the click handler
-              questionText: answer.question?.questionText || 'No question found',
-              publishedId: answer.question?.publishedId || null,
-              answerText: answer.answerText,
-              insightText: answer.insight!.insightText,
-              publishedTag: answer.insight!.publishedTag || null,
-              source: answer.insight!.source,
-            }));
-          setAnswerInsights(displayData);
-        }
+        const data: QuestionFromAPI[] = await response.json();
+        setQuestions(data);
       } catch (e) {
         if (e instanceof Error) {
           setError(e.message);
@@ -128,11 +82,43 @@ const InsightTable: React.FC<InsightTableProps> = ({
       }
     };
 
-    fetchInsights();
-  }, [categoryId, insightType]);
+    fetchQuestions();
+  }, [categoryId]);
 
-  if (loading) return <p>Loading insights...</p>;
-  if (error) return <p>Error loading insights: {error}</p>;
+  useEffect(() => {
+    // Transform the questions data based on the selected tab
+    if (insightType === 'inspiration') {
+      const inspirationData = questions.map(question => ({
+        id: question.inspiration.id, // Use inspiration insight ID for clicking
+        questionText: question.questionText,
+        publishedId: question.publishedId,
+        insightText: question.inspiration.insightText,
+        publishedTag: question.inspiration.publishedTag,
+        source: question.inspiration.source,
+      }));
+      setDisplayData(inspirationData);
+    } else {
+      // For answers tab, create one row per answer with its insight
+      const answerData: QuestionDisplay[] = [];
+      questions.forEach(question => {
+        question.answers.forEach(answer => {
+          answerData.push({
+            id: answer.insight.id, // Use answer insight ID for clicking
+            questionText: question.questionText,
+            publishedId: question.publishedId,
+            answerText: answer.answerText,
+            insightText: answer.insight.insightText,
+            publishedTag: answer.insight.publishedTag,
+            source: answer.insight.source,
+          });
+        });
+      });
+      setDisplayData(answerData);
+    }
+  }, [questions, insightType]);
+
+  if (loading) return <p>Loading questions...</p>;
+  if (error) return <p>Error loading questions: {error}</p>;
   if (!categoryId) return <p>Please select a category first.</p>;
 
   const tabStyle = {
@@ -167,23 +153,6 @@ const InsightTable: React.FC<InsightTableProps> = ({
       {/* Tabbed Header */}
       <div style={tabStyle}>
         <button
-          style={tabButtonStyle(insightType === 'inspiration')}
-          onClick={() => onInsightTypeChange('inspiration')}
-          onMouseEnter={(e) => {
-            if (insightType !== 'inspiration') {
-              Object.assign(e.currentTarget.style, tabButtonHoverStyle);
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (insightType !== 'inspiration') {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = '#6c757d';
-            }
-          }}
-        >
-          💡 Inspiration Insights
-        </button>
-        <button
           style={tabButtonStyle(insightType === 'answers')}
           onClick={() => onInsightTypeChange('answers')}
           onMouseEnter={(e) => {
@@ -199,6 +168,23 @@ const InsightTable: React.FC<InsightTableProps> = ({
           }}
         >
           💬 Answer Insights
+        </button>
+        <button
+          style={tabButtonStyle(insightType === 'inspiration')}
+          onClick={() => onInsightTypeChange('inspiration')}
+          onMouseEnter={(e) => {
+            if (insightType !== 'inspiration') {
+              Object.assign(e.currentTarget.style, tabButtonHoverStyle);
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (insightType !== 'inspiration') {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = '#6c757d';
+            }
+          }}
+        >
+          💡 Inspiration Insights
         </button>
       </div>
 
@@ -238,98 +224,56 @@ const InsightTable: React.FC<InsightTableProps> = ({
           </tr>
         </thead>
         <tbody>
-          {insightType === 'inspiration' ? (
-            inspirationInsights.map((insight) => (
-              <tr 
-                key={insight.id}
-                onClick={() => onInsightClick(insight.id)}
-                style={{ 
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f8f9fa';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-              >
+          {displayData.map((item) => (
+            <tr 
+              key={`${item.id}-${item.answerText || 'inspiration'}`} // Unique key for answer insights
+              onClick={() => onInsightClick(item.id)}
+              style={{ 
+                cursor: 'pointer',
+                transition: 'background-color 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f8f9fa';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+            >
+              <td style={{ 
+                padding: '12px', 
+                borderBottom: '1px solid #dee2e6',
+                color: '#495057'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  {item.questionText}
+                  {item.publishedId && (
+                    <PublishedIdChip publishedId={item.publishedId} />
+                  )}
+                </div>
+              </td>
+              {insightType === 'answers' && (
                 <td style={{ 
                   padding: '12px', 
                   borderBottom: '1px solid #dee2e6',
                   color: '#495057'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    {insight.questionText}
-                    {insight.publishedId && (
-                      <PublishedIdChip publishedId={insight.publishedId} />
-                    )}
-                  </div>
+                  {item.answerText}
                 </td>
-                <td style={{ 
-                  padding: '12px', 
-                  borderBottom: '1px solid #dee2e6',
-                  color: '#495057'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>{insight.insightText}</span>
-                    {insight.publishedTag && (
-                      <PublishedTagChip publishedTag={insight.publishedTag} />
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))
-          ) : (
-            answerInsights.map((insight) => (
-              <tr 
-                key={insight.id}
-                onClick={() => onInsightClick(insight.id)}
-                style={{ 
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f8f9fa';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-              >
-                <td style={{ 
-                  padding: '12px', 
-                  borderBottom: '1px solid #dee2e6',
-                  color: '#495057'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    {insight.questionText}
-                    {insight.publishedId && (
-                      <PublishedIdChip publishedId={insight.publishedId} />
-                    )}
-                  </div>
-                </td>
-                <td style={{ 
-                  padding: '12px', 
-                  borderBottom: '1px solid #dee2e6',
-                  color: '#495057'
-                }}>
-                  {insight.answerText}
-                </td>
-                <td style={{ 
-                  padding: '12px', 
-                  borderBottom: '1px solid #dee2e6',
-                  color: '#495057'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>{insight.insightText}</span>
-                    {insight.publishedTag && (
-                      <PublishedTagChip publishedTag={insight.publishedTag} />
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))
-          )}
+              )}
+              <td style={{ 
+                padding: '12px', 
+                borderBottom: '1px solid #dee2e6',
+                color: '#495057'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>{item.insightText}</span>
+                  {item.publishedTag && (
+                    <PublishedTagChip publishedTag={item.publishedTag} />
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

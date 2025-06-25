@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { getInsightSubjectStyle } from '../utils/colorUtils';
 import PublishedIdChip from './PublishedIdChip';
 import PublishedTagChip from './PublishedTagChip';
@@ -47,7 +47,7 @@ interface FullQuestionContextPayload {
 
 // Interface for related answer insights (for the right panel)
 // This remains the same as before, an array of PrismaInsight where source is ANSWER
-interface RelatedAnswerInsightDisplay extends PrismaInsight {}
+// interface RelatedAnswerInsightDisplay extends PrismaInsight {} // Removed - not used
 
 // --- End Data Interfaces ---
 
@@ -256,6 +256,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           {fullContext.inspirationInsightDetails && (
             <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0' }}>
               <h5 style={{ marginTop: 0, marginBottom: '5px' }}>Original Inspiration:</h5>
+              <div style={{ marginBottom: '5px' }}>
+                <span style={getInsightSubjectStyle(fullContext.inspirationInsightDetails.category?.insightSubject || 'Unknown')}>
+                  {fullContext.inspirationInsightDetails.category?.insightSubject || 'Unknown'}
+                </span>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <p style={{ margin: 0 }}>{fullContext.inspirationInsightDetails.insightText}</p>
                 {fullContext.inspirationInsightDetails.publishedTag && (
