@@ -80,8 +80,8 @@ function App() {
   const handleCategoryClick = async (categoryId: number, insightSubject: string) => {
     setSelectedCategoryId(categoryId);
     setSelectedInsightSubject(insightSubject);
-    // Default to inspiration insights, or let user choose via UI elements not yet defined
-    setSelectedInsightType('inspiration'); 
+    // Default to answer insights, or let user choose via UI elements not yet defined
+    setSelectedInsightType('answers'); 
     setCurrentView('insights');
     setCurrentQuestionIndex(0); // Reset index when category changes
   };
@@ -126,7 +126,7 @@ function App() {
 
   const navigateToInsightsView = (type?: InsightType) => {
     if (!selectedCategoryId) return; // Should not happen if called from a state where category is selected
-    setSelectedInsightType(type || selectedInsightType || 'inspiration');
+    setSelectedInsightType(type || selectedInsightType || 'answers');
     setCurrentView('insights');
     setSelectedInsightId(null);
     // currentQuestionIndex is preserved if just switching between inspiration/answers for same category
