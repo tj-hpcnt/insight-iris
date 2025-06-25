@@ -51,74 +51,42 @@ export class AppService {
     return this.prisma.category.findMany();
   }
 
-
-  async listInspirationInsightsInCategory(categoryId: number) {
-    return this.prisma.insight.findMany({
+  async listQuestionsInCategory(categoryId: number) {
+    return this.prisma.question.findMany({
       where: {
         categoryId,
-        source: InsightSource.INSPIRATION,
       },
       include: {
-        question: {
-          select: {
-            questionText: true,
-            publishedId: true,
-          },
-        },
-      },
-    });
-  }
-
-  async listAnswerInsightsInCategory(categoryId: number) {
-    // First, find all questions that have at least one answer with an insight in this category
-    const questionsWithAnswersInCategory = await this.prisma.question.findMany({
-      where: {
-        answers: {
-          some: {
-            insight: {
-              categoryId,
-              source: InsightSource.ANSWER,
-            },
-          },
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    const questionIds = questionsWithAnswersInCategory.map(q => q.id);
-
-    // Then fetch all answers for those questions
-    return this.prisma.answer.findMany({
-      where: {
-        questionId: {
-          in: questionIds,
-        },
-      },
-      include: {
-        question: {
-          select: {
-            questionText: true,
-            publishedId: true,
-          },
-        },
-        insight: {
+        inspiration: {
           select: {
             id: true,
             insightText: true,
-            source: true,
             publishedTag: true,
+            source: true,
+          },
+        },
+        answers: {
+          include: {
+            insight: {
+              select: {
+                id: true,
+                insightText: true,
+                publishedTag: true,
+                source: true,
+              },
+            },
+          },
+          orderBy: {
+            id: 'asc',
           },
         },
       },
       orderBy: {
-        id: 'asc'
+        id: 'asc',
       },
     });
   }
 
-  // Renamed and refactored from getInsightDetails
   async getFullQuestionContextByInsightId(anyInsightId: number): Promise<FullQuestionContextPayload> {
     const initialInsight = await this.prisma.insight.findUnique({
       where: { id: anyInsightId },

@@ -280,6 +280,7 @@ If you can't generate a unique question, then output:
             questionText: fixIllegalEnumCharacters(questionData.question),
             questionType: questionData.type as QuestionType,
             inspirationId: insight.id,
+            categoryId: category.id,
           },
         });
 

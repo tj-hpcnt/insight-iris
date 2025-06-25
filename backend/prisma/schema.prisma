@@ -42,6 +42,7 @@ model Category {
   insightSubject   String
   expandedHints    String?
   insights         Insight[]
+  questions        Question[]
   categoryOverlapA CategoryOverlap[] @relation("CategoryA")
   categoryOverlapB CategoryOverlap[] @relation("CategoryB")
 }
@@ -72,11 +73,15 @@ model Style {
 model Question {
   id            Int          @id @default(autoincrement())
   inspirationId Int          @unique // Each question is inspired by a unique insight
+  categoryId    Int
   questionType  QuestionType
   questionText  String
   publishedId   String?
   answers       Answer[]
   inspiration   Insight      @relation("QuestionInspiration", fields: [inspirationId], references: [id])
+  category      Category     @relation(fields: [categoryId], references: [id])
+
+  @@index([categoryId])
 }
 
 model Answer {

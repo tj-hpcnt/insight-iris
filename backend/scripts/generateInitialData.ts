@@ -151,6 +151,7 @@ async function main() {
       const question = await prisma.question.create({
         data: {
           inspirationId: inspirationInsight.id,
+          categoryId: matchingCategory.id,
           questionText: questionRow.question_stem,
           questionType: parseQuestionType(questionRow.question_type, questionRow.multi_select),
           publishedId: questionRow.question_id,
@@ -259,6 +260,58 @@ async function main() {
       );
     } else {
       console.log('No insights need text generation, skipping generation phase');
+    }
+
+    // Phase: Update inspiration insights to use answer insight text
+    console.log('Updating inspiration insights with answer insight text...');
+    const inspirationInsightsNeedingUpdate = await prisma.insight.findMany({
+      where: {
+        source: InsightSource.INSPIRATION,
+        insightText: {
+          startsWith: "Question imported: "
+        }
+      }
+    });
+    
+    if (inspirationInsightsNeedingUpdate.length > 0) {
+      console.log(`Updating ${inspirationInsightsNeedingUpdate.length} inspiration insights`);
+      
+      for (const inspirationInsight of inspirationInsightsNeedingUpdate) {
+        try {
+          // Find the question associated with this inspiration insight
+          const question = await prisma.question.findFirst({
+            where: { inspirationId: inspirationInsight.id }
+          });
+          
+          if (!question) {
+            console.error(`No question found for inspiration insight ${inspirationInsight.id}`);
+            continue;
+          }
+          
+          // Find the first answer for this question and get its insight
+          const answer = await prisma.answer.findFirst({
+            where: { questionId: question.id },
+            include: { insight: true }
+          });
+          
+          if (!answer || !answer.insight) {
+            console.error(`No answer with insight found for question ${question.id}`);
+            continue;
+          }
+          
+          // Update the inspiration insight text to match the answer insight text
+          await prisma.insight.update({
+            where: { id: inspirationInsight.id },
+            data: { insightText: answer.insight.insightText }
+          });
+          
+          console.log(`Updated inspiration insight for question "${question.questionText}" with text: "${answer.insight.insightText}"`);
+        } catch (error) {
+          console.error(`Error updating inspiration insight ${inspirationInsight.id}:`, error);
+        }
+      }
+    } else {
+      console.log('No inspiration insights need text updates');
     }
 
     // Generate category overlaps by ranking, in parallel for each category

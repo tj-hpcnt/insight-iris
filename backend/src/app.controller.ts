@@ -15,14 +15,9 @@ export class AppController {
     return this.appService.listCategories();
   }
 
-  @Get('categories/:categoryId/inspiration-insights')
-  async listInspirationInsightsInCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
-    return this.appService.listInspirationInsightsInCategory(categoryId);
-  }
-
-  @Get('categories/:categoryId/answer-insights')
-  async listAnswerInsightsInCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
-    return this.appService.listAnswerInsightsInCategory(categoryId);
+  @Get('categories/:categoryId/questions')
+  async listQuestionsInCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
+    return this.appService.listQuestionsInCategory(categoryId);
   }
 
   @Get('insights/:insightId/question-details')
