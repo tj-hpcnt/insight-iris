@@ -1,19 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import PublishedIdChip from './PublishedIdChip';
 import PublishedTagChip from './PublishedTagChip';
+import CategoryChip from './CategoryChip';
 
 export type InsightType = 'inspiration' | 'answers'; // This matches the frontend logic
+
+// Interface for category information
+interface CategoryInfo {
+  id: number;
+  category: string;
+  subcategory: string;
+  insightSubject: string;
+}
 
 // Interface for the question data from the new unified API
 interface QuestionFromAPI {
   id: number;
   questionText: string;
   publishedId: string | null;
+  category: CategoryInfo;
   inspiration: {
     id: number;
     insightText: string;
     publishedTag: string | null;
     source: string;
+    category: CategoryInfo;
   };
   answers: {
     id: number;
@@ -23,6 +34,7 @@ interface QuestionFromAPI {
       insightText: string;
       publishedTag: string | null;
       source: string;
+      category: CategoryInfo;
     };
   }[];
 }
@@ -36,6 +48,8 @@ interface QuestionDisplay {
   publishedTag: string | null;
   source: string;
   answerText?: string; // Only used for answer insights tab
+  questionCategory: CategoryInfo;
+  insightCategory: CategoryInfo;
 }
 
 interface InsightTableProps {
@@ -95,6 +109,8 @@ const InsightTable: React.FC<InsightTableProps> = ({
         insightText: question.inspiration.insightText,
         publishedTag: question.inspiration.publishedTag,
         source: question.inspiration.source,
+        questionCategory: question.category,
+        insightCategory: question.inspiration.category,
       }));
       setDisplayData(inspirationData);
     } else {
@@ -110,6 +126,8 @@ const InsightTable: React.FC<InsightTableProps> = ({
             insightText: answer.insight.insightText,
             publishedTag: answer.insight.publishedTag,
             source: answer.insight.source,
+            questionCategory: question.category,
+            insightCategory: answer.insight.category,
           });
         });
       });
@@ -265,11 +283,16 @@ const InsightTable: React.FC<InsightTableProps> = ({
                 borderBottom: '1px solid #dee2e6',
                 color: '#495057'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>{item.insightText}</span>
-                  {item.publishedTag && (
-                    <PublishedTagChip publishedTag={item.publishedTag} />
-                  )}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <span style={{ flex: 1, marginRight: '8px' }}>{item.insightText}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                    {item.insightCategory.id !== item.questionCategory.id && (
+                      <CategoryChip insightSubject={item.insightCategory.insightSubject} />
+                    )}
+                    {item.publishedTag && (
+                      <PublishedTagChip publishedTag={item.publishedTag} />
+                    )}
+                  </div>
                 </div>
               </td>
             </tr>

@@ -63,6 +63,14 @@ export class AppService {
             insightText: true,
             publishedTag: true,
             source: true,
+            category: {
+              select: {
+                id: true,
+                category: true,
+                subcategory: true,
+                insightSubject: true,
+              },
+            },
           },
         },
         answers: {
@@ -73,11 +81,27 @@ export class AppService {
                 insightText: true,
                 publishedTag: true,
                 source: true,
+                category: {
+                  select: {
+                    id: true,
+                    category: true,
+                    subcategory: true,
+                    insightSubject: true,
+                  },
+                },
               },
             },
           },
           orderBy: {
             id: 'asc',
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            category: true,
+            subcategory: true,
+            insightSubject: true,
           },
         },
       },
