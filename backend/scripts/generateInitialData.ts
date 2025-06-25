@@ -17,6 +17,7 @@ const BATCH_COUNT = 10;
 const MINIMUM_TARGET_INSIGHTS = 10
 const MAX_NEW_INSIGHTS_PER_GENERATION = 30
 const MIN_NEW_INSIGHTS_PER_GENERATION = 5
+const BINARY_PROBABILITY = 0.3;
 
 async function main() {
   try {
@@ -422,7 +423,8 @@ async function main() {
           const category = categories.find(c => c.id === insight.categoryId);
           if (!category) return;
 
-          const [question, answers, insights, usage] = await generateBaseQuestion(insight);
+          const preferBinary = Math.random() < BINARY_PROBABILITY;
+          const [question, answers, insights, usage] = await generateBaseQuestion(insight, preferBinary);
           totalUsage.promptTokens += usage.prompt_tokens;
           totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
           totalUsage.completionTokens += usage.completion_tokens;

@@ -130,7 +130,8 @@ ${extraHints}${existingInsightsText}`;
  * @returns Tuple containing the created question object, array of answers, array of insights, and token usage statistics
  */
 export async function generateBaseQuestion(
-  insight: Insight
+  insight: Insight,
+  preferBinary: boolean
 ): Promise<[Question, Answer[], Insight[], OpenAI.Completions.CompletionUsage] | null> {
   const category = await prisma.category.findUnique({
     where: { id: insight.categoryId }
@@ -164,21 +165,28 @@ export async function generateBaseQuestion(
 
 
   const typeDescription = {
-    [QuestionType.BINARY]: "a statement that the user with either press heart or X on (yes/no, true/false, agree/disagree)",
+    [QuestionType.BINARY]: "a statement that the user will either press heart or X on (yes/no, true/false, agree/disagree)",
     [QuestionType.SINGLE_CHOICE]: "a multiple-choice question were only one option makes sense to select",
     [QuestionType.MULTIPLE_CHOICE]: "a multiple-choice question where multiple options can be selected"
   };
 
   const sampleQuestions = pickSampleQuestions(18);
+  const preferBinaryPrompt = preferBinary ? "" : `
+  If an insight could have parallel interesting insights, then prefer a single choice or multiple choice based answer instead of a binary statement.
+  `;
+
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers.  We need to generate the fun questions to answer that can explore a potential insight 
 
-You must generate a great question to facilitate finding out if a particular insight is true of a user.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  If an insight could have parallel interesting insights, then prefer a single choice or multiple choice based answer instead of a binary statement.  When making a Yes or No / True / False type question, do not include the details in the answer.  Make sure the question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.
+You must generate a great question to facilitate finding out if a particular insight is true of a user.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  
 
 The allowed question types are:
 - BINARY: ${typeDescription[QuestionType.BINARY]}
 - SINGLE_CHOICE: ${typeDescription[QuestionType.SINGLE_CHOICE]}
 - MULTIPLE_CHOICE: ${typeDescription[QuestionType.MULTIPLE_CHOICE]}
+${preferBinaryPrompt}
+
+When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.
 
 The classification for the insight is:
 Category: ${category.category}	

@@ -196,8 +196,7 @@ QID579,,Political views,Social views,WHO_I_AM,You look forward to LGBTQ+ Pride M
 QID58,CSID315,Hobbies & Interest,Gaming compatibility,WHO_I_AM,You love video games.,BINARY_TEXT,ACTIVE,,FALSE,TRUE,FALSE,99999,No,Yes,,,,,,,,,,,,,,,
 QID581,,Entertainment,Music,WHO_I_AM,You enjoy singing.,BINARY_TEXT,ACTIVE,,FALSE,FALSE,TRUE,99999,No,Yes,,,,,,,,,,,,,,,
 QID582,,Political views,Social views,WHO_I_AM,You think wealthy people should pay higher taxes.,BINARY_TEXT,ACTIVE,,FALSE,FALSE,FALSE,99999,No,Yes,,,,,,,,,,,,,,,
-QID593,,Arts & Science,Pastimes,WHO_I_AM,"You find joy in teaching and sharing your knowledge.
-",BINARY_TEXT,ACTIVE,,FALSE,FALSE,TRUE,99999,No,Yes,,,,,,,,,,,,,,,
+QID593,,Arts & Science,Pastimes,WHO_I_AM,"You find joy in teaching and sharing your knowledge.",BINARY_TEXT,ACTIVE,,FALSE,FALSE,TRUE,99999,No,Yes,,,,,,,,,,,,,,,
 QID594,,Relationship expectations,Independence,WHO_I_AM,It's important to you that you get to meet your long term partner's friends. ,BINARY_TEXT,ACTIVE,,FALSE,FALSE,FALSE,99999,No,Yes,,,,,,,,,,,,,,,
 QID598,CSID321,Hobbies & Interest,Cooking,WHO_I_AM,Not knowing how to cook is a red flag for me.,BINARY_IMAGE,ACTIVE,,FALSE,TRUE,FALSE,99999,No,Yes,,,,,,,,,,,,,,,
 QID599,CSID322,Hobbies & Interest,Cooking,WHO_I_AM,"When you cook, you tend to follow the recipe. ",BINARY_TEXT,ACTIVE,,FALSE,TRUE,FALSE,99999,No,Yes,,,,,,,,,,,,,,,
