@@ -13,8 +13,6 @@ const openai = new OpenAI({
 const prisma = new PrismaClient();
 
 export function fixIllegalEnumCharacters(str: string): string {
-  str = str.replaceAll('“', "\'")
-  str = str.replaceAll('”', "\'")
   str = str.replaceAll('"', "\'")
   str = str.replaceAll('…', '...')
   return str
@@ -60,7 +58,6 @@ Generate ${count} candidate insights for the requested category.  If all useful 
 {"insights":[],"done":true}
 
 Category: ${category.category}	
-Topic: ${category.topicHeader}	
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 ${extraHints}${existingInsightsText}`;
@@ -185,7 +182,6 @@ The allowed question types are:
 
 The classification for the insight is:
 Category: ${category.category}	
-Topic: ${category.topicHeader}	
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
@@ -349,28 +345,21 @@ export async function reassignCategory(
     if (!tree[cat.category]) {
       tree[cat.category] = {};
     }
-    if (!tree[cat.category][cat.topicHeader]) {
-      tree[cat.category][cat.topicHeader] = {};
+    if (!tree[cat.category][cat.subcategory]) {
+      tree[cat.category][cat.subcategory] = [];
     }
-    if (!tree[cat.category][cat.topicHeader][cat.subcategory]) {
-      tree[cat.category][cat.topicHeader][cat.subcategory] = [];
-    }
-    tree[cat.category][cat.topicHeader][cat.subcategory].push(cat.insightSubject);
+    tree[cat.category][cat.subcategory].push(cat.insightSubject);
     allSubjects.push(cat.insightSubject);
     return tree;
-  }, {} as Record<string, Record<string, Record<string, string[]>>>);
+  }, {} as Record<string, Record<string, string[]>>);
 
   // Convert tree to string representation
   const categoryTreeStr = Object.entries(categoryTree)
-    .map(([category, topics]) => {
-      return `${category}:\n${Object.entries(topics)
-        .map(([topic, subcategories]) => {
-          return `  ${topic}:\n${Object.entries(subcategories)
-            .map(([subcategory, subjects]) => {
-              return `    ${subcategory}:\n${subjects
-                .map(subject => `      - ${subject}`)
-                .join('\n')}`;
-            })
+    .map(([category, subcategories]) => {
+      return `${category}:\n${Object.entries(subcategories)
+        .map(([subcategory, subjects]) => {
+          return `  ${subcategory}:\n${subjects
+            .map(subject => `    - ${subject}`)
             .join('\n')}`;
         })
         .join('\n')}`;
@@ -384,7 +373,6 @@ The insight to categorize is:
 
 It was generated related to another insight with this classification, so there is a decent chance that it is related to the same category:
 Category: ${existingCategory.category}	
-Topic: ${existingCategory.topicHeader}	
 Subcategory: ${existingCategory.subcategory}
 Subject: ${existingCategory.insightSubject}
 
@@ -497,7 +485,6 @@ export async function reduceRedundancyForInspirations(
 
 Category Classification:
 Category: ${category.category}
-Topic: ${category.topicHeader}
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
@@ -649,7 +636,6 @@ export async function reduceRedundancyForAnswers(
 
 Category Classification:
 Category: ${category.category}
-Topic: ${category.topicHeader}
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
@@ -858,27 +844,20 @@ export async function generateCategoryOverlapByRanking(
     if (!tree[cat.category]) {
       tree[cat.category] = {};
     }
-    if (!tree[cat.category][cat.topicHeader]) {
-      tree[cat.category][cat.topicHeader] = {};
+    if (!tree[cat.category][cat.subcategory]) {
+      tree[cat.category][cat.subcategory] = [];
     }
-    if (!tree[cat.category][cat.topicHeader][cat.subcategory]) {
-      tree[cat.category][cat.topicHeader][cat.subcategory] = [];
-    }
-    tree[cat.category][cat.topicHeader][cat.subcategory].push(cat.insightSubject);
+    tree[cat.category][cat.subcategory].push(cat.insightSubject);
     return tree;
-  }, {} as Record<string, Record<string, Record<string, string[]>>>);
+  }, {} as Record<string, Record<string, string[]>>);
 
   // Convert tree to string representation
   const categoryTreeStr = Object.entries(categoryTree)
-    .map(([category, topics]) => {
-      return `${category}:\n${Object.entries(topics)
-        .map(([topic, subcategories]) => {
-          return `  ${topic}:\n${Object.entries(subcategories)
-            .map(([subcategory, subjects]) => {
-              return `    ${subcategory}:\n${subjects
-                .map(subject => `      - ${subject}`)
-                .join('\n')}`;
-            })
+    .map(([category, subcategories]) => {
+      return `${category}:\n${Object.entries(subcategories)
+        .map(([subcategory, subjects]) => {
+          return `  ${subcategory}:\n${subjects
+            .map(subject => `    - ${subject}`)
             .join('\n')}`;
         })
         .join('\n')}`;
@@ -903,7 +882,6 @@ Output JSON only. Format:
 
 Target Category:
 Category: ${category.category}
-Topic: ${category.topicHeader}
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 `;
@@ -1096,27 +1074,20 @@ export async function generateInsightCategoryOverlap(
     if (!tree[cat.category]) {
       tree[cat.category] = {};
     }
-    if (!tree[cat.category][cat.topicHeader]) {
-      tree[cat.category][cat.topicHeader] = {};
+    if (!tree[cat.category][cat.subcategory]) {
+      tree[cat.category][cat.subcategory] = [];
     }
-    if (!tree[cat.category][cat.topicHeader][cat.subcategory]) {
-      tree[cat.category][cat.topicHeader][cat.subcategory] = [];
-    }
-    tree[cat.category][cat.topicHeader][cat.subcategory].push(cat.insightSubject);
+    tree[cat.category][cat.subcategory].push(cat.insightSubject);
     return tree;
-  }, {} as Record<string, Record<string, Record<string, string[]>>>);
+  }, {} as Record<string, Record<string, string[]>>);
 
   // Convert tree to string representation
   const categoryTreeStr = Object.entries(categoryTree)
-    .map(([category, topics]) => {
-      return `${category}:\n${Object.entries(topics)
-        .map(([topic, subcategories]) => {
-          return `  ${topic}:\n${Object.entries(subcategories)
-            .map(([subcategory, subjects]) => {
-              return `    ${subcategory}:\n${subjects
-                .map(subject => `      - ${subject}`)
-                .join('\n')}`;
-            })
+    .map(([category, subcategories]) => {
+      return `${category}:\n${Object.entries(subcategories)
+        .map(([subcategory, subjects]) => {
+          return `  ${subcategory}:\n${subjects
+            .map(subject => `    - ${subject}`)
             .join('\n')}`;
         })
         .join('\n')}`;
@@ -1144,7 +1115,6 @@ Target Insight:
 
 Target Category:
 Category: ${insightCategory.category}
-Topic: ${insightCategory.topicHeader}
 Subcategory: ${insightCategory.subcategory}
 Subject: ${insightCategory.insightSubject}
 `;
@@ -1685,7 +1655,6 @@ export async function reduceRedundancyForQuestions(
 
 Category Classification:
 Category: ${category.category}
-Topic: ${category.topicHeader}
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
@@ -2109,7 +2078,6 @@ Output JSON only. Format:
 
 Category Classification:
 Category: ${category.category}
-Topic: ${category.topicHeader}
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 

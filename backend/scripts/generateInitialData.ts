@@ -43,7 +43,6 @@ async function main() {
       // Check if category already exists
       const existingCategory = categories.find(c => 
         c.category === categoryData.category &&
-        c.topicHeader === categoryData.topicHeader &&
         c.subcategory === categoryData.subcategory &&
         c.insightSubject === categoryData.insightSubject
       );
@@ -55,14 +54,14 @@ async function main() {
           where: { id: existingCategory.id },
           data: { expandedHints: categoryData.expandedHints },
         });
-        console.log(`Updated category: ${category.category} - ${category.topicHeader} - ${category.subcategory} - ${category.insightSubject}`);
+        console.log(`Updated category: ${category.category} - ${category.subcategory} - ${category.insightSubject}`);
       } else {
         // Create new category
         category = await prisma.category.create({
           data: categoryData,
         });
         categories.push(category);
-        console.log(`Created category: ${category.category} - ${category.topicHeader} - ${category.subcategory} - ${category.insightSubject}`);
+        console.log(`Created category: ${category.category} - ${category.subcategory} - ${category.insightSubject}`);
       }
     }
     const styles = await prisma.style.findMany();

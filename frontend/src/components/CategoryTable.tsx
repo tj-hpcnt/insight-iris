@@ -4,7 +4,6 @@ import { getInsightSubjectStyle } from '../utils/colorUtils';
 interface CategoryFromAPI { // Reflects Prisma model
   id: number;
   category: string; // Main display name
-  topicHeader: string;
   subcategory: string;
   insightSubject: string;
   expandedHints?: string | null;
@@ -16,7 +15,6 @@ interface CategoryFromAPI { // Reflects Prisma model
 interface CategoryDisplay {
     id: number;
     name: string; 
-    topicHeader?: string;
     subcategory?: string; 
     insightSubject?: string; 
 }
@@ -44,7 +42,6 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
         const displayData = data.map(cat => ({
             id: cat.id,
             name: cat.category, 
-            topicHeader: cat.topicHeader,
             subcategory: cat.subcategory, 
             insightSubject: cat.insightSubject 
         }));
@@ -71,7 +68,6 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
       <thead>
         <tr>
           <th>Category Name</th>
-          <th>Topic</th>
           <th>Subcategory</th>
           <th>Insight Subject</th>
         </tr>
@@ -84,7 +80,6 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
             style={{ cursor: 'pointer' }} 
           >
             <td>{category.name}</td>
-            <td>{category.topicHeader}</td>
             <td>{category.subcategory}</td>
             <td>
               {category.insightSubject && (

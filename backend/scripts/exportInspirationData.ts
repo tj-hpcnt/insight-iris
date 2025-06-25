@@ -43,7 +43,6 @@ async function main() {
         return {
           id: ins.id,
           category: ins.category.category,
-          topic: ins.category.topicHeader,
           subcategory: ins.category.subcategory,
           insightSubject: ins.category.insightSubject,
           insightText: ins.insightText,

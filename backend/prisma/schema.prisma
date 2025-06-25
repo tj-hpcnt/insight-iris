@@ -38,7 +38,6 @@ enum InsightDirection {
 model Category {
   id                Int       @id @default(autoincrement())
   category         String
-  topicHeader      String
   subcategory      String
   insightSubject   String
   expandedHints    String?

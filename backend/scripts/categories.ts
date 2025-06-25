@@ -4,7 +4,6 @@ import * as csv from 'csv-parser';
 
 interface CategoryFromCSV {
   category: string;
-  topicHeader: string;
   subcategory: string;
   insightSubject: string;
   expandedHints: null
@@ -31,7 +30,6 @@ export function parseCategoriesFromCSV(): Promise<CategoryFromCSV[]> {
 
         const category = {
           category: row.category?.trim() || '',
-          topicHeader: row.topic_header === '-' ? '' : (row.topic_header?.trim() || ''),
           subcategory: row.subcategory?.trim() || '',
           insightSubject: row.insight_subject?.trim() || '',
           expandedHints: null
@@ -54,5 +52,5 @@ export function parseCategoriesFromCSV(): Promise<CategoryFromCSV[]> {
 
 // Extra categories that are not in the CSV or definitions of categories with expanded hints to override the CSV
 export const EXTRA_CATEGORIES = [
-  { category: 'Dating', topicHeader: 'Lifestyle', subcategory: 'Communication', insightSubject: 'Flirting style', expandedHints: null },
+  { category: 'Dating', subcategory: 'Communication', insightSubject: 'Flirting style', expandedHints: null },
 ];

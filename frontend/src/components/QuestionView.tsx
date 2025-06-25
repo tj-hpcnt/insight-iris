@@ -7,7 +7,6 @@ import PublishedTagChip from './PublishedTagChip';
 interface CategoryInfo {
   id: number;
   category: string;
-  topicHeader: string;
   subcategory: string;
   insightSubject: string;
 }

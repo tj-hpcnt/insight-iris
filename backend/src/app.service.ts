@@ -5,7 +5,6 @@ import { PrismaClient, InsightSource, OverlapType, PolarityType, Insight, Catego
 type CategoryInfo = {
   id: number;
   category: string;
-  topicHeader: string;
   subcategory: string;
   insightSubject: string;
 };
@@ -128,7 +127,6 @@ export class AppService {
           select: {
             id: true,
             category: true,
-            topicHeader: true,
             subcategory: true,
             insightSubject: true,
           },
@@ -157,7 +155,6 @@ export class AppService {
                     select: {
                       id: true,
                       category: true,
-                      topicHeader: true,
                       subcategory: true,
                       insightSubject: true,
                     },
@@ -188,7 +185,6 @@ export class AppService {
                       select: {
                         id: true,
                         category: true,
-                        topicHeader: true,
                         subcategory: true,
                         insightSubject: true,
                       },
@@ -209,7 +205,6 @@ export class AppService {
                 select: {
                   id: true,
                   category: true,
-                  topicHeader: true,
                   subcategory: true,
                   insightSubject: true,
                 },
