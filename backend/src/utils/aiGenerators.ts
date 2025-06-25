@@ -2080,7 +2080,7 @@ Based on the question and answer provided, generate a proper insight statement t
 - "I don't [negative preference]"
 - "I seek [what they're looking for]"
 
-Make it sound natural and conversational, as if the user is describing themselves or their preferences based on their answer. Focus on the underlying preference, value, or characteristic that the answer reveals about them.
+Make it sound natural and concise. Focus on the underlying preference, value, or characteristic that the answer reveals about them.  Don't extend the insight to say things that are not in the answer.
 
 Output JSON only. Format:
 {"insight":"I enjoy outdoor activities and hiking"}
