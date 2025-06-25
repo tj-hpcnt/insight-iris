@@ -24,4 +24,9 @@ export class AppController {
   async getFullQuestionContextByInsightId(@Param('insightId', ParseIntPipe) insightId: number) {
     return this.appService.getFullQuestionContextByInsightId(insightId);
   }
+
+  @Get('questions/:questionId')
+  async getQuestionById(@Param('questionId', ParseIntPipe) questionId: number) {
+    return this.appService.getQuestionById(questionId);
+  }
 } 

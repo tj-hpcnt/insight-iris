@@ -240,4 +240,67 @@ export class AppService {
       questionDetails: questionDetailsPayload,
     };
   }
+
+  async getQuestionById(questionId: number) {
+    const question = await this.prisma.question.findUnique({
+      where: { id: questionId },
+      include: {
+        inspiration: {
+          include: {
+            category: {
+              select: {
+                id: true,
+                category: true,
+                subcategory: true,
+                insightSubject: true,
+              },
+            },
+          },
+        },
+        answers: {
+          orderBy: { id: 'asc' },
+          include: { 
+            insight: {
+              include: {
+                category: {
+                  select: {
+                    id: true,
+                    category: true,
+                    subcategory: true,
+                    insightSubject: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            category: true,
+            subcategory: true,
+            insightSubject: true,
+          },
+        },
+      },
+    });
+
+    if (!question) {
+      throw new NotFoundException(`Question with ID ${questionId} not found`);
+    }
+
+    return {
+      id: question.id,
+      questionText: question.questionText,
+      questionType: question.questionType,
+      publishedId: question.publishedId,
+      inspiration: question.inspiration,
+      answers: question.answers.map(answer => ({
+        id: answer.id,
+        answerText: answer.answerText,
+        linkedAnswerInsight: answer.insight,
+      })),
+      category: question.category,
+    };
+  }
 } 

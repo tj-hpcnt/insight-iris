@@ -42,6 +42,7 @@ interface QuestionFromAPI {
 // Interface for what the table will display - now unified for both tabs
 interface QuestionDisplay {
   id: number; // This will be the insight ID for clicking purposes
+  questionId: number; // The question ID for navigation
   questionText: string;
   publishedId: string | null;
   insightText: string;
@@ -55,7 +56,7 @@ interface QuestionDisplay {
 interface InsightTableProps {
   categoryId: number;
   insightType: InsightType; // 'inspiration' or 'answers'
-  onInsightClick: (insightId: number) => void;
+  onInsightClick: (questionId: number) => void; // Changed to questionId
   onInsightTypeChange: (type: InsightType) => void;
 }
 
@@ -104,6 +105,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
     if (insightType === 'inspiration') {
       const inspirationData = questions.map(question => ({
         id: question.inspiration.id, // Use inspiration insight ID for clicking
+        questionId: question.id,
         questionText: question.questionText,
         publishedId: question.publishedId,
         insightText: question.inspiration.insightText,
@@ -120,6 +122,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
         question.answers.forEach(answer => {
           answerData.push({
             id: answer.insight.id, // Use answer insight ID for clicking
+            questionId: question.id,
             questionText: question.questionText,
             publishedId: question.publishedId,
             answerText: answer.answerText,
@@ -245,7 +248,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
           {displayData.map((item) => (
             <tr 
               key={`${item.id}-${item.answerText || 'inspiration'}`} // Unique key for answer insights
-              onClick={() => onInsightClick(item.id)}
+              onClick={() => onInsightClick(item.questionId)}
               style={{ 
                 cursor: 'pointer',
                 transition: 'background-color 0.2s ease'

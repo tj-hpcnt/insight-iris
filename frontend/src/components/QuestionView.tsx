@@ -49,24 +49,39 @@ interface FullQuestionContextPayload {
 // This remains the same as before, an array of PrismaInsight where source is ANSWER
 // interface RelatedAnswerInsightDisplay extends PrismaInsight {} // Removed - not used
 
+// Interface for the question data from the new API
+interface QuestionData {
+  id: number;
+  questionText: string;
+  questionType: string;
+  publishedId: string | null;
+  inspiration: PrismaInsight;
+  answers: {
+    id: number;
+    answerText: string;
+    linkedAnswerInsight: PrismaInsight | null;
+  }[];
+  category: CategoryInfo;
+}
+
 // --- End Data Interfaces ---
 
 interface QuestionViewProps {
-  insightId: number; // The ID of the insight to fetch context for (can be inspiration or answer)
-  totalQuestionsInCategory: number; // For X of Y display (list of INSPIRATION insights)
-  currentQuestionIndex: number; // For X of Y display and navigation (index in INSPIRATION insights list)
+  questionId: number; // Changed from insightId to questionId
+  totalQuestionsInCategory: number; // For X of Y display (list of questions)
+  currentQuestionIndex: number; // For X of Y display and navigation (index in questions list)
   onNavigateQuestion: (direction: 'next' | 'prev') => void;
   onSkipQuestion: () => void;
 }
 
 const QuestionView: React.FC<QuestionViewProps> = ({
-  insightId,
+  questionId, // Changed from insightId
   totalQuestionsInCategory,
   currentQuestionIndex,
   onNavigateQuestion,
   onSkipQuestion,
 }) => {
-  const [fullContext, setFullContext] = useState<FullQuestionContextPayload | null>(null);
+  const [questionData, setQuestionData] = useState<QuestionData | null>(null); // Changed from fullContext
   const [loadingQuestionContext, setLoadingQuestionContext] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredAnswerOptionId, setHoveredAnswerOptionId] = useState<number | null>(null);
@@ -74,30 +89,30 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [hoveredNextButton, setHoveredNextButton] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!insightId) return;
+    if (!questionId) return;
     setError(null);
 
-    const fetchFullQuestionContext = async () => {
+    const fetchQuestionData = async () => {
       try {
         setLoadingQuestionContext(true);
-        const response = await fetch(`/api/insights/${insightId}/question-details`);
+        const response = await fetch(`/api/questions/${questionId}`);
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
             throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
         }
-        const data: FullQuestionContextPayload = await response.json();
-        setFullContext(data);
+        const data: QuestionData = await response.json();
+        setQuestionData(data);
       } catch (e) {
         if (e instanceof Error) setError(e.message);
-        else setError('An unknown error occurred while fetching question context');
-        setFullContext(null);
+        else setError('An unknown error occurred while fetching question data');
+        setQuestionData(null);
       } finally {
         setLoadingQuestionContext(false);
       }
     };
 
-    fetchFullQuestionContext();
-  }, [insightId]);
+    fetchQuestionData();
+  }, [questionId]); // Changed from insightId
 
   useEffect(() => {
     if (hoveredAnswerOptionId !== null) {
@@ -106,7 +121,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     }
   }, [hoveredAnswerOptionId]);
 
-  const handleAnswerHover = (option: AnswerOptionPayload | null) => {
+  const handleAnswerHover = (option: QuestionData['answers'][0] | null) => {
     if (option) {
       console.log(`Answer hovered: ${option.answerText}`);
       setHoveredAnswerOptionId(option.id);
@@ -126,13 +141,13 @@ const QuestionView: React.FC<QuestionViewProps> = ({
 
   if (loadingQuestionContext) return <p>Loading question context...</p>;
   if (error) return <p>Error: {error}</p>;
-  if (!fullContext || !fullContext.questionDetails || !fullContext.inspirationInsightDetails) {
-    return <p>Question data is not available or the context is incomplete.</p>;
+  if (!questionData) {
+    return <p>Question data is not available.</p>;
   }
 
   // Primary question text from Question model, fallback to Inspiration Insight's text
-  const displayQuestionText = fullContext.questionDetails.questionText || fullContext.inspirationInsightDetails.insightText;
-  const options = fullContext.questionDetails.answers;
+  const displayQuestionText = questionData.questionText || questionData.inspiration.insightText;
+  const options = questionData.answers;
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '20px', padding: '10px', width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}>
@@ -180,14 +195,14 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           boxSizing: 'border-box'
         }}>
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-            {/* currentQuestionIndex and totalQuestionsInCategory are for the list of INSPIRATION insights */}
+            {/* currentQuestionIndex and totalQuestionsInCategory are for the list of questions */}
             Question {currentQuestionIndex + 1} of {totalQuestionsInCategory}
           </div>
           <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
               <h3 style={{ margin: 0 }}>{displayQuestionText}</h3>
-              {fullContext.questionDetails.publishedId && (
-                <PublishedIdChip publishedId={fullContext.questionDetails.publishedId} />
+              {questionData.publishedId && (
+                <PublishedIdChip publishedId={questionData.publishedId} />
               )}
             </div>
           </div>
@@ -253,27 +268,27 @@ const QuestionView: React.FC<QuestionViewProps> = ({
         {/* Related Answer Insights (Now to the very right, takes remaining space) */}
         <div style={{ flex: 1, maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', minWidth: 0 }}> 
           <h4>Details</h4>
-          {fullContext.inspirationInsightDetails && (
+          {questionData.inspiration && (
             <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0' }}>
               <h5 style={{ marginTop: 0, marginBottom: '5px' }}>Original Inspiration:</h5>
               <div style={{ marginBottom: '5px' }}>
-                <span style={getInsightSubjectStyle(fullContext.inspirationInsightDetails.category?.insightSubject || 'Unknown')}>
-                  {fullContext.inspirationInsightDetails.category?.insightSubject || 'Unknown'}
+                <span style={getInsightSubjectStyle(questionData.inspiration.category?.insightSubject || 'Unknown')}>
+                  {questionData.inspiration.category?.insightSubject || 'Unknown'}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <p style={{ margin: 0 }}>{fullContext.inspirationInsightDetails.insightText}</p>
-                {fullContext.inspirationInsightDetails.publishedTag && (
-                  <PublishedTagChip publishedTag={fullContext.inspirationInsightDetails.publishedTag} />
+                <p style={{ margin: 0 }}>{questionData.inspiration.insightText}</p>
+                {questionData.inspiration.publishedTag && (
+                  <PublishedTagChip publishedTag={questionData.inspiration.publishedTag} />
                 )}
               </div>
             </div>
           )}
           {loadingQuestionContext ? (
             <p>Loading related answers...</p>
-          ) : fullContext?.questionDetails?.answers && fullContext.questionDetails.answers.length > 0 ? (
+          ) : options && options.length > 0 ? (
             <ul style={{ listStyleType: 'none', paddingLeft: 0 }}>
-              {fullContext.questionDetails.answers.map(answer => {
+              {options.map(answer => {
                 const isHovered = hoveredAnswerOptionId === answer.id;
                 return (
                   <li 

@@ -7,52 +7,33 @@ import './App.css'; // For global styles if any
 
 type View = 'categories' | 'insights' | 'question';
 
-interface InsightPlaceholder {
-    id: number;
-    insightText: string;
-}
+
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('categories');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedInsightSubject, setSelectedInsightSubject] = useState<string | null>(null);
   const [selectedInsightType, setSelectedInsightType] = useState<InsightType | null>(null);
-  const [selectedInsightId, setSelectedInsightId] = useState<number | null>(null);
+  const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null);
   // const [selectedInsightTitle, setSelectedInsightTitle] = useState<string | null>(null); // To be used for breadcrumb
 
-  // For Question View navigation - should only track inspiration insights
-  const [currentQuestionableInsights, setCurrentQuestionableInsights] = useState<InsightPlaceholder[]>([]);
+  // For Question View navigation - now tracks questions instead of inspiration insights
+  const [currentQuestions, setCurrentQuestions] = useState<{ id: number; questionText: string }[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
 
-  // When in question view, ensure the currentQuestionIndex matches the actual inspiration insight
+  // When in question view, ensure the currentQuestionIndex matches the actual question
   useEffect(() => {
-    if (currentView === 'question' && selectedInsightId) {
-      // Fetch the question context to get the inspiration insight ID
-      const updateQuestionIndex = async () => {
-        try {
-          const response = await fetch(`/api/insights/${selectedInsightId}/question-details`);
-          if (response.ok) {
-            const data = await response.json();
-            
-            if (data.inspirationInsightDetails) {
-              const inspirationIndex = currentQuestionableInsights.findIndex(
-                insight => insight.id === data.inspirationInsightDetails.id
-              );
-              if (inspirationIndex !== -1 && inspirationIndex !== currentQuestionIndex) {
-                setCurrentQuestionIndex(inspirationIndex);
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Failed to update question index:', error);
-        }
-      };
-      updateQuestionIndex();
+    if (currentView === 'question' && selectedQuestionId) {
+      const questionIndex = currentQuestions.findIndex(
+        question => question.id === selectedQuestionId
+      );
+      if (questionIndex !== -1 && questionIndex !== currentQuestionIndex) {
+        setCurrentQuestionIndex(questionIndex);
+      }
     }
-  }, [currentView, selectedInsightId, currentQuestionableInsights, currentQuestionIndex]);
+  }, [currentView, selectedQuestionId, currentQuestions, currentQuestionIndex]);
 
   // Fetch questions when a category is selected for question navigation
-  // Extract inspiration insights from questions for navigation consistency
   useEffect(() => {
     if (selectedCategoryId) {
       const fetchQuestionsForNavigation = async () => {
@@ -62,15 +43,15 @@ function App() {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           const questions = await response.json();
-          // Extract inspiration insights for navigation
-          const inspirationInsights: InsightPlaceholder[] = questions.map((question: any) => ({
-            id: question.inspiration.id,
-            insightText: question.inspiration.insightText,
+          // Extract questions for navigation
+          const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
+            id: question.id,
+            questionText: question.questionText,
           }));
-          setCurrentQuestionableInsights(inspirationInsights);
+          setCurrentQuestions(questionList);
         } catch (error) {
           console.error('Failed to fetch questions for navigation:', error);
-          setCurrentQuestionableInsights([]); // Reset on error
+          setCurrentQuestions([]); // Reset on error
         }
       };
       fetchQuestionsForNavigation();
@@ -92,24 +73,16 @@ function App() {
     setCurrentQuestionIndex(0); // Reset index when type changes
   };
 
-  const handleInsightClick = (insightId: number) => {
-    setSelectedInsightId(insightId);
-    // setSelectedInsightTitle(insightTitle); // insightTitle is passed from InsightTable (which now uses insightText)
+  const handleQuestionClick = (questionId: number) => {
+    setSelectedQuestionId(questionId);
     
-    // For question navigation, we need to find the correct inspiration insight index
-    // If clicking on an inspiration insight, find its index directly
-    // If clicking on an answer insight, we need to find the corresponding inspiration insight
-    const insightIndex = currentQuestionableInsights.findIndex(insight => insight.id === insightId);
-    if (insightIndex !== -1) {
-        // This is an inspiration insight, use its index directly
-        setCurrentQuestionIndex(insightIndex);
+    // Find the correct question index for navigation
+    const questionIndex = currentQuestions.findIndex(question => question.id === questionId);
+    if (questionIndex !== -1) {
+        setCurrentQuestionIndex(questionIndex);
     } else {
-        // This might be an answer insight, we'll let the QuestionView component handle finding the right inspiration
-        // For now, keep the current index or reset to 0 if no current index
-        if (currentQuestionIndex >= currentQuestionableInsights.length) {
-            setCurrentQuestionIndex(0);
-        }
-        // The QuestionView will fetch the full context and determine the correct inspiration insight
+        // If not found, reset to 0
+        setCurrentQuestionIndex(0);
     }
     setCurrentView('question');
   };
@@ -119,8 +92,8 @@ function App() {
     setSelectedCategoryId(null);
     setSelectedInsightSubject(null);
     setSelectedInsightType(null);
-    setSelectedInsightId(null);
-    setCurrentQuestionableInsights([]);
+    setSelectedQuestionId(null);
+    setCurrentQuestions([]);
     setCurrentQuestionIndex(0);
   };
 
@@ -128,28 +101,28 @@ function App() {
     if (!selectedCategoryId) return; // Should not happen if called from a state where category is selected
     setSelectedInsightType(type || selectedInsightType || 'answers');
     setCurrentView('insights');
-    setSelectedInsightId(null);
+    setSelectedQuestionId(null);
     // currentQuestionIndex is preserved if just switching between inspiration/answers for same category
   };
   
   const handleQuestionNavigation = (direction: 'next' | 'prev') => {
     let newIndex = currentQuestionIndex;
     if (direction === 'next') {
-      newIndex = Math.min(currentQuestionIndex + 1, currentQuestionableInsights.length - 1);
+      newIndex = Math.min(currentQuestionIndex + 1, currentQuestions.length - 1);
     } else {
       newIndex = Math.max(currentQuestionIndex - 1, 0);
     }
-    if (newIndex !== currentQuestionIndex && currentQuestionableInsights[newIndex]) {
-      // Always navigate to the inspiration insight ID since questions are based on inspiration insights
-      setSelectedInsightId(currentQuestionableInsights[newIndex].id);
-      setCurrentQuestionIndex(newIndex);
-      // The QuestionView component will re-fetch based on the new selectedInsightId (inspiration insight)
+    if (newIndex !== currentQuestionIndex && currentQuestions[newIndex]) {
+              // Navigate to the selected question
+        setSelectedQuestionId(currentQuestions[newIndex].id);
+        setCurrentQuestionIndex(newIndex);
+        // The QuestionView component will re-fetch based on the new questionId
     }
   };
 
   const handleSkipQuestion = () => {
     // Navigate to the next question, or wrap around / go back to insights list
-    if (currentQuestionIndex < currentQuestionableInsights.length - 1) {
+    if (currentQuestionIndex < currentQuestions.length - 1) {
         handleQuestionNavigation('next');
     } else {
         // Last question skipped, go back to insights view of the current category/type
@@ -166,7 +139,7 @@ function App() {
     breadcrumbItems.push({
       label: '',
       onClick: () => navigateToInsightsView(), // Defaults to current or inspiration type
-      isCurrent: currentView === 'insights' && !selectedInsightId,
+      isCurrent: currentView === 'insights' && !selectedQuestionId,
       insightSubject: selectedInsightSubject || undefined
     });
      // Add button group for Inspiration/Answers if in insights view or deeper
@@ -175,8 +148,8 @@ function App() {
   // This is a conceptual placement for Inspiration/Answers type selection within the breadcrumb area or nearby
   // Actual UI for this selection needs to be designed. For now, it's handled by direct state changes.
 
-  if (selectedInsightId && currentView === 'question') {
-    const currentTitle = currentQuestionableInsights[currentQuestionIndex]?.insightText || "Question";
+  if (selectedQuestionId && currentView === 'question') {
+    const currentTitle = currentQuestions[currentQuestionIndex]?.questionText || "Question";
     breadcrumbItems.push({
       label: currentTitle ||  "Question", // Use question text if available, fallback to insight text
       onClick: () => { /* Clicking current question in breadcrumb might do nothing or reload */ },
@@ -195,14 +168,14 @@ function App() {
           <InsightTable 
             categoryId={selectedCategoryId} 
             insightType={selectedInsightType} 
-            onInsightClick={handleInsightClick}
+            onInsightClick={handleQuestionClick}
             onInsightTypeChange={handleInsightTypeSelect}
           />
         )}
-        {currentView === 'question' && selectedInsightId && selectedCategoryId && (
+        {currentView === 'question' && selectedQuestionId && selectedCategoryId && (
           <QuestionView 
-            insightId={selectedInsightId} 
-            totalQuestionsInCategory={currentQuestionableInsights.length}
+            questionId={selectedQuestionId} 
+            totalQuestionsInCategory={currentQuestions.length}
             currentQuestionIndex={currentQuestionIndex}
             onNavigateQuestion={handleQuestionNavigation}
             onSkipQuestion={handleSkipQuestion}
