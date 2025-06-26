@@ -27,6 +27,7 @@ interface QuestionFromAPI {
     publishedTag: string | null;
     source: string;
     category: CategoryInfo;
+    firstCategory: CategoryInfo;
   };
   answers: {
     id: number;
@@ -37,6 +38,7 @@ interface QuestionFromAPI {
       publishedTag: string | null;
       source: string;
       category: CategoryInfo;
+      firstCategory: CategoryInfo;
     };
   }[];
 }
@@ -54,6 +56,7 @@ interface QuestionDisplay {
   answerText?: string; // Only used for answer insights tab
   questionCategory: CategoryInfo;
   insightCategory: CategoryInfo;
+  firstInsightCategory: CategoryInfo;
 }
 
 interface InsightTableProps {
@@ -117,6 +120,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
         source: question.inspiration.source,
         questionCategory: question.category,
         insightCategory: question.inspiration.category,
+        firstInsightCategory: question.inspiration.firstCategory,
       }));
       setDisplayData(inspirationData);
     } else {
@@ -136,6 +140,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
             source: answer.insight.source,
             questionCategory: question.category,
             insightCategory: answer.insight.category,
+            firstInsightCategory: answer.insight.firstCategory,
           });
         });
       });
@@ -247,6 +252,17 @@ const InsightTable: React.FC<InsightTableProps> = ({
             }}>
               Insight
             </th>
+            {insightType === 'answers' && (
+              <th style={{ 
+                padding: '12px', 
+                textAlign: 'left', 
+                borderBottom: '2px solid #dee2e6',
+                fontWeight: '600',
+                color: '#495057'
+              }}>
+                Moved From
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -306,6 +322,17 @@ const InsightTable: React.FC<InsightTableProps> = ({
                   </div>
                 </div>
               </td>
+              {insightType === 'answers' && (
+                <td style={{ 
+                  padding: '12px', 
+                  borderBottom: '1px solid #dee2e6',
+                  color: '#495057'
+                }}>
+                  {item.firstInsightCategory.id !== item.insightCategory.id && (
+                    <CategoryChip insightSubject={item.firstInsightCategory.insightSubject} />
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
