@@ -430,7 +430,7 @@ Subject: ${category.insightSubject}
 Here are all the inspiration insights for this category:
 ${insights.map(insight => insight.insightText).join('\n')}
 
-Please analyze these insights and group together those that are equivalent (i.e., they convey essentially the same information or meaning). For each group, the first insight in the list should be the clearest or most preferred representation. Don't output single insights, only groups of 2 or more. Output JSON only. Format:
+Please analyze these insights and group together those that are equivalent (i.e., they convey essentially the same information or meaning). For each group, the first insight in the list should be the clearest or most preferred representation. Don't output single insights, only groups of 2 or more. Each insight can only appear in one group.  Output JSON only. Format:
 
 {"equivalentInsightGroups": [["I love Italian food", "I enjoy pasta dishes", "Italian cuisine is my favorite"], ["I dislike sports", "I'm not a sports fan"]]}`;
 
@@ -489,8 +489,9 @@ Please analyze these insights and group together those that are equivalent (i.e.
 
         const allInGroup = rawGroup.map(insightText => insightsMap.get(insightText));
         const existing = allInGroup.filter(insight => insight.question?.publishedId)
-        const generated  = allInGroup.filter(insight => !insight.question?.publishedId)
-        const groupInsights = existing.concat(generated)
+        const proposed = allInGroup.filter(insight => insight.question?.proposedQuestion)
+        const generated  = allInGroup.filter(insight => !insight.question?.publishedId && !insight.question?.proposedQuestion)
+        const groupInsights = existing.concat(proposed).concat(generated)
 
 
         if (groupInsights.length < 2) {
@@ -505,23 +506,25 @@ Please analyze these insights and group together those that are equivalent (i.e.
         let insightsToDelete: (typeof insights)[0][] = [];
 
         if (insightsWithQuestions.length > 0) {
-          // If any insights have questions, keep all of those and delete the ones without questions
           insightsToDelete = insightsWithoutQuestions;
           if (insightsWithQuestions.length > 1) {
-            if (!insightsWithQuestions[0].question.publishedId) {
-              insightsToDelete = insightsToDelete.concat(insightsWithQuestions.slice(1));
-            } else {
-              insightsToDelete = []
+            var questionsToDelete = insightsWithQuestions.filter(insight => !insight.question.publishedId);
+            if (questionsToDelete.length == insightsWithQuestions.length) {
+              questionsToDelete = insightsWithQuestions.slice(1);
             }
+            insightsToDelete = insightsToDelete.concat(questionsToDelete);
             for (const insight of insightsToDelete) {
+              if (!insight.question) {
+                continue
+              }
               await deleteQuestionWithCascade(tx, insight.question);
             }
           }
         } else {
-          insightsToDelete = groupInsights.slice(1);
+          insightsToDelete = insightsWithoutQuestions;
         }
 
-        // Delete the identified redundant insights
+        // Delete the identified redundant insights 
         for (const redundantInsight of insightsToDelete) {
           await tx.insight.delete({
             where: { id: redundantInsight.id }
@@ -581,7 +584,7 @@ Subject: ${category.insightSubject}
 Here are all the ANSWER insights for this category:
 ${insights.map((insight) => `"${insight.insightText}"`).join('\n')}
 
-Please analyze these insights and group together those that are equivalent. For each group, the first insight in the list should be the clearest or most preferred representation. Don't output single insights, only groups. Output JSON only. Format:
+Please analyze these insights and group together those that are equivalent. For each group, the first insight in the list should be the clearest or most preferred representation. Don't output single insights, only groups. Each insight can only appear in one group. Output JSON only. Format:
 
 {"equivalentInsightGroups": [["I love Italian food", "I enjoy pasta dishes", "Italian cuisine is my favorite"], ["I dislike sports", "I'm not a sports fan"]]}`;
 
@@ -1213,7 +1216,7 @@ async function processQuestionCompletion(
           questionType: questionData.type as QuestionType,
           inspirationId: actualInspirationId!,
           categoryId: category.id,
-          wasProposed: !!proposedQuestionText, // Set to true if this question was generated from a proposal
+          proposedQuestion: proposedQuestionText || null, // Store the original proposed question text
         },
       });
 
@@ -1735,7 +1738,7 @@ Subject: ${category.insightSubject}
 Here are all the questions for this category:
 ${questions.map((question) => `"${question.questionText}"`).join('\n')}
 
-Please analyze these questions and group together those that are equivalent or ask essentially the same thing. For each group, the first question in the list should be the clearest or most preferred representation. Don't output single questions, only groups of 2 or more. Output JSON only. Format:
+Please analyze these questions and group together those that are equivalent or ask essentially the same thing. For each group, the first question in the list should be the clearest or most preferred representation. Don't output single questions, only groups of 2 or more. Output JSON only. Each question can only appear in one group. Format:
 
 {"equivalentQuestionGroups": [["What's your favorite food?", "Which food do you enjoy most?", "What food do you love eating?"], ["Do you like sports?", "Are you into athletics?"]]}`;
 
@@ -1945,7 +1948,7 @@ export async function reduceExactRedundancyForInspirations(): Promise<{oldInsigh
           continue;
         }
 
-        // If the redundant insight has a question, we need to clean up the associated data
+        // If the redundant insight has a question, we need to clean up  the associated data
         if (redundantInsight.question) {
           await deleteQuestionWithCascade(tx, redundantInsight.question);
         }

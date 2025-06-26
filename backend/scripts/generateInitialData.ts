@@ -329,7 +329,7 @@ async function main() {
             // Check if a question with this exact text already exists
             const existingQuestion = await prisma.question.findFirst({
               where: { 
-                questionText: proposedQuestionText
+                proposedQuestion: proposedQuestionText
               },
             });
 
@@ -455,6 +455,7 @@ async function main() {
           }
         }
         totalInsights = await prisma.insight.count({ where: { categoryId: category.id, source: InsightSource.INSPIRATION } });
+
         console.log(`Reducing redundancy for category: ${category.insightSubject}`);
         const [deletedIds, usage] = await reduceRedundancyForInspirations(category);
         totalUsage.promptTokens += usage.prompt_tokens;

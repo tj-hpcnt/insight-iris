@@ -35,7 +35,7 @@ interface QuestionDetailsPayload {
   questionType: string; // e.g., SINGLE_CHOICE
   questionText: string; // Specific question text from Question model
   publishedId: string | null; // Published ID if the question was previously published
-  wasProposed: boolean; // Whether this question was generated from a proposal
+  proposedQuestion: string | null; // The original proposed question text if this was generated from a proposal
   answers: AnswerOptionPayload[];
 }
 
@@ -57,7 +57,7 @@ interface QuestionData {
   questionText: string;
   questionType: string;
   publishedId: string | null;
-  wasProposed: boolean;
+  proposedQuestion: string | null;
   inspiration: PrismaInsight;
   answers: {
     id: number;
@@ -203,13 +203,31 @@ const QuestionView: React.FC<QuestionViewProps> = ({
               {questionData.publishedId && (
                 <PublishedIdChip publishedId={questionData.publishedId} />
               )}
-              {questionData.wasProposed && !questionData.publishedId && (
+              {questionData.proposedQuestion && !questionData.publishedId && (
                 <ProposedChip />
               )}
             </div>
           </div>
           <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
             <h3 style={{ margin: 0, marginBottom: '10px' }}>{displayQuestionText}</h3>
+            {questionData.proposedQuestion && (
+              <div style={{ marginTop: '10px' }}>
+                <span style={{
+                  backgroundColor: '#ffc0cb',
+                  color: '#000',
+                  padding: '6px 12px',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  fontWeight: '400',
+                  display: 'inline-block',
+                  maxWidth: '100%',
+                  wordWrap: 'break-word',
+                  lineHeight: '1.3'
+                }}>
+                  {questionData.proposedQuestion}
+                </span>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {options.map((option) => {

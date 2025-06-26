@@ -71,16 +71,16 @@ model Style {
 }
 
 model Question {
-  id            Int          @id @default(autoincrement())
-  inspirationId Int          @unique // Each question is inspired by a unique insight
-  categoryId    Int
-  questionType  QuestionType
-  questionText  String
-  publishedId   String?
-  wasProposed   Boolean      @default(false)
-  answers       Answer[]
-  inspiration   Insight      @relation("QuestionInspiration", fields: [inspirationId], references: [id])
-  category      Category     @relation(fields: [categoryId], references: [id])
+  id              Int          @id @default(autoincrement())
+  inspirationId   Int          @unique // Each question is inspired by a unique insight
+  categoryId      Int
+  questionType    QuestionType
+  questionText    String
+  publishedId     String?
+  proposedQuestion String?     @unique // The original proposed question text if this was generated from a proposal
+  answers         Answer[]
+  inspiration     Insight      @relation("QuestionInspiration", fields: [inspirationId], references: [id])
+  category        Category     @relation(fields: [categoryId], references: [id])
 
   @@index([categoryId])
 }

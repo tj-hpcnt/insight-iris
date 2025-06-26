@@ -19,7 +19,7 @@ interface QuestionFromAPI {
   id: number;
   questionText: string;
   publishedId: string | null;
-  wasProposed: boolean;
+  proposedQuestion: string | null;
   category: CategoryInfo;
   inspiration: {
     id: number;
@@ -47,7 +47,7 @@ interface QuestionDisplay {
   questionId: number; // The question ID for navigation
   questionText: string;
   publishedId: string | null;
-  wasProposed: boolean;
+  proposedQuestion: string | null;
   insightText: string;
   publishedTag: string | null;
   source: string;
@@ -111,7 +111,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
         questionId: question.id,
         questionText: question.questionText,
         publishedId: question.publishedId,
-        wasProposed: question.wasProposed,
+        proposedQuestion: question.proposedQuestion,
         insightText: question.inspiration.insightText,
         publishedTag: question.inspiration.publishedTag,
         source: question.inspiration.source,
@@ -129,7 +129,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
             questionId: question.id,
             questionText: question.questionText,
             publishedId: question.publishedId,
-            wasProposed: question.wasProposed,
+            proposedQuestion: question.proposedQuestion,
             answerText: answer.answerText,
             insightText: answer.insight.insightText,
             publishedTag: answer.insight.publishedTag,
@@ -275,7 +275,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
                   {item.publishedId && (
                     <PublishedIdChip publishedId={item.publishedId} />
                   )}
-                  {item.wasProposed && !item.publishedId && (
+                  {item.proposedQuestion && !item.publishedId && (
                     <ProposedChip />
                   )}
                 </div>

@@ -63,13 +63,13 @@ export class AppService {
           where: { categoryId: category.id },
           select: {
             publishedId: true,
-            wasProposed: true,
+            proposedQuestion: true,
           },
         });
 
         const publishedCount = questions.filter(q => q.publishedId !== null).length;
-        const proposedCount = questions.filter(q => q.wasProposed).length;
-        const generatedCount = questions.filter(q => q.publishedId === null && !q.wasProposed).length;
+        const proposedCount = questions.filter(q => q.proposedQuestion !== null).length;
+        const generatedCount = questions.filter(q => q.publishedId === null && q.proposedQuestion === null).length;
 
         return {
           ...category,
@@ -328,7 +328,7 @@ export class AppService {
       questionText: question.questionText,
       questionType: question.questionType,
       publishedId: question.publishedId,
-      wasProposed: question.wasProposed,
+      proposedQuestion: question.proposedQuestion,
       inspiration: question.inspiration,
       answers: question.answers.map(answer => ({
         id: answer.id,
