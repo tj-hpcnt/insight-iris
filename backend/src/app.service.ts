@@ -48,7 +48,13 @@ export class AppService {
   }
 
   async listCategories() {
-    return this.prisma.category.findMany();
+    return this.prisma.category.findMany({
+      orderBy: [
+        { category: 'asc' },
+        { subcategory: 'asc' },
+        { insightSubject: 'asc' }
+      ]
+    });
   }
 
   async listQuestionsInCategory(categoryId: number) {
