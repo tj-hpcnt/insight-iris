@@ -1,25 +1,136 @@
 import { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation, useParams } from 'react-router-dom';
 import Breadcrumbs, { BreadcrumbItem } from './components/Breadcrumbs';
 import CategoryTable from './components/CategoryTable';
 import InsightTable, { InsightType } from './components/InsightTable';
 import QuestionView from './components/QuestionView';
 import './App.css'; // For global styles if any
 
-type View = 'categories' | 'insights' | 'question';
+// Component for Categories view
+const CategoriesView = ({ onCategoryClick }: { onCategoryClick: (categoryId: number, insightSubject: string) => void }) => {
+  return <CategoryTable onCategoryClick={onCategoryClick} />;
+};
 
+// Component for Insights view
+const InsightsView = ({ 
+  onInsightClick, 
+  onInsightTypeChange 
+}: { 
+  onInsightClick: (questionId: number) => void;
+  onInsightTypeChange: (type: InsightType) => void;
+}) => {
+  const { categoryId } = useParams<{ categoryId: string }>();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const insightType = (searchParams.get('type') as InsightType) || 'answers';
 
+  if (!categoryId) {
+    return <p>Category not found</p>;
+  }
+
+  return (
+    <InsightTable 
+      categoryId={parseInt(categoryId)} 
+      insightType={insightType} 
+      onInsightClick={onInsightClick}
+      onInsightTypeChange={onInsightTypeChange}
+    />
+  );
+};
+
+// Component for Question view
+const QuestionViewWrapper = ({ 
+  onNavigateQuestion, 
+  onSkipQuestion,
+  currentQuestions,
+  currentQuestionIndex
+}: { 
+  onNavigateQuestion: (direction: 'next' | 'prev') => void;
+  onSkipQuestion: () => void;
+  currentQuestions: { id: number; questionText: string }[];
+  currentQuestionIndex: number;
+}) => {
+  const { categoryId, questionId } = useParams<{ categoryId: string; questionId: string }>();
+
+  if (!categoryId || !questionId) {
+    return <p>Question not found</p>;
+  }
+
+  return (
+    <QuestionView 
+      questionId={parseInt(questionId)} 
+      totalQuestionsInCategory={currentQuestions.length}
+      currentQuestionIndex={currentQuestionIndex}
+      onNavigateQuestion={onNavigateQuestion}
+      onSkipQuestion={onSkipQuestion}
+    />
+  );
+};
 
 function App() {
-  const [currentView, setCurrentView] = useState<View>('categories');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Parse URL to determine current view and parameters
+  const getViewFromURL = () => {
+    const path = location.pathname;
+    if (path === '/' || path === '/categories') return 'categories';
+    if (path.includes('/categories/') && path.includes('/questions/')) return 'question';
+    if (path.includes('/categories/')) return 'insights';
+    return 'categories';
+  };
+
+  const getParamsFromURL = () => {
+    const path = location.pathname;
+    const searchParams = new URLSearchParams(location.search);
+    
+    let categoryId: number | null = null;
+    let questionId: number | null = null;
+    let insightType: InsightType | null = null;
+    
+    // Extract categoryId from path like /categories/123 or /categories/123/questions/456
+    const categoryMatch = path.match(/\/categories\/(\d+)/);
+    if (categoryMatch) {
+      categoryId = parseInt(categoryMatch[1]);
+    }
+    
+    // Extract questionId from path like /categories/123/questions/456
+    const questionMatch = path.match(/\/categories\/\d+\/questions\/(\d+)/);
+    if (questionMatch) {
+      questionId = parseInt(questionMatch[1]);
+    }
+    
+    // Get insight type from search params
+    const typeParam = searchParams.get('type');
+    if (typeParam === 'inspiration' || typeParam === 'answers') {
+      insightType = typeParam;
+    }
+    
+    return { categoryId, questionId, insightType };
+  };
+
+  const [currentView, setCurrentView] = useState<string>(getViewFromURL());
+  const { categoryId: urlCategoryId, questionId: urlQuestionId, insightType: urlInsightType } = getParamsFromURL();
+  
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(urlCategoryId);
   const [selectedInsightSubject, setSelectedInsightSubject] = useState<string | null>(null);
-  const [selectedInsightType, setSelectedInsightType] = useState<InsightType | null>(null);
-  const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null);
-  // const [selectedInsightTitle, setSelectedInsightTitle] = useState<string | null>(null); // To be used for breadcrumb
+  const [selectedInsightType, setSelectedInsightType] = useState<InsightType | null>(urlInsightType || 'answers');
+  const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(urlQuestionId);
 
   // For Question View navigation - now tracks questions instead of inspiration insights
   const [currentQuestions, setCurrentQuestions] = useState<{ id: number; questionText: string }[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
+
+  // Update state when URL changes (back/forward button)
+  useEffect(() => {
+    const newView = getViewFromURL();
+    const { categoryId, questionId, insightType } = getParamsFromURL();
+    
+    setCurrentView(newView);
+    setSelectedCategoryId(categoryId);
+    setSelectedQuestionId(questionId);
+    setSelectedInsightType(insightType || 'answers');
+  }, [location]);
 
   // When in question view, ensure the currentQuestionIndex matches the actual question
   useEffect(() => {
@@ -61,19 +172,24 @@ function App() {
   const handleCategoryClick = async (categoryId: number, insightSubject: string) => {
     setSelectedCategoryId(categoryId);
     setSelectedInsightSubject(insightSubject);
-    // Default to answer insights, or let user choose via UI elements not yet defined
     setSelectedInsightType('answers'); 
-    setCurrentView('insights');
     setCurrentQuestionIndex(0); // Reset index when category changes
+    
+    // Navigate to insights view with URL
+    navigate(`/categories/${categoryId}?type=answers`);
   };
 
   const handleInsightTypeSelect = (type: InsightType) => {
+    if (!selectedCategoryId) return;
     setSelectedInsightType(type);
-    setCurrentView('insights'); 
     setCurrentQuestionIndex(0); // Reset index when type changes
+    
+    // Update URL with new insight type
+    navigate(`/categories/${selectedCategoryId}?type=${type}`);
   };
 
   const handleQuestionClick = (questionId: number) => {
+    if (!selectedCategoryId) return;
     setSelectedQuestionId(questionId);
     
     // Find the correct question index for navigation
@@ -84,25 +200,31 @@ function App() {
         // If not found, reset to 0
         setCurrentQuestionIndex(0);
     }
-    setCurrentView('question');
+    
+    // Navigate to question view with URL
+    navigate(`/categories/${selectedCategoryId}/questions/${questionId}`);
   };
 
   const navigateToCategories = () => {
-    setCurrentView('categories');
     setSelectedCategoryId(null);
     setSelectedInsightSubject(null);
     setSelectedInsightType(null);
     setSelectedQuestionId(null);
     setCurrentQuestions([]);
     setCurrentQuestionIndex(0);
+    
+    // Navigate to categories view
+    navigate('/categories');
   };
 
   const navigateToInsightsView = (type?: InsightType) => {
     if (!selectedCategoryId) return; // Should not happen if called from a state where category is selected
-    setSelectedInsightType(type || selectedInsightType || 'answers');
-    setCurrentView('insights');
+    const insightType = type || selectedInsightType || 'answers';
+    setSelectedInsightType(insightType);
     setSelectedQuestionId(null);
-    // currentQuestionIndex is preserved if just switching between inspiration/answers for same category
+    
+    // Navigate to insights view with URL
+    navigate(`/categories/${selectedCategoryId}?type=${insightType}`);
   };
   
   const handleQuestionNavigation = (direction: 'next' | 'prev') => {
@@ -113,10 +235,14 @@ function App() {
       newIndex = Math.max(currentQuestionIndex - 1, 0);
     }
     if (newIndex !== currentQuestionIndex && currentQuestions[newIndex]) {
-              // Navigate to the selected question
-        setSelectedQuestionId(currentQuestions[newIndex].id);
-        setCurrentQuestionIndex(newIndex);
-        // The QuestionView component will re-fetch based on the new questionId
+      const newQuestionId = currentQuestions[newIndex].id;
+      setSelectedQuestionId(newQuestionId);
+      setCurrentQuestionIndex(newIndex);
+      
+      // Update URL for navigation
+      if (selectedCategoryId) {
+        navigate(`/categories/${selectedCategoryId}/questions/${newQuestionId}`);
+      }
     }
   };
 
@@ -129,7 +255,6 @@ function App() {
         navigateToInsightsView(); 
     }
   };
-
 
   const breadcrumbItems: BreadcrumbItem[] = [
     { label: 'Categories', onClick: navigateToCategories, isCurrent: currentView === 'categories' },
@@ -163,24 +288,30 @@ function App() {
         <Breadcrumbs items={breadcrumbItems} />
       </header>
       <main>
-        {currentView === 'categories' && <CategoryTable onCategoryClick={handleCategoryClick} />}
-        {currentView === 'insights' && selectedCategoryId && selectedInsightType && (
-          <InsightTable 
-            categoryId={selectedCategoryId} 
-            insightType={selectedInsightType} 
-            onInsightClick={handleQuestionClick}
-            onInsightTypeChange={handleInsightTypeSelect}
+        <Routes>
+          <Route path="/" element={<CategoriesView onCategoryClick={handleCategoryClick} />} />
+          <Route path="/categories" element={<CategoriesView onCategoryClick={handleCategoryClick} />} />
+          <Route 
+            path="/categories/:categoryId" 
+            element={
+              <InsightsView 
+                onInsightClick={handleQuestionClick}
+                onInsightTypeChange={handleInsightTypeSelect}
+              />
+            } 
           />
-        )}
-        {currentView === 'question' && selectedQuestionId && selectedCategoryId && (
-          <QuestionView 
-            questionId={selectedQuestionId} 
-            totalQuestionsInCategory={currentQuestions.length}
-            currentQuestionIndex={currentQuestionIndex}
-            onNavigateQuestion={handleQuestionNavigation}
-            onSkipQuestion={handleSkipQuestion}
+          <Route 
+            path="/categories/:categoryId/questions/:questionId" 
+            element={
+              <QuestionViewWrapper 
+                onNavigateQuestion={handleQuestionNavigation}
+                onSkipQuestion={handleSkipQuestion}
+                currentQuestions={currentQuestions}
+                currentQuestionIndex={currentQuestionIndex}
+              />
+            } 
           />
-        )}
+        </Routes>
       </main>
     </div>
   );
