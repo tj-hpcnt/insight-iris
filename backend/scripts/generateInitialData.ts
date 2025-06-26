@@ -20,6 +20,8 @@ const MAX_NEW_INSIGHTS_PER_GENERATION = 30
 const MIN_NEW_INSIGHTS_PER_GENERATION = 5
 const BINARY_PROBABILITY = 0.3;
 
+const GENERATE_COMPARISONS = false;
+
 async function main() {
   try {
     let totalUsage = {
@@ -415,8 +417,6 @@ async function main() {
       BATCH_COUNT
     );
 
-    const overlaps = await prisma.categoryOverlap.findMany();
-
     console.log('Generating insights...');
     await processInParallel<Category, void>(
       categories,
@@ -644,78 +644,80 @@ async function main() {
       }
     }
 
-    console.log('Generating insight comparisons for strong category overlaps (by relevant categories)...');
+    if (GENERATE_COMPARISONS) {
+      console.log('Generating insight comparisons for strong category overlaps (by relevant categories)...');
 
-    answerInsights = await prisma.insight.findMany({ where: { source: InsightSource.ANSWER } });
-    await processInParallel<Insight, void>(
-      answerInsights,
-      async (insight) => {
-        try {
-          // Get relevant categories for this insight using AI
-          const overlapResult = await generateInsightCategoryOverlap(insight);
-          if (!overlapResult) {
-            console.error(`No relevant categories found for insight ${insight.id}`);
-            return;
-          }
-          const [relevantCategories, removedCategories, usage] = overlapResult;
-          totalUsage.promptTokens += usage.prompt_tokens;
-          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-          totalUsage.completionTokens += usage.completion_tokens;
-
-          console.log(`Relevant categories for insight ${insight.insightText}: condensed to ${relevantCategories.length} removed ${removedCategories.length}`)
-          console.log(`will consider categories: ${relevantCategories.map(c => c.insightSubject).join(', ')}`);
-
-          const existingComparisons = await prisma.insightComparison.findMany({
-            where: {
-              OR: [
-                { insightAId: insight.id },
-                { insightBId: insight.id },
-              ],
-            },
-            select: { insightAId: true, insightBId: true },
-          });
-          const existingComparisonSet = new Set(existingComparisons.map(c => c.insightAId === insight.id ? c.insightBId : c.insightAId));
-          for (const relevantCategory of relevantCategories) {
-            const otherInsights = await prisma.insight.findMany({
-              where: {
-                categoryId: relevantCategory.id,
-                source: InsightSource.ANSWER,
-              }
-            });
-            // check if all of otherInsights are in existingComparisonSet
-            if (otherInsights.every(o => existingComparisonSet.has(o.id))) {
-              continue;
+      answerInsights = await prisma.insight.findMany({ where: { source: InsightSource.ANSWER } });
+      await processInParallel<Insight, void>(
+        answerInsights,
+        async (insight) => {
+          try {
+            // Get relevant categories for this insight using AI
+            const overlapResult = await generateInsightCategoryOverlap(insight);
+            if (!overlapResult) {
+              console.error(`No relevant categories found for insight ${insight.id}`);
+              return;
             }
-            const [comparisons, usage] = await generateInsightCategoryComparisonByRanking(insight, relevantCategory);
+            const [relevantCategories, removedCategories, usage] = overlapResult;
             totalUsage.promptTokens += usage.prompt_tokens;
             totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
             totalUsage.completionTokens += usage.completion_tokens;
-            for (const comparison of comparisons) {
-              // Only create presentation for strong overlaps
-              if (comparison.overlap === "STRONG") {
-                try {
-                  const [presentation, usage] = await generateInsightComparisonPresentation(comparison);
-                  totalUsage.promptTokens += usage.prompt_tokens;
-                  totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-                  totalUsage.completionTokens += usage.completion_tokens;
-                  console.log(`Compared: ${comparison.insightAId} <-> ${comparison.insightBId} | ${comparison.polarity} ${comparison.overlap}`);
-                  if (presentation) {
-                    console.log(`Presentation: ${presentation.presentationTitle}: ${presentation.conciseAText} <-> ${presentation.conciseBText} (Importance: ${presentation.importance})`);
-                  }
-                } catch (err) {
-                  console.error(`Error generating presentation for comparison ${comparison.id}`, err);
+
+            console.log(`Relevant categories for insight ${insight.insightText}: condensed to ${relevantCategories.length} removed ${removedCategories.length}`)
+            console.log(`will consider categories: ${relevantCategories.map(c => c.insightSubject).join(', ')}`);
+
+            const existingComparisons = await prisma.insightComparison.findMany({
+              where: {
+                OR: [
+                  { insightAId: insight.id },
+                  { insightBId: insight.id },
+                ],
+              },
+              select: { insightAId: true, insightBId: true },
+            });
+            const existingComparisonSet = new Set(existingComparisons.map(c => c.insightAId === insight.id ? c.insightBId : c.insightAId));
+            for (const relevantCategory of relevantCategories) {
+              const otherInsights = await prisma.insight.findMany({
+                where: {
+                  categoryId: relevantCategory.id,
+                  source: InsightSource.ANSWER,
                 }
-              } else {
-                //console.log(`Compared: ${comparison.insightAId} <-> ${comparison.insightBId} | ${comparison.polarity} ${comparison.overlap}`);
+              });
+              // check if all of otherInsights are in existingComparisonSet
+              if (otherInsights.every(o => existingComparisonSet.has(o.id))) {
+                continue;
+              }
+              const [comparisons, usage] = await generateInsightCategoryComparisonByRanking(insight, relevantCategory);
+              totalUsage.promptTokens += usage.prompt_tokens;
+              totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+              totalUsage.completionTokens += usage.completion_tokens;
+              for (const comparison of comparisons) {
+                // Only create presentation for strong overlaps
+                if (comparison.overlap === "STRONG") {
+                  try {
+                    const [presentation, usage] = await generateInsightComparisonPresentation(comparison);
+                    totalUsage.promptTokens += usage.prompt_tokens;
+                    totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+                    totalUsage.completionTokens += usage.completion_tokens;
+                    console.log(`Compared: ${comparison.insightAId} <-> ${comparison.insightBId} | ${comparison.polarity} ${comparison.overlap}`);
+                    if (presentation) {
+                      console.log(`Presentation: ${presentation.presentationTitle}: ${presentation.conciseAText} <-> ${presentation.conciseBText} (Importance: ${presentation.importance})`);
+                    }
+                  } catch (err) {
+                    console.error(`Error generating presentation for comparison ${comparison.id}`, err);
+                  }
+                } else {
+                  //console.log(`Compared: ${comparison.insightAId} <-> ${comparison.insightBId} | ${comparison.polarity} ${comparison.overlap}`);
+                }
               }
             }
+          } catch (err) {
+            console.error(`Error processing insight ID: ${insight.id} for category overlap comparisons`, err);
           }
-        } catch (err) {
-          console.error(`Error processing insight ID: ${insight.id} for category overlap comparisons`, err);
-        }
-      },
-      BATCH_COUNT
-    );
+        },
+        BATCH_COUNT
+      );
+    }
 
     clearInterval(usageLogger);
     console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
