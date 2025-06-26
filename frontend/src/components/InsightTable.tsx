@@ -3,6 +3,7 @@ import PublishedIdChip from './PublishedIdChip';
 import ProposedChip from './ProposedChip';
 import PublishedTagChip from './PublishedTagChip';
 import CategoryChip from './CategoryChip';
+import AnswerCountChip from './AnswerCountChip';
 
 export type InsightType = 'inspiration' | 'answers'; // This matches the frontend logic
 
@@ -76,6 +77,8 @@ const InsightTable: React.FC<InsightTableProps> = ({
   const [displayData, setDisplayData] = useState<QuestionDisplay[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [insightAnswerCounts, setInsightAnswerCounts] = useState<Map<number, number>>(new Map());
+  const [insightToQuestionsMap, setInsightToQuestionsMap] = useState<Map<number, Array<{ id: number; questionText: string; publishedId: string | null; proposedQuestion: string | null; category: CategoryInfo }>>>(new Map());
 
   useEffect(() => {
     if (!categoryId) return;
@@ -123,11 +126,33 @@ const InsightTable: React.FC<InsightTableProps> = ({
         firstInsightCategory: question.inspiration.firstCategory,
       }));
       setDisplayData(inspirationData);
+      setInsightAnswerCounts(new Map()); // Clear counts for inspiration tab
+      setInsightToQuestionsMap(new Map()); // Clear questions map for inspiration tab
     } else {
       // For answers tab, create one row per answer with its insight
       const answerData: QuestionDisplay[] = [];
+      const insightToQuestionsMap = new Map<number, Array<{ id: number; questionText: string; publishedId: string | null; proposedQuestion: string | null; category: CategoryInfo }>>();
+      
       questions.forEach(question => {
         question.answers.forEach(answer => {
+          // Track which questions reference each insight
+          const insightId = answer.insight.id;
+          if (!insightToQuestionsMap.has(insightId)) {
+            insightToQuestionsMap.set(insightId, []);
+          }
+          
+          // Add question info if it's not already there
+          const existingQuestions = insightToQuestionsMap.get(insightId)!;
+          if (!existingQuestions.find(q => q.id === question.id)) {
+            existingQuestions.push({
+              id: question.id,
+              questionText: question.questionText,
+              publishedId: question.publishedId,
+              proposedQuestion: question.proposedQuestion,
+              category: question.category
+            });
+          }
+          
           answerData.push({
             id: answer.insight.id, // Use answer insight ID for clicking
             questionId: question.id,
@@ -144,7 +169,16 @@ const InsightTable: React.FC<InsightTableProps> = ({
           });
         });
       });
+      
+      // Convert question arrays to counts
+      const insightCounts = new Map<number, number>();
+      insightToQuestionsMap.forEach((questionArray, insightId) => {
+        insightCounts.set(insightId, questionArray.length);
+      });
+      
       setDisplayData(answerData);
+      setInsightAnswerCounts(insightCounts);
+      setInsightToQuestionsMap(insightToQuestionsMap);
     }
   }, [questions, insightType]);
 
@@ -177,6 +211,16 @@ const InsightTable: React.FC<InsightTableProps> = ({
   const tabButtonHoverStyle = {
     backgroundColor: '#e9ecef',
     color: '#495057'
+  };
+
+  const handleQuestionNavigation = (questionId: number, questionCategoryId: number) => {
+    // If we're navigating to a question in a different category, we need to handle it
+    if (questionCategoryId !== categoryId) {
+      // For now, just navigate to the question in the current category context
+      // In a more complex implementation, you might want to switch categories first
+      console.warn('Navigation to different category not fully implemented');
+    }
+    onInsightClick(questionId);
   };
 
   return (
@@ -267,9 +311,9 @@ const InsightTable: React.FC<InsightTableProps> = ({
         </thead>
         <tbody>
           {displayData.map((item) => (
-            <tr 
-              key={`${item.id}-${item.answerText || 'inspiration'}`} // Unique key for answer insights
-              onClick={() => onInsightClick(item.questionId)}
+                          <tr 
+                key={`${item.id}-${item.answerText || 'inspiration'}`} // Unique key for answer insights
+                onClick={() => handleQuestionNavigation(item.questionId, item.questionCategory.id)}
               style={{ 
                 cursor: 'pointer',
                 transition: 'background-color 0.2s ease'
@@ -311,7 +355,14 @@ const InsightTable: React.FC<InsightTableProps> = ({
                 color: '#495057'
               }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  <span style={{ flex: 1, marginRight: '8px' }}>{item.insightText}</span>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', flex: 1 }}>
+                    <AnswerCountChip 
+                      count={insightAnswerCounts.get(item.id) || 0}
+                      relatedQuestions={insightToQuestionsMap.get(item.id) || []}
+                      onQuestionClick={handleQuestionNavigation}
+                    />
+                    <span style={{ flex: 1, marginRight: '8px' }}>{item.insightText}</span>
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                     {item.insightCategory.id !== item.questionCategory.id && (
                       <CategoryChip insightSubject={item.insightCategory.insightSubject} />
