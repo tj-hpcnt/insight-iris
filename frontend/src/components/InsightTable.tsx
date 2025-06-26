@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import PublishedIdChip from './PublishedIdChip';
+import ProposedChip from './ProposedChip';
 import PublishedTagChip from './PublishedTagChip';
 import CategoryChip from './CategoryChip';
 
@@ -18,6 +19,7 @@ interface QuestionFromAPI {
   id: number;
   questionText: string;
   publishedId: string | null;
+  wasProposed: boolean;
   category: CategoryInfo;
   inspiration: {
     id: number;
@@ -45,6 +47,7 @@ interface QuestionDisplay {
   questionId: number; // The question ID for navigation
   questionText: string;
   publishedId: string | null;
+  wasProposed: boolean;
   insightText: string;
   publishedTag: string | null;
   source: string;
@@ -108,6 +111,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
         questionId: question.id,
         questionText: question.questionText,
         publishedId: question.publishedId,
+        wasProposed: question.wasProposed,
         insightText: question.inspiration.insightText,
         publishedTag: question.inspiration.publishedTag,
         source: question.inspiration.source,
@@ -125,6 +129,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
             questionId: question.id,
             questionText: question.questionText,
             publishedId: question.publishedId,
+            wasProposed: question.wasProposed,
             answerText: answer.answerText,
             insightText: answer.insight.insightText,
             publishedTag: answer.insight.publishedTag,
@@ -269,6 +274,9 @@ const InsightTable: React.FC<InsightTableProps> = ({
                   {item.questionText}
                   {item.publishedId && (
                     <PublishedIdChip publishedId={item.publishedId} />
+                  )}
+                  {item.wasProposed && !item.publishedId && (
+                    <ProposedChip />
                   )}
                 </div>
               </td>

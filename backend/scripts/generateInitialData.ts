@@ -6,11 +6,12 @@ import {
   generateInsightCategoryOverlap, generateInsightComparisonPresentation,
   reduceExactRedundancyForQuestions, reduceExactRedundancyForInspirations, reduceExactRedundancyForAnswers, 
   reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
+  predictQuestionCandidateCategory, generateQuestionFromProposal,
   } from '../src/utils/aiGenerators';
 import { EXTRA_CATEGORIES, parseCategoriesFromCSV } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
-import { parseQuestionsFromCSV, parseMappingFromCSV, parseQuestionType, extractAnswersFromRow } from './questions';
+import { parseQuestionsFromCSV, parseMappingFromCSV, parseQuestionType, extractAnswersFromRow, parseProposedQuestions } from './questions';
 dotenv.config();
 const prisma = new PrismaClient();
 const BATCH_COUNT = 10;
@@ -313,6 +314,71 @@ async function main() {
       }
     } else {
       console.log('No inspiration insights need text updates');
+    }
+
+    console.log('Generating questions from proposed concepts...');
+    const proposedQuestions = await parseProposedQuestions();
+    
+    if (proposedQuestions.length > 0) {
+      console.log(`Processing ${proposedQuestions.length} proposed questions`);
+      
+      await processInParallel<string, void>(
+        proposedQuestions,
+        async (proposedQuestionText) => {
+          try {
+            // Check if a question with this exact text already exists
+            const existingQuestion = await prisma.question.findFirst({
+              where: { 
+                questionText: proposedQuestionText
+              },
+            });
+
+            if (existingQuestion) {
+              console.log(`Question already exists: ${proposedQuestionText}`);
+              return;
+            }
+
+            // First, predict the category for this proposed question
+            const categoryResult = await predictQuestionCandidateCategory(proposedQuestionText);
+            if (!categoryResult) {
+              console.error(`Failed to predict category for proposed question: ${proposedQuestionText}`);
+              return;
+            }
+
+            const [category, categoryUsage] = categoryResult;
+            totalUsage.promptTokens += categoryUsage.prompt_tokens;
+            totalUsage.cachedPromptTokens += categoryUsage.prompt_tokens_details?.cached_tokens || 0;
+            totalUsage.completionTokens += categoryUsage.completion_tokens;
+
+            // Generate the complete question from the proposal
+            // For proposed questions, we'll make them binary by default for simplicity
+            const questionResult = await generateQuestionFromProposal(category, proposedQuestionText, false);
+            if (!questionResult) {
+              console.error(`Failed to generate question from proposal: ${proposedQuestionText}`);
+              return;
+            }
+
+            const [question, answers, insights, questionUsage] = questionResult;
+            totalUsage.promptTokens += questionUsage.prompt_tokens;
+            totalUsage.cachedPromptTokens += questionUsage.prompt_tokens_details?.cached_tokens || 0;
+            totalUsage.completionTokens += questionUsage.completion_tokens;
+
+            if (question) {
+              console.log(`Generated ${question.questionType} question from proposal: ${proposedQuestionText}`);
+              console.log(`Generated question: ${question.questionText}`);
+              console.log(`Generated answers: ${answers.map(a => a.answerText).join('|||')}`);
+              console.log(`Generated insights: ${insights.map(i => i.insightText).join('|||')}`);
+            } else {
+              console.log(`No question generated from proposal (likely duplicate): ${proposedQuestionText}`);
+            }
+          } catch (err) {
+            console.error(`Error processing proposed question: ${proposedQuestionText}`, err);
+          }
+        },
+        BATCH_COUNT
+      );
+    } else {
+      console.log('No proposed questions found, skipping proposed question generation phase');
     }
 
     // Generate category overlaps by ranking, in parallel for each category

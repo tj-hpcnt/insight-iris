@@ -77,12 +77,14 @@ const loadExampleQuestions = (): { [key: string]: ExampleQuestion[] } => {
 // Cache the example questions at module load time
 const CACHED_EXAMPLE_QUESTIONS = loadExampleQuestions();
 
-export function pickSampleQuestions(totalCount: number): string {
-  const questionsPerType = Math.floor(totalCount / 3);
-  const remainder = totalCount % 3;
+export function pickSampleQuestions(totalCount: number, allowedTypes?: Array<'BINARY' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE'>): string {
+  // If no specific types are provided, use all types
+  const types = allowedTypes || ['BINARY', 'SINGLE_CHOICE', 'MULTIPLE_CHOICE'];
+  
+  const questionsPerType = Math.floor(totalCount / types.length);
+  const remainder = totalCount % types.length;
   
   const selectedQuestions: ExampleQuestion[] = [];
-  const types: Array<'BINARY' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE'> = ['BINARY', 'SINGLE_CHOICE', 'MULTIPLE_CHOICE'];
   
   types.forEach((type, index) => {
     const questions = CACHED_EXAMPLE_QUESTIONS[type];
@@ -170,4 +172,21 @@ export function extractAnswersFromRow(questionRow: QuestionCSVRow): string[] {
   }
 
   return answers;
+}
+
+export async function parseProposedQuestions(): Promise<string[]> {
+  const proposedQuestionsPath = path.join(__dirname, 'mvp-data', 'proposedQuestions.txt');
+  try {
+    const fileContent = fs.readFileSync(proposedQuestionsPath, 'utf-8');
+    const questions = fileContent
+      .trim()
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0); // Filter out empty lines
+    
+    return questions;
+  } catch (error) {
+    console.error('Error reading proposed questions file:', error);
+    return [];
+  }
 } 

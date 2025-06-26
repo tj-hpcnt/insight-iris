@@ -294,6 +294,7 @@ export class AppService {
       questionText: question.questionText,
       questionType: question.questionType,
       publishedId: question.publishedId,
+      wasProposed: question.wasProposed,
       inspiration: question.inspiration,
       answers: question.answers.map(answer => ({
         id: answer.id,

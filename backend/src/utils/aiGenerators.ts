@@ -186,7 +186,7 @@ The allowed question types are:
 - MULTIPLE_CHOICE: ${typeDescription[QuestionType.MULTIPLE_CHOICE]}
 ${preferBinaryPrompt}
 
-When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.
+When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.  Do not include any annotation of type etc in the question text.
 
 The classification for the insight is:
 Category: ${category.category}	
@@ -250,86 +250,16 @@ If you can't generate a unique question, then output:
     response_format: format,
   });
 
-  if ((completion.choices[0].message as any).parsed.type == "DUPLICATE") {
-    if (!cachedCompletion) {
-      await cachePromptExecution(model, messages, format, completion);
-    }
-    return [null, null, null, completion.usage];
-  }
-
-  try {
-    const questionData = (completion.choices[0].message as any).parsed as {
-      question: string;
-      answers: string[];
-      insights: string[];
-      type: QuestionType;
-    };
-
-    if (!questionData) {
-      throw new Error("Parse error");
-    }
-    if (questionData.answers.length != questionData.insights.length) {
-      throw new Error("Answers and insights length mismatch");
-    }
-
-    // Use a transaction to ensure atomic creation of question, insights, and answers
-    const [question, answers, newInsights] = await prisma.$transaction(async (tx) => {
-      //if a question for this inspiration already exists delete it and the answers and insights linked to it
-      await tx.question.deleteMany({
-        where: {
-          inspirationId: insight.id,
-        },
-      });
-      // TODO: need to do setup for cascading
-
-        // Create the question
-        const question = await tx.question.create({
-          data: {
-            questionText: fixIllegalEnumCharacters(questionData.question),
-            questionType: questionData.type as QuestionType,
-            inspirationId: insight.id,
-            categoryId: category.id,
-          },
-        });
-
-      const answers: Answer[] = [];
-      const newInsights: Insight[] = [];
-
-      for (let i = 0; i < questionData.answers.length; i++) {
-        // Create new insight for each answer
-        const newInsight = await tx.insight.create({
-          data: {
-            insightText: fixIllegalEnumCharacters(questionData.insights[i]),
-            categoryId: category.id,
-            source: InsightSource.ANSWER,
-          },
-        });
-        newInsights.push(newInsight);
-
-        // Create answer linking question to insight
-        const answer = await tx.answer.create({
-          data: {
-            answerText: questionData.answers[i],
-            questionId: question.id,
-            insightId: newInsight.id,
-          },
-        });
-        answers.push(answer);
-      }
-
-      return [question, answers, newInsights];
-    });
-
-    if (!cachedCompletion) {
-      await cachePromptExecution(model, messages, format, completion);
-    }
-
-    return [question, answers, newInsights, completion.usage];
-  } catch (error) {
-    console.error('Error creating question:', error);
-    console.error('Raw response:', completion.choices[0].message);
-    return null;
-  }
+  return await processQuestionCompletion(
+    completion,
+    cachedCompletion,
+    model,
+    messages,
+    format,
+    category,
+    insight.id, // inspirationId
+    true // shouldDeleteExisting
+  );
 }
 
 /**
@@ -1191,6 +1121,141 @@ Subject: ${insightCategory.insightSubject}
 }
 
 const NO_TOKEN_USAGE = { prompt_tokens: 0, completion_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } } as OpenAI.Completions.CompletionUsage;
+
+/**
+ * Helper function to process question generation completion and create database records
+ * @param completion The OpenAI completion response
+ * @param cachedCompletion Whether this was a cached completion
+ * @param model The model used for the completion
+ * @param messages The messages sent to the model
+ * @param format The JSON schema format used
+ * @param category The category for the question
+ * @param inspirationId The inspiration insight ID (can be null for proposal-based questions)
+ * @param shouldDeleteExisting Whether to delete existing questions for this inspiration
+ * @param proposedQuestionText Optional proposed question text for creating temporary inspiration
+ * @returns Tuple containing the created question object, array of answers, array of insights, and token usage statistics
+ */
+async function processQuestionCompletion(
+  completion: OpenAI.Chat.ChatCompletion,
+  cachedCompletion: OpenAI.Chat.ChatCompletion | null,
+  model: string,
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+  format: any,
+  category: Category,
+  inspirationId: number | null,
+  shouldDeleteExisting: boolean,
+  proposedQuestionText?: string
+): Promise<[Question, Answer[], Insight[], OpenAI.Completions.CompletionUsage] | null> {
+  if ((completion.choices[0].message as any).parsed.type == "DUPLICATE") {
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+    return [null, null, null, completion.usage];
+  }
+
+  try {
+    const questionData = (completion.choices[0].message as any).parsed as {
+      question: string;
+      answers: string[];
+      insights: string[];
+      type: QuestionType;
+    };
+
+    if (!questionData) {
+      throw new Error("Parse error");
+    }
+    if (questionData.answers.length != questionData.insights.length) {
+      throw new Error("Answers and insights length mismatch");
+    }
+
+    if (proposedQuestionText) {
+      if (inspirationId) {
+        throw new Error("Proposal-based question already has an inspiration");
+      }
+      if (questionData.insights.length == 0) {
+        throw new Error("Proposal-based question must have a generatedinsight");
+      }
+    } else {
+      if (!inspirationId) {
+        throw new Error("Base questions must have come from an inspiration");
+      }
+    }
+
+    // Use a transaction to ensure atomic creation of question, insights, and answers
+    const [question, answers, newInsights] = await prisma.$transaction(async (tx) => {
+      let actualInspirationId = inspirationId;
+
+      // Create inspiration insight from first answer's insight if needed (for proposal-based questions)
+      if (proposedQuestionText) {
+        const inspirationInsight = await tx.insight.create({
+          data: {
+            insightText: fixIllegalEnumCharacters(questionData.insights[0]),
+            categoryId: category.id,
+            source: InsightSource.INSPIRATION,
+          },
+        });
+        actualInspirationId = inspirationInsight.id;
+      }
+
+      // Delete existing questions if needed
+      if (shouldDeleteExisting && actualInspirationId) {
+        await tx.question.deleteMany({
+          where: {
+            inspirationId: actualInspirationId,
+          },
+        });
+      }
+
+      // Create the question
+      const question = await tx.question.create({
+        data: {
+          questionText: fixIllegalEnumCharacters(questionData.question),
+          questionType: questionData.type as QuestionType,
+          inspirationId: actualInspirationId!,
+          categoryId: category.id,
+          wasProposed: !!proposedQuestionText, // Set to true if this question was generated from a proposal
+        },
+      });
+
+      const answers: Answer[] = [];
+      const newInsights: Insight[] = [];
+
+      for (let i = 0; i < questionData.answers.length; i++) {
+        // Create new insight for each answer
+        const newInsight = await tx.insight.create({
+          data: {
+            insightText: fixIllegalEnumCharacters(questionData.insights[i]),
+            categoryId: category.id,
+            source: InsightSource.ANSWER,
+          },
+        });
+        newInsights.push(newInsight);
+
+        // Create answer linking question to insight
+        const answer = await tx.answer.create({
+          data: {
+            answerText: questionData.answers[i],
+            questionId: question.id,
+            insightId: newInsight.id,
+          },
+        });
+        answers.push(answer);
+      }
+
+      return [question, answers, newInsights];
+    });
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+
+    return [question, answers, newInsights, completion.usage];
+  } catch (error) {
+    console.error('Error creating question:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
+}
 /**
  * Generates insight comparisons between a target insight and all insights in a given category
  * @param insight The target insight to compare against
@@ -2141,4 +2206,247 @@ Answer: "${answerText}"`;
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
+}
+
+/**
+ * Predicts the most appropriate category for a proposed question text using AI
+ * @param questionText The question text to categorize
+ * @returns Tuple containing the predicted category object and token usage statistics
+ */
+export async function predictQuestionCandidateCategory(
+  questionText: string
+): Promise<[Category, OpenAI.Completions.CompletionUsage] | null> {
+  // Get all existing categories
+  const categories = await prisma.category.findMany();
+  const allSubjects = []
+
+  // Build category tree
+  const categoryTree = categories.reduce((tree, cat) => {
+    if (!tree[cat.category]) {
+      tree[cat.category] = {};
+    }
+    if (!tree[cat.category][cat.subcategory]) {
+      tree[cat.category][cat.subcategory] = [];
+    }
+    tree[cat.category][cat.subcategory].push(cat.insightSubject);
+    allSubjects.push(cat.insightSubject);
+    return tree;
+  }, {} as Record<string, Record<string, string[]>>);
+
+  // Convert tree to string representation
+  const categoryTreeStr = Object.entries(categoryTree)
+    .map(([category, subcategories]) => {
+      return `${category}:\n${Object.entries(subcategories)
+        .map(([subcategory, subjects]) => {
+          return `  ${subcategory}:\n${subjects
+            .map(subject => `    - ${subject}`)
+            .join('\n')}`;
+        })
+        .join('\n')}`;
+    })
+    .join('\n');
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine the most appropriate category for a proposed question.
+
+The question to categorize is:
+"${questionText}"
+
+Here is the hierarchical category structure:
+${categoryTreeStr}
+
+Please select the most appropriate leaf category (insightSubject) for this question. The category should be the most specific and relevant category that captures what this question is trying to discover about the user. Consider what kind of insights this question would generate when answered. Output JSON only. Format:
+
+{"insightSubject":"Dietary preferences"}`;
+
+  const model = "gpt-4.1";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "category",
+      schema: {
+        type: "object",
+        properties: {
+          insightSubject: {
+            type: "string",
+            enum: allSubjects
+          }
+        },
+        required: ["insightSubject"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const categoryData = (completion.choices[0].message as any).parsed as {
+      insightSubject: string;
+    };
+    if (!categoryData) {
+      throw new Error("Parse error");
+    }
+
+    // Find the category
+    let category = await prisma.category.findFirst({
+      where: {
+        insightSubject: categoryData.insightSubject,
+      },
+    });
+
+    if (!category) {
+      throw new Error("Unknown subject");
+    }
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+
+    return [category, completion.usage];
+  } catch (error) {
+    console.error('Error predicting question category:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return [null, completion.usage];
+  }
+}
+
+/**
+ * Generates a complete question from a proposed question text and category
+ * @param category The category this question belongs to
+ * @param proposedQuestionText The proposed question text to reword and improve
+ * @param mustBeBinary Whether the question must be binary (true) or can be single/multiple choice (false)
+ * @returns Tuple containing the created question object, array of answers, array of insights, and token usage statistics
+ */
+export async function generateQuestionFromProposal(
+  category: Category,
+  proposedQuestionText: string,
+  mustBeBinary: boolean
+): Promise<[Question, Answer[], Insight[], OpenAI.Completions.CompletionUsage] | null> {
+  // Get existing questions for this category
+  const existingQuestionsRaw = await prisma.question.findMany({
+    where: {
+      categoryId: category.id,
+    },
+    select: {
+      questionText: true,
+    },
+  });
+  const questions = existingQuestionsRaw.map(q => ({ text: q.questionText }));
+
+  const typeDescription = {
+    [QuestionType.BINARY]: "a statement that the user will either press heart or X on (yes/no, true/false, agree/disagree)",
+    [QuestionType.SINGLE_CHOICE]: "a multiple-choice question were only one option makes sense to select",
+    [QuestionType.MULTIPLE_CHOICE]: "a multiple-choice question where multiple options can be selected"
+  };
+
+  // Filter sample questions based on the allowed types
+  const allowedSampleTypes: Array<'BINARY' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE'> = mustBeBinary 
+    ? ['BINARY']
+    : ['SINGLE_CHOICE', 'MULTIPLE_CHOICE'];
+  const sampleQuestions = pickSampleQuestions(18, allowedSampleTypes);
+  
+  const questionTypePrompt = mustBeBinary 
+    ? `You MUST generate a BINARY question type only. Format it as ${typeDescription[QuestionType.BINARY]}. When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with. `
+    : `You can generate either SINGLE_CHOICE or MULTIPLE_CHOICE question types. Choose the most appropriate:
+- SINGLE_CHOICE: ${typeDescription[QuestionType.SINGLE_CHOICE]}
+- MULTIPLE_CHOICE: ${typeDescription[QuestionType.MULTIPLE_CHOICE]}
+
+If the question could have parallel interesting insights, prefer a single choice or multiple choice based answer instead of a binary statement.`;
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. You are given a proposed question that needs to be reworded and improved to fit our system.
+
+Your task is to:
+1. Use the proposed question as an inspiration and write a new question suitable for our question format that targets investigating that topic.  Make it engaging and clear.
+2. Generate appropriate answer options
+3. Create insights that each answer would reveal about the person
+
+${questionTypePrompt}
+
+Make sure any question does not actually contain a chain of dependent questions. Don't make new questions that are too similar to existing questions. If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.  Do not include any annotation of type etc in the question text.
+
+The classification for this question is:
+Category: ${category.category}	
+Subcategory: ${category.subcategory}
+Subject: ${category.insightSubject}
+
+The proposed question text is:
+"${proposedQuestionText}"
+
+The existing questions for this category are:
+${questions.map(question => question.text).join('\n')}
+
+Output JSON only. Follow this format and use the examples to guide how to choose tone and style:
+${sampleQuestions}
+
+If you can't generate a unique question, then output:
+{"question":"","answers":[], "insights":[], "type":"DUPLICATE"}
+`;
+
+  const model = "gpt-4.1";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const allowedTypes = mustBeBinary 
+    ? ["BINARY", "DUPLICATE"]
+    : ["SINGLE_CHOICE", "MULTIPLE_CHOICE", "DUPLICATE"];
+
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "question",
+      schema: {
+        type: "object",
+        properties: {
+          question: {
+            type: "string"
+          },
+          answers: {
+            type: "array",
+            items: {
+              type: "string"
+            }
+          },
+          insights: {
+            type: "array",
+            items: {
+              type: "string"
+            }
+          },
+          type: {
+            type: "string",
+            enum: allowedTypes
+          }
+        },
+        required: ["question", "answers", "insights", "type"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  return await processQuestionCompletion(
+    completion,
+    cachedCompletion,
+    model,
+    messages,
+    format,
+    category,
+    null, // inspirationId (will be created from proposal)
+    false, // shouldDeleteExisting
+    proposedQuestionText
+  );
 }

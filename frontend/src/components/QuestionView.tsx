@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getInsightSubjectStyle } from '../utils/colorUtils';
 import PublishedIdChip from './PublishedIdChip';
+import ProposedChip from './ProposedChip';
 import PublishedTagChip from './PublishedTagChip';
 
 // --- Data Interfaces based on backend schema and new API payload ---
@@ -34,6 +35,7 @@ interface QuestionDetailsPayload {
   questionType: string; // e.g., SINGLE_CHOICE
   questionText: string; // Specific question text from Question model
   publishedId: string | null; // Published ID if the question was previously published
+  wasProposed: boolean; // Whether this question was generated from a proposal
   answers: AnswerOptionPayload[];
 }
 
@@ -55,6 +57,7 @@ interface QuestionData {
   questionText: string;
   questionType: string;
   publishedId: string | null;
+  wasProposed: boolean;
   inspiration: PrismaInsight;
   answers: {
     id: number;
@@ -194,17 +197,19 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           flexShrink: 0,
           boxSizing: 'border-box'
         }}>
-          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-            {/* currentQuestionIndex and totalQuestionsInCategory are for the list of questions */}
-            Question {currentQuestionIndex + 1} of {totalQuestionsInCategory}
-          </div>
-          <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-              <h3 style={{ margin: 0 }}>{displayQuestionText}</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <span>Question {currentQuestionIndex + 1} of {totalQuestionsInCategory}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {questionData.publishedId && (
                 <PublishedIdChip publishedId={questionData.publishedId} />
               )}
+              {questionData.wasProposed && !questionData.publishedId && (
+                <ProposedChip />
+              )}
             </div>
+          </div>
+          <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
+            <h3 style={{ margin: 0, marginBottom: '10px' }}>{displayQuestionText}</h3>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {options.map((option) => {
