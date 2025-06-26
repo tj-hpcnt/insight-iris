@@ -105,6 +105,7 @@ ${extraHints}${existingInsightsText}`;
         data: {
           insightText: fixIllegalEnumCharacters(insightText),
           categoryId: category.id,
+          firstCategoryId: category.id,
           source: InsightSource.INSPIRATION,
         },
       });
@@ -1194,6 +1195,7 @@ async function processQuestionCompletion(
           data: {
             insightText: fixIllegalEnumCharacters(questionData.insights[0]),
             categoryId: category.id,
+            firstCategoryId: category.id,
             source: InsightSource.INSPIRATION,
           },
         });
@@ -1229,6 +1231,7 @@ async function processQuestionCompletion(
           data: {
             insightText: fixIllegalEnumCharacters(questionData.insights[i]),
             categoryId: category.id,
+            firstCategoryId: category.id,
             source: InsightSource.ANSWER,
           },
         });
