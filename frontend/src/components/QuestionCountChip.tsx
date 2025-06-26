@@ -20,8 +20,8 @@ const QuestionCountChip: React.FC<QuestionCountChipProps> = ({ count, type }) =>
         };
       case 'generated':
         return {
-          backgroundColor: '#4CAF50', // Green background
-          color: '#fff', // White text
+          backgroundColor: '#90EE90', // Light green background
+          color: '#000', // Black text
         };
       default:
         return {};
