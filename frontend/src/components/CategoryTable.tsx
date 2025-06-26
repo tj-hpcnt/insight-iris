@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getInsightSubjectStyle } from '../utils/colorUtils';
+import QuestionCountChip from './QuestionCountChip';
 
 interface CategoryFromAPI { // Reflects Prisma model
   id: number;
@@ -7,6 +8,11 @@ interface CategoryFromAPI { // Reflects Prisma model
   subcategory: string;
   insightSubject: string;
   expandedHints?: string | null;
+  questionCounts: {
+    published: number;
+    proposed: number;
+    generated: number;
+  };
   // insights: any[]; // Not fetching insights here
   // categoryOverlapA: any[];
   // categoryOverlapB: any[];
@@ -17,6 +23,11 @@ interface CategoryDisplay {
     name: string; 
     subcategory?: string; 
     insightSubject?: string; 
+    questionCounts?: {
+      published: number;
+      proposed: number;
+      generated: number;
+    };
 }
 
 interface CategoryTableProps {
@@ -43,7 +54,8 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
             id: cat.id,
             name: cat.category, 
             subcategory: cat.subcategory, 
-            insightSubject: cat.insightSubject 
+            insightSubject: cat.insightSubject,
+            questionCounts: cat.questionCounts
         }));
         setCategories(displayData);
       } catch (e) {
@@ -70,6 +82,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
           <th>Category Name</th>
           <th>Subcategory</th>
           <th>Insight Subject</th>
+          <th>Count</th>
         </tr>
       </thead>
       <tbody>
@@ -86,6 +99,15 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
                 <span style={getInsightSubjectStyle(category.insightSubject)}>
                   {category.insightSubject}
                 </span>
+              )}
+            </td>
+            <td>
+              {category.questionCounts && (
+                <>
+                  <QuestionCountChip count={category.questionCounts.published} type="published" />
+                  <QuestionCountChip count={category.questionCounts.proposed} type="proposed" />
+                  <QuestionCountChip count={category.questionCounts.generated} type="generated" />
+                </>
               )}
             </td>
           </tr>

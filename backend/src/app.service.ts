@@ -48,13 +48,41 @@ export class AppService {
   }
 
   async listCategories() {
-    return this.prisma.category.findMany({
+    const categories = await this.prisma.category.findMany({
       orderBy: [
         { category: 'asc' },
         { subcategory: 'asc' },
         { insightSubject: 'asc' }
       ]
     });
+
+    // Add question counts for each category
+    const categoriesWithCounts = await Promise.all(
+      categories.map(async (category) => {
+        const questions = await this.prisma.question.findMany({
+          where: { categoryId: category.id },
+          select: {
+            publishedId: true,
+            wasProposed: true,
+          },
+        });
+
+        const publishedCount = questions.filter(q => q.publishedId !== null).length;
+        const proposedCount = questions.filter(q => q.wasProposed).length;
+        const generatedCount = questions.filter(q => q.publishedId === null && !q.wasProposed).length;
+
+        return {
+          ...category,
+          questionCounts: {
+            published: publishedCount,
+            proposed: proposedCount,
+            generated: generatedCount,
+          },
+        };
+      })
+    );
+
+    return categoriesWithCounts;
   }
 
   async listQuestionsInCategory(categoryId: number) {
