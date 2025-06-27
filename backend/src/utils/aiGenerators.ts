@@ -30,6 +30,34 @@ export async function generateInspirationInsights(category: Category, count: num
     `;
   }
 
+  // Get all categories to build taxonomy
+  const allCategories = await prisma.category.findMany();
+  
+  // Build category tree for context
+  const categoryTree = allCategories.reduce((tree, cat) => {
+    if (!tree[cat.category]) {
+      tree[cat.category] = {};
+    }
+    if (!tree[cat.category][cat.subcategory]) {
+      tree[cat.category][cat.subcategory] = [];
+    }
+    tree[cat.category][cat.subcategory].push(cat.insightSubject);
+    return tree;
+  }, {} as Record<string, Record<string, string[]>>);
+
+  // Convert tree to string representation
+  const categoryTreeStr = Object.entries(categoryTree)
+    .map(([category, subcategories]) => {
+      return `${category}:\n${Object.entries(subcategories)
+        .map(([subcategory, subjects]) => {
+          return `  ${subcategory}:\n${subjects
+            .map(subject => `    - ${subject}`)
+            .join('\n')}`;
+        })
+        .join('\n')}`;
+    })
+    .join('\n');
+
   const existingInsights = await prisma.insight.findMany({
     where: {
       categoryId: category.id,
@@ -52,12 +80,15 @@ ${existingInsightsText}`;
 - Does it help you on a first date?
 - Is it not a criterion for matching but knowing it would help you understand each other ?
 
-Generate ${count} candidate insights for the requested category.  If all useful insights have been generated, set done to true.  Don't generate duplicate or useless insights.  Output JSON only.  Format:
+Generate ${count} candidate insights for the requested category.  If all useful insights have been generated, set done to true.  Don't generate duplicate or useless insights.  Focus on insights that are specific to the target category and don't overlap with insights that would be better categorized elsewhere. Output JSON only.  Format:
 
 {"insights":["I enjoy Italian food", "I prefer a partner who works out a lot", "I love dogs"], "done":false}
 {"insights":[],"done":true}
 
-Category: ${category.category}	
+Here is the complete insight taxonomy to help you understand the scope and avoid overlap:
+${categoryTreeStr}
+
+Target Category: ${category.category}	
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 ${extraHints}${existingInsightsText}`;
@@ -142,6 +173,34 @@ export async function generateBaseQuestion(
     throw new Error(`Category not found for insight ${insight.id}`);
   }
 
+  // Get all categories to build taxonomy
+  const allCategories = await prisma.category.findMany();
+  
+  // Build category tree for context
+  const categoryTree = allCategories.reduce((tree, cat) => {
+    if (!tree[cat.category]) {
+      tree[cat.category] = {};
+    }
+    if (!tree[cat.category][cat.subcategory]) {
+      tree[cat.category][cat.subcategory] = [];
+    }
+    tree[cat.category][cat.subcategory].push(cat.insightSubject);
+    return tree;
+  }, {} as Record<string, Record<string, string[]>>);
+
+  // Convert tree to string representation
+  const categoryTreeStr = Object.entries(categoryTree)
+    .map(([category, subcategories]) => {
+      return `${category}:\n${Object.entries(subcategories)
+        .map(([subcategory, subjects]) => {
+          return `  ${subcategory}:\n${subjects
+            .map(subject => `    - ${subject}`)
+            .join('\n')}`;
+        })
+        .join('\n')}`;
+    })
+    .join('\n');
+
   const categoryInsights = await prisma.insight.findMany({
     where: {
       categoryId: category.id,
@@ -189,7 +248,12 @@ ${preferBinaryPrompt}
 
 When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.  Do not include any annotation of type etc in the question text.
 
-The classification for the insight is:
+Focus on generating a question that is specifically relevant to the target category and won't overlap with questions that would be better suited for other categories in the taxonomy.
+
+Here is the complete insight taxonomy to help you understand the scope and avoid overlap:
+${categoryTreeStr}
+
+The classification for the target insight is:
 Category: ${category.category}	
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
@@ -261,132 +325,6 @@ If you can't generate a unique question, then output:
     insight.id, // inspirationId
     true // shouldDeleteExisting
   );
-}
-
-/**
- * Generates a new category for an insight using AI to determine the best fit
- * @param insight The insight to recategorize
- * @returns Tuple containing the new category object and token usage statistics
- */
-export async function reassignCategory(
-  insight: Insight
-): Promise<[Category, OpenAI.Completions.CompletionUsage] | null> {
-  // Get all existing categories
-  const categories = await prisma.category.findMany();
-  const allSubjects = []
-
-  const existingCategory = await prisma.category.findFirst({ where: { id: insight.categoryId } });
-  if (!existingCategory) {
-    throw new Error("Category not found");
-  }
-
-  // Build category tree
-  const categoryTree = categories.reduce((tree, cat) => {
-    if (!tree[cat.category]) {
-      tree[cat.category] = {};
-    }
-    if (!tree[cat.category][cat.subcategory]) {
-      tree[cat.category][cat.subcategory] = [];
-    }
-    tree[cat.category][cat.subcategory].push(cat.insightSubject);
-    allSubjects.push(cat.insightSubject);
-    return tree;
-  }, {} as Record<string, Record<string, string[]>>);
-
-  // Convert tree to string representation
-  const categoryTreeStr = Object.entries(categoryTree)
-    .map(([category, subcategories]) => {
-      return `${category}:\n${Object.entries(subcategories)
-        .map(([subcategory, subjects]) => {
-          return `  ${subcategory}:\n${subjects
-            .map(subject => `    - ${subject}`)
-            .join('\n')}`;
-        })
-        .join('\n')}`;
-    })
-    .join('\n');
-
-  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine the most appropriate category for an insight.
-
-The insight to categorize is:
-"${insight.insightText}"
-
-It was generated related to another insight with this classification, so there is a decent chance that it is related to the same category:
-Category: ${existingCategory.category}	
-Subcategory: ${existingCategory.subcategory}
-Subject: ${existingCategory.insightSubject}
-
-Here is the hierarchical category structure:
-${categoryTreeStr}
-
-Please select the most appropriate leaf category (insightSubject) for this insight. The category should be the most specific and relevant category that captures the essence of the insight. Output JSON only. Format:
-
-{"insightSubject":"Dietary preferences"}`;
-
-  const model = "gpt-4.1";
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
-  const format = {
-    type: "json_schema" as const,
-    json_schema: {
-      strict: true,
-      name: "category",
-      schema: {
-        type: "object",
-        properties: {
-          insightSubject: {
-            type: "string",
-            enum: allSubjects
-          }
-        },
-        required: ["insightSubject"],
-        additionalProperties: false
-      }
-    }
-  };
-
-  // Try to fetch from cache first
-  const cachedCompletion = await fetchCachedExecution(model, messages, format);
-  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
-    messages,
-    model,
-    response_format: format,
-  });
-
-  try {
-    const categoryData = (completion.choices[0].message as any).parsed as {
-      insightSubject: string;
-    };
-    if (!categoryData) {
-      throw new Error("Parse error");
-    }
-
-    // Find or create the category
-    let category = await prisma.category.findFirst({
-      where: {
-        insightSubject: categoryData.insightSubject,
-      },
-    });
-
-    if (!category) {
-      throw new Error("Unknown subject");
-    }
-
-    // update the category for the insight
-    await prisma.insight.update({
-      where: { id: insight.id },
-      data: { categoryId: category.id },
-    });
-
-    if (!cachedCompletion) {
-      await cachePromptExecution(model, messages, format, completion);
-    }
-
-    return [category, completion.usage];
-  } catch (error) {
-    console.error('Error creating category:', error);
-    console.error('Raw response:', completion.choices[0].message);
-    return [null, completion.usage];
-  }
 }
 
 
@@ -2364,6 +2302,34 @@ export async function generateQuestionFromProposal(
   proposedQuestionText: string,
   mustBeBinary: boolean
 ): Promise<[Question, Answer[], Insight[], OpenAI.Completions.CompletionUsage] | null> {
+  // Get all categories to build taxonomy
+  const allCategories = await prisma.category.findMany();
+  
+  // Build category tree for context
+  const categoryTree = allCategories.reduce((tree, cat) => {
+    if (!tree[cat.category]) {
+      tree[cat.category] = {};
+    }
+    if (!tree[cat.category][cat.subcategory]) {
+      tree[cat.category][cat.subcategory] = [];
+    }
+    tree[cat.category][cat.subcategory].push(cat.insightSubject);
+    return tree;
+  }, {} as Record<string, Record<string, string[]>>);
+
+  // Convert tree to string representation
+  const categoryTreeStr = Object.entries(categoryTree)
+    .map(([category, subcategories]) => {
+      return `${category}:\n${Object.entries(subcategories)
+        .map(([subcategory, subjects]) => {
+          return `  ${subcategory}:\n${subjects
+            .map(subject => `    - ${subject}`)
+            .join('\n')}`;
+        })
+        .join('\n')}`;
+    })
+    .join('\n');
+
   // Get existing questions for this category
   const existingQuestionsRaw = await prisma.question.findMany({
     where: {
@@ -2406,7 +2372,12 @@ ${questionTypePrompt}
 
 Make sure any question does not actually contain a chain of dependent questions. Don't make new questions that are too similar to existing questions. If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.  Do not include any annotation of type etc in the question text.
 
-The classification for this question is:
+Focus on generating a question that is specifically relevant to the target category and won't overlap with questions that would be better suited for other categories in the taxonomy.
+
+Here is the complete insight taxonomy to help you understand the scope and avoid overlap:
+${categoryTreeStr}
+
+The classification for the target category is:
 Category: ${category.category}	
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}

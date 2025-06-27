@@ -2,7 +2,7 @@ import { PrismaClient, InsightSource, Category, Insight, InsightDirection } from
 import * as dotenv from 'dotenv';
 import { 
   generateInspirationInsights, generateBaseQuestion, generateInsightTextFromImportedQuestion,
-  reassignCategory, generateCategoryOverlapByRanking, generateInsightCategoryComparisonByRanking, 
+  generateCategoryOverlapByRanking, generateInsightCategoryComparisonByRanking, 
   generateInsightCategoryOverlap, generateInsightComparisonPresentation,
   reduceExactRedundancyForQuestions, reduceExactRedundancyForInspirations, reduceExactRedundancyForAnswers, 
   reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
@@ -446,15 +446,7 @@ async function main() {
           done = isDone;
           console.log(`Generated ${newInsights.length} insights for category: ${category.insightSubject} (total: ${totalInsights})`);
           console.log(`${newInsights.map(i => i.insightText).join('\n')}`);
-          for (const insight of newInsights) {
-            const [newCategory, usage] = await reassignCategory(insight);
-            totalUsage.promptTokens += usage.prompt_tokens;
-            totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-            totalUsage.completionTokens += usage.completion_tokens;
-            if (newCategory.id != insight.categoryId) {
-              console.log(`Reassigned category for inspiration insight: ${insight.insightText} from ${insight.categoryId} to ${newCategory.id}`);
-            }
-          }
+
         }
         totalInsights = await prisma.insight.count({ where: { categoryId: category.id, source: InsightSource.INSPIRATION } });
 
@@ -513,24 +505,7 @@ async function main() {
       BATCH_COUNT
     );
 
-    console.log('Reassigning category for inspiration insights...');
-    let answerInsights = await prisma.insight.findMany({ where: { source: InsightSource.ANSWER } });
 
-    await processInParallel<Insight, void>(
-      answerInsights,
-      async (insight) => {
-        const originalCategory = await prisma.category.findFirst({ where: { id: insight.categoryId } });
-        const [category, usage] = await reassignCategory(insight);
-        if (category.id == originalCategory.id) {
-          return;
-        }
-        console.log(`Reassigned category for insight: ${insight.insightText} from ${originalCategory?.insightSubject} to ${category?.insightSubject}`);
-        totalUsage.promptTokens += usage.prompt_tokens;
-        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-        totalUsage.completionTokens += usage.completion_tokens;
-      },
-      BATCH_COUNT
-    );
 
     console.log('Reducing redundancy for QUESTION exact matches...');
     const questionExactDupes = await reduceExactRedundancyForQuestions();
@@ -647,7 +622,7 @@ async function main() {
     if (GENERATE_COMPARISONS) {
       console.log('Generating insight comparisons for strong category overlaps (by relevant categories)...');
 
-      answerInsights = await prisma.insight.findMany({ where: { source: InsightSource.ANSWER } });
+      const answerInsights = await prisma.insight.findMany({ where: { source: InsightSource.ANSWER } });
       await processInParallel<Insight, void>(
         answerInsights,
         async (insight) => {
