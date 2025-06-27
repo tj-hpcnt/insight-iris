@@ -601,11 +601,7 @@ Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
 Here are all the ANSWER insights for this category with their question context:
-${insightContexts.map((ctx, index) => 
-  `${index + 1}. Question: "${ctx.question}"
-   Answer: "${ctx.answer}"
-   Insight: "${ctx.insight}"`
-).join('\n\n')}
+${insightContexts.map((ctx) => JSON.stringify(ctx)).join('\n')}
 
 Please analyze these insights considering their question context and group together only those that are truly equivalent. For each group, the first insight in the list should be the clearest or most preferred representation. Don't output single insights, only groups of 2 or more. Each insight can only appear in one group. 
 
