@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getInsightSubjectStyle } from '../utils/colorUtils';
 import PublishedIdChip from './PublishedIdChip';
 import ProposedChip from './ProposedChip';
@@ -97,6 +98,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   onSkipQuestion,
   onCategoryClick,
 }) => {
+  const navigate = useNavigate();
   const [questionData, setQuestionData] = useState<QuestionData | null>(null); // Changed from fullContext
   const [loadingQuestionContext, setLoadingQuestionContext] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -233,14 +235,13 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   };
 
   // Add function to handle question navigation from AnswerCountChip
-  const handleQuestionNavigation = (questionId: number, categoryId: number) => {
-    // If navigating to a question in a different category, we might need special handling
-    if (categoryId !== questionData?.category.id) {
-      console.warn('Navigation to different category not fully implemented');
+  const handleQuestionNavigation = async (questionId: number, categoryId: number) => {
+    try {
+      // Navigate to the question using the proper route format
+      navigate(`/categories/${categoryId}/questions/${questionId}`);
+    } catch (error) {
+      console.error('Failed to navigate to question:', error);
     }
-    // For now, we'll just call the existing navigation handler
-    // In a full implementation, you might need to update the parent component
-    window.location.href = `#/question/${questionId}`; // Simple navigation for now
   };
 
   if (loadingQuestionContext) return <p>Loading question context...</p>;

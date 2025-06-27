@@ -108,13 +108,23 @@ const AnswerCountChip: React.FC<AnswerCountChipProps> = ({
           {relatedQuestions.map((question) => (
             <div 
               key={question.id}
+              onClick={(e) => handleQuestionNavigation(e, question.id, question.category.id)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '8px 0',
+                padding: '8px',
                 borderBottom: '1px solid #eee',
-                gap: '8px'
+                gap: '8px',
+                cursor: 'pointer',
+                borderRadius: '4px',
+                transition: 'background-color 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f8f9fa';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -126,8 +136,7 @@ const AnswerCountChip: React.FC<AnswerCountChipProps> = ({
                   {question.questionText}
                 </div>
               </div>
-              <button
-                onClick={(e) => handleQuestionNavigation(e, question.id, question.category.id)}
+              <div
                 style={{
                   backgroundColor: '#e5e5e5', // Light gray like PublishedTagChip
                   color: 'black',
@@ -135,21 +144,15 @@ const AnswerCountChip: React.FC<AnswerCountChipProps> = ({
                   borderRadius: '12px',
                   padding: '4px 8px',
                   fontSize: '12px',
-                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
-                  flexShrink: 0
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#d6d6d6'; // Slightly darker on hover
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#e5e5e5';
+                  flexShrink: 0,
+                  pointerEvents: 'none' // Prevents the div from interfering with parent click
                 }}
               >
                 Go →
-              </button>
+              </div>
             </div>
           ))}
         </div>
