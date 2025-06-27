@@ -555,7 +555,7 @@ Please analyze these insights and group together those that are equivalent (i.e.
 
 /**
  * Reduces redundancy in ANSWER insights for a given category by identifying and merging equivalent insights.
- * It identifies groups of equivalent insights, keeps the clearest one,
+ * It identifies groups of equivalent insights considering their question context, keeps the clearest one,
  * relinks Answer records from redundant insights to the primary one, and then deletes the redundant insights.
  * @param category The category to reduce redundancy in
  * @returns Tuple containing array of deleted insight IDs and token usage statistics
@@ -563,29 +563,61 @@ Please analyze these insights and group together those that are equivalent (i.e.
 export async function reduceRedundancyForAnswers(
   category: Category
 ): Promise<[{oldInsight: Insight, newInsight: Insight}[], OpenAI.Completions.CompletionUsage] | null> {
-  // Get all ANSWER insights for this category
+  // Get all ANSWER insights for this category with their associated questions and answers
   const insights = await prisma.insight.findMany({
     where: {
       categoryId: category.id,
       source: InsightSource.ANSWER,
     },
+    include: {
+      answers: {
+        include: {
+          question: true,
+        }
+      }
+    }
   });
 
   if (insights.length <= 1) {
     return [[], NO_TOKEN_USAGE];
   }
 
-  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and merge equivalent insights within a category that essentially convey the same information.
+  // Build insight-question context pairs for the AI
+  const insightContexts = insights.map(insight => {
+    const answer = insight.answers?.[0]; // Get the first (should be only) answer
+    const question = answer?.question;
+    return {
+      insight: insight.insightText,
+      question: question?.questionText || 'No question context',
+      answer: answer?.answerText || 'No answer context'
+    };
+  });
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and merge equivalent insights within a category that essentially convey the same information, but ONLY when they make sense within the context of their related questions.
 
 Category Classification:
 Category: ${category.category}
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
-Here are all the ANSWER insights for this category:
-${insights.map((insight) => `"${insight.insightText}"`).join('\n')}
+Here are all the ANSWER insights for this category with their question context:
+${insightContexts.map((ctx, index) => 
+  `${index + 1}. Question: "${ctx.question}"
+   Answer: "${ctx.answer}"
+   Insight: "${ctx.insight}"`
+).join('\n\n')}
 
-Please analyze these insights and group together those that are equivalent. For each group, the first insight in the list should be the clearest or most preferred representation. Don't output single insights, only groups. Each insight can only appear in one group. Output JSON only. Format:
+Please analyze these insights considering their question context and group together only those that are truly equivalent. For each group, the first insight in the list should be the clearest or most preferred representation. Don't output single insights, only groups of 2 or more. Each insight can only appear in one group. 
+
+Only group insights as equivalent if they truly convey the same information AND it makes sense within the context of their related questions. Different questions may lead to similar-sounding insights that are actually distinct in meaning. For example:
+- "I enjoy spicy food" from a cuisine preference question vs "I like spicy challenges" from a personality question should NOT be grouped
+- "I prefer dogs" from a pet preference question vs "I prefer dogs over cats" from an animal preference question SHOULD be grouped if they convey the same preference
+
+If a question has multiple answers that are subtlely different, be careful to only group ones together that are very close in meaning, e.g. the difference would not affect the user's compatibility with another user.
+
+When ordering the insights in a group, list the more general insights first, then the more specific ones.
+
+Output JSON only. Format:
 
 {"equivalentInsightGroups": [["I love Italian food", "I enjoy pasta dishes", "Italian cuisine is my favorite"], ["I dislike sports", "I'm not a sports fan"]]}`;
 
