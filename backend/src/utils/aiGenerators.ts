@@ -253,8 +253,6 @@ When making a binary statement, do not include the details in the answer, simply
 
 Focus on generating a question that is specifically relevant to the target category and won't overlap with questions that would be better suited for other categories in the taxonomy.
 
-Each answer MUST have a corresponding insight.
-
 Here is the complete insight taxonomy to help you understand the scope and avoid overlap:
 ${categoryTreeStr}
 
@@ -269,7 +267,7 @@ ${insight.insightText}
 The existing questions for this category are:
 ${questions.map(question => question.text).join('\n')}
 
-Output JSON only.  Follow this format and use the examples to guide how to choose tone and style:
+Output JSON only.  Each genreated answer MUST have a corresponding insight.  The arrays of answers and insights must be the same length.  Follow this format and use the examples to guide how to choose tone and style:
 ${sampleQuestions}
 
 If you can't generate a unique question, then output:
