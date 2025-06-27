@@ -387,7 +387,7 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
+      <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Breadcrumbs 
           items={breadcrumbItems} 
           onCategoryNavigation={handleCategoryNavigation}

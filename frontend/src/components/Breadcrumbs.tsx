@@ -25,16 +25,16 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   const arrowButtonStyle = (enabled: boolean) => ({
     background: 'none',
     border: '1px solid #ddd',
-    borderRadius: '4px',
-    padding: '4px 8px',
+    borderRadius: '3px',
+    padding: '2px 6px',
     cursor: enabled ? 'pointer' : 'not-allowed',
     color: enabled ? '#007bff' : '#ccc',
-    fontSize: '14px',
+    fontSize: '12px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: '28px',
-    height: '28px',
+    minWidth: '22px',
+    height: '22px',
     opacity: enabled ? 1 : 0.5,
     transition: 'all 0.2s ease',
   });
@@ -67,7 +67,7 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                 >
                   ←
                 </button>
-                <span style={{ margin: '0 8px' }}></span>
+                <span style={{ margin: '0 4px' }}></span>
               </>
             )}
             
@@ -84,7 +84,7 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                 font: 'inherit',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
+                gap: '4px',
               }}
             >
               {item.label}
@@ -98,7 +98,7 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
             {/* Show navigation arrows for category items (items with insightSubject) */}
             {item.insightSubject && onCategoryNavigation && (
               <>
-                <span style={{ margin: '0 8px' }}></span>
+                <span style={{ margin: '0 4px' }}></span>
                 <button
                   onClick={() => canNavigateNext && onCategoryNavigation('next')}
                   disabled={!canNavigateNext}

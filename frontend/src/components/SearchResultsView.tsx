@@ -118,8 +118,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick }
 
   return (
     <div>
-      <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-        <h2 style={{ margin: '0 0 8px 0', color: '#495057' }}>
+      <div style={{ marginBottom: '10px', padding: '8px 12px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+        <h2 style={{ margin: '0 0 4px 0', color: '#495057' }}>
           Search Results for "{searchQuery}"
         </h2>
         <p style={{ margin: 0, color: '#6c757d', fontSize: '14px' }}>

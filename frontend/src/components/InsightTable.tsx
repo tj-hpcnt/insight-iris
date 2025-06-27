@@ -189,7 +189,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
   const tabStyle = {
     display: 'flex',
     borderBottom: '2px solid #e0e0e0',
-    marginBottom: '20px',
+    marginBottom: '10px',
     backgroundColor: '#f8f9fa'
   };
 

@@ -28,11 +28,7 @@ const SearchBox: React.FC = () => {
     <div style={{ 
       display: 'flex', 
       alignItems: 'center', 
-      gap: '8px',
-      padding: '8px',
-      backgroundColor: '#f8f9fa',
-      borderRadius: '8px',
-      border: '1px solid #dee2e6'
+      gap: '4px'
     }}>
       <input
         type="text"
@@ -42,7 +38,7 @@ const SearchBox: React.FC = () => {
         placeholder="Search questions, answers, and insights..."
         style={{
           flex: 1,
-          padding: '8px 12px',
+          padding: '6px 10px',
           border: '1px solid #ced4da',
           borderRadius: '4px',
           fontSize: '14px',
@@ -62,7 +58,7 @@ const SearchBox: React.FC = () => {
         onClick={handleSearch}
         disabled={!searchQuery.trim()}
         style={{
-          padding: '8px 16px',
+          padding: '6px 12px',
           backgroundColor: !searchQuery.trim() ? '#6c757d' : '#007bff',
           color: 'white',
           border: 'none',
@@ -70,7 +66,7 @@ const SearchBox: React.FC = () => {
           cursor: !searchQuery.trim() ? 'not-allowed' : 'pointer',
           fontSize: '14px',
           fontWeight: '500',
-          minWidth: '80px'
+          minWidth: '60px'
         }}
         onMouseEnter={(e) => {
           if (searchQuery.trim()) {
@@ -85,29 +81,6 @@ const SearchBox: React.FC = () => {
       >
         Search
       </button>
-      {searchQuery && (
-        <button
-          onClick={handleClear}
-          style={{
-            padding: '8px 12px',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#545b62';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#6c757d';
-          }}
-        >
-          Clear
-        </button>
-      )}
     </div>
   );
 };
