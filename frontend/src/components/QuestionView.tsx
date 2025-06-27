@@ -4,6 +4,7 @@ import PublishedIdChip from './PublishedIdChip';
 import ProposedChip from './ProposedChip';
 import PublishedTagChip from './PublishedTagChip';
 import CategoryChip from './CategoryChip';
+import AnswerCountChip from './AnswerCountChip';
 
 // --- Data Interfaces based on backend schema and new API payload ---
 interface CategoryInfo {
@@ -79,6 +80,15 @@ interface QuestionViewProps {
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
 }
 
+// Add interface for related questions (similar to InsightTable)
+interface RelatedQuestion {
+  id: number;
+  questionText: string;
+  publishedId: string | null;
+  proposedQuestion: string | null;
+  category: CategoryInfo;
+}
+
 const QuestionView: React.FC<QuestionViewProps> = ({
   questionId, // Changed from insightId
   totalQuestionsInCategory,
@@ -93,6 +103,10 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [hoveredAnswerOptionId, setHoveredAnswerOptionId] = useState<number | null>(null);
   const [hoveredPrevButton, setHoveredPrevButton] = useState<boolean>(false);
   const [hoveredNextButton, setHoveredNextButton] = useState<boolean>(false);
+  
+  // Add state for insight question counts and mappings
+  const [insightAnswerCounts, setInsightAnswerCounts] = useState<Map<number, number>>(new Map());
+  const [insightToQuestionsMap, setInsightToQuestionsMap] = useState<Map<number, RelatedQuestion[]>>(new Map());
 
   useEffect(() => {
     if (!questionId) return;
@@ -120,6 +134,79 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     fetchQuestionData();
   }, [questionId]); // Changed from insightId
 
+  // Add effect to fetch insight counts when question data is available
+  useEffect(() => {
+    if (!questionData) return;
+
+    const fetchInsightCounts = async () => {
+      try {
+        // Get all unique insight IDs from the current question's answers
+        const insightIds = questionData.answers
+          .filter(answer => answer.linkedAnswerInsight)
+          .map(answer => answer.linkedAnswerInsight!.id);
+        
+        console.log('Question data:', questionData);
+        console.log('Insight IDs found:', insightIds);
+        
+        if (insightIds.length === 0) return;
+
+        // Fetch questions that use these insights from the same category
+        const response = await fetch(`/api/categories/${questionData.category.id}/questions`);
+        if (!response.ok) return; // Fail silently for counts
+        
+        const allQuestions: QuestionData[] = await response.json();
+        console.log('All questions in category:', allQuestions.length);
+        console.log('First question structure:', allQuestions[0]);
+        
+        // Build mappings of insight ID to questions that use it
+        const insightToQuestionsMap = new Map<number, RelatedQuestion[]>();
+        const insightCounts = new Map<number, number>();
+        
+        allQuestions.forEach(question => {
+          question.answers.forEach(answer => {
+            // The API returns 'insight' not 'linkedAnswerInsight' for the category questions endpoint
+            const answerInsight = (answer as any).insight || answer.linkedAnswerInsight;
+            if (answerInsight) {
+              const insightId = answerInsight.id;
+              
+              if (!insightToQuestionsMap.has(insightId)) {
+                insightToQuestionsMap.set(insightId, []);
+              }
+              
+              const questionsList = insightToQuestionsMap.get(insightId)!;
+              // Add question if not already present
+              if (!questionsList.find(q => q.id === question.id)) {
+                questionsList.push({
+                  id: question.id,
+                  questionText: question.questionText,
+                  publishedId: question.publishedId,
+                  proposedQuestion: question.proposedQuestion,
+                  category: question.category
+                });
+              }
+            }
+          });
+        });
+        
+        // Set counts
+        insightToQuestionsMap.forEach((questions, insightId) => {
+          insightCounts.set(insightId, questions.length);
+        });
+        
+        console.log('Insight counts:', Array.from(insightCounts.entries()));
+        console.log('Insight to questions map:', Array.from(insightToQuestionsMap.entries()));
+        
+        setInsightToQuestionsMap(insightToQuestionsMap);
+        setInsightAnswerCounts(insightCounts);
+      } catch (e) {
+        // Fail silently for counts - they're not critical
+        console.warn('Failed to fetch insight counts:', e);
+      }
+    };
+
+    fetchInsightCounts();
+  }, [questionData]);
+
   useEffect(() => {
     if (hoveredAnswerOptionId !== null) {
       const element = document.getElementById(`answer-insight-item-${hoveredAnswerOptionId}`);
@@ -143,6 +230,17 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   // New function to handle hover on detail items (for bidirectional highlighting)
   const handleDetailItemHover = (answerId: number | null) => {
     setHoveredAnswerOptionId(answerId);
+  };
+
+  // Add function to handle question navigation from AnswerCountChip
+  const handleQuestionNavigation = (questionId: number, categoryId: number) => {
+    // If navigating to a question in a different category, we might need special handling
+    if (categoryId !== questionData?.category.id) {
+      console.warn('Navigation to different category not fully implemented');
+    }
+    // For now, we'll just call the existing navigation handler
+    // In a full implementation, you might need to update the parent component
+    window.location.href = `#/question/${questionId}`; // Simple navigation for now
   };
 
   if (loadingQuestionContext) return <p>Loading question context...</p>;
@@ -292,7 +390,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
         </button>
 
         {/* Related Answer Insights (Now to the very right, takes remaining space) */}
-        <div style={{ flex: 1, maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', minWidth: 0 }}> 
+        <div style={{ flex: 1, minWidth: 0 }}> 
           <h4>Details</h4>
           {questionData.inspiration && (
             <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0' }}>
@@ -344,7 +442,12 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                           />
                         </div>
                         <div style={{ marginLeft: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <p style={{ fontStyle: 'italic', color: '#555', margin: 0 }}>
+                          <p style={{ fontStyle: 'italic', color: '#555', margin: 0, display: 'flex', alignItems: 'center' }}>
+                            <AnswerCountChip 
+                              count={insightAnswerCounts.get(answer.linkedAnswerInsight.id) || 0}
+                              relatedQuestions={insightToQuestionsMap.get(answer.linkedAnswerInsight.id) || []}
+                              onQuestionClick={handleQuestionNavigation}
+                            />
                             ↪ {answer.linkedAnswerInsight.insightText}
                           </p>
                           {answer.linkedAnswerInsight.publishedTag && (
