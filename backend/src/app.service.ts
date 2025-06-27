@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaClient, InsightSource, OverlapType, PolarityType, Insight, Category, CategoryOverlap, InsightComparison, InsightComparisonPresentation, Question, Answer, QuestionType } from '@prisma/client';
+import { searchQuestionsAnswersInsights, SearchResult } from './utils/search';
 
 // Define category information structure
 type CategoryInfo = {
@@ -353,5 +354,13 @@ export class AppService {
       })),
       category: question.category,
     };
+  }
+
+  async searchQuestionsAnswersInsights(searchQuery: string): Promise<SearchResult[]> {
+    if (!searchQuery || searchQuery.trim().length === 0) {
+      return [];
+    }
+
+    return await searchQuestionsAnswersInsights(searchQuery.trim());
   }
 } 

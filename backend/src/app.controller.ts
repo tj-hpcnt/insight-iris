@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
 import { AppService } from './app.service';
 
 @Controller('api')
@@ -28,5 +28,10 @@ export class AppController {
   @Get('questions/:questionId')
   async getQuestionById(@Param('questionId', ParseIntPipe) questionId: number) {
     return this.appService.getQuestionById(questionId);
+  }
+
+  @Post('search')
+  async searchQuestionsAnswersInsights(@Body() body: { query: string }) {
+    return this.appService.searchQuestionsAnswersInsights(body.query);
   }
 } 

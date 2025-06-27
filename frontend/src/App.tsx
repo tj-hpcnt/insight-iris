@@ -4,6 +4,8 @@ import Breadcrumbs, { BreadcrumbItem } from './components/Breadcrumbs';
 import CategoryTable from './components/CategoryTable';
 import InsightTable, { InsightType } from './components/InsightTable';
 import QuestionView from './components/QuestionView';
+import SearchBox from './components/SearchBox';
+import SearchResultsView from './components/SearchResultsView';
 import './App.css'; // For global styles if any
 
 // Interface for categories
@@ -83,6 +85,7 @@ function App() {
   const getViewFromURL = () => {
     const path = location.pathname;
     if (path === '/' || path === '/categories') return 'categories';
+    if (path === '/search') return 'search';
     if (path.includes('/categories/') && path.includes('/questions/')) return 'question';
     if (path.includes('/categories/')) return 'insights';
     return 'categories';
@@ -245,6 +248,37 @@ function App() {
     navigate(`/categories/${selectedCategoryId}/questions/${questionId}`);
   };
 
+  const handleSearchQuestionClick = async (questionId: number) => {
+    try {
+      // First, get the question to find its category
+      const response = await fetch(`/api/questions/${questionId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const questionData = await response.json();
+      
+      // Set the category context
+      const categoryId = questionData.category.id;
+      setSelectedCategoryId(categoryId);
+      setSelectedInsightSubject(questionData.category.insightSubject);
+      setSelectedInsightType('answers');
+      setSelectedQuestionId(questionId);
+      
+      // Update category index if needed
+      if (allCategories.length > 0) {
+        const categoryIndex = allCategories.findIndex(cat => cat.id === categoryId);
+        if (categoryIndex !== -1) {
+          setCurrentCategoryIndex(categoryIndex);
+        }
+      }
+      
+      // Navigate to the question
+      navigate(`/categories/${categoryId}/questions/${questionId}`);
+    } catch (error) {
+      console.error('Failed to navigate to search question:', error);
+    }
+  };
+
   const navigateToCategories = () => {
     setSelectedCategoryId(null);
     setSelectedInsightSubject(null);
@@ -323,7 +357,13 @@ function App() {
     { label: 'Categories', onClick: navigateToCategories, isCurrent: currentView === 'categories' },
   ];
 
-  if (selectedCategoryId && selectedInsightSubject) {
+  if (currentView === 'search') {
+    breadcrumbItems.push({
+      label: 'Search Results',
+      onClick: () => {}, // No action needed for current page
+      isCurrent: true
+    });
+  } else if (selectedCategoryId && selectedInsightSubject) {
     breadcrumbItems.push({
       label: '',
       onClick: () => navigateToInsightsView(), // Defaults to current or inspiration type
@@ -347,18 +387,20 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header">
+      <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
         <Breadcrumbs 
           items={breadcrumbItems} 
           onCategoryNavigation={handleCategoryNavigation}
           canNavigatePrev={currentCategoryIndex > 0}
           canNavigateNext={currentCategoryIndex < allCategories.length - 1}
         />
+        <SearchBox />
       </header>
       <main>
         <Routes>
           <Route path="/" element={<CategoriesView onCategoryClick={handleCategoryClick} />} />
           <Route path="/categories" element={<CategoriesView onCategoryClick={handleCategoryClick} />} />
+          <Route path="/search" element={<SearchResultsView onQuestionClick={handleSearchQuestionClick} />} />
           <Route 
             path="/categories/:categoryId" 
             element={
