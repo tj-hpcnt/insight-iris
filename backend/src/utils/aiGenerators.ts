@@ -12,6 +12,10 @@ const openai = new OpenAI({
 
 const prisma = new PrismaClient();
 
+const ULTRA_LOW_MODEL = "gpt-4.1";
+const LOW_MODEL = "o4-mini";
+const HIGH_MODEL = "o4-mini";
+
 export function fixIllegalEnumCharacters(str: string): string {
   str = str.replaceAll('"', "\'")
   str = str.replaceAll('…', '...')
@@ -93,7 +97,7 @@ Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 ${extraHints}${existingInsightsText}`;
 
-  const model = "gpt-4.1";
+  const model = LOW_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -272,7 +276,7 @@ If you can't generate a unique question, then output:
 {"question":"","answers":[], "insights":[], "type":"DUPLICATE"}
 `;
 
-  const model = "gpt-4.1";
+  const model = LOW_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -374,7 +378,7 @@ Please analyze these insights and group together those that are equivalent (i.e.
 
 {"equivalentInsightGroups": [["I love Italian food", "I enjoy pasta dishes", "Italian cuisine is my favorite"], ["I dislike sports", "I'm not a sports fan"]]}`;
 
-  const model = "o3";
+  const model = HIGH_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -474,16 +478,7 @@ Please analyze these insights and group together those that are equivalent (i.e.
       }
     });
 
-    // o3 costs 5x more than gpt-4.1
-    const usage = {
-      prompt_tokens: completion.usage.prompt_tokens * 5,
-      completion_tokens: completion.usage.completion_tokens * 5,
-      prompt_tokens_details: {
-        cached_tokens: completion.usage.prompt_tokens_details.cached_tokens * 5,
-      }
-    } as OpenAI.Completions.CompletionUsage;
-    
-    return [deletedInsights, usage];
+    return [deletedInsights, completion.usage];
 
   } catch (error) {
     console.error('Error reducing redundancy:', error);
@@ -556,7 +551,7 @@ Output JSON only. Format:
 
 {"equivalentInsightGroups": [["I love Italian food", "I enjoy pasta dishes", "Italian cuisine is my favorite"], ["I dislike sports", "I'm not a sports fan"]]}`;
 
-  const model = "o3"; // Using o3 as it's good for classification and structuring
+  const model = HIGH_MODEL; // Using o3 as it's good for classification and structuring
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -713,16 +708,7 @@ Output JSON only. Format:
       }
     });
 
-    // o3 costs 5x more than gpt-4.1
-    const usage = {
-      prompt_tokens: (completion.usage?.prompt_tokens || 0) * 5,
-      completion_tokens: (completion.usage?.completion_tokens || 0) * 5,
-      prompt_tokens_details: { // Assuming prompt_tokens_details might be null
-        cached_tokens: (completion.usage?.prompt_tokens_details?.cached_tokens || 0) * 5,
-      }
-    } as OpenAI.Completions.CompletionUsage;
-
-    return [mergedInsights, usage];
+    return [mergedInsights, completion.usage];
 
   } catch (error) {
     console.error(`Error reducing redundancy for ANSWER insights in category ${category.insightSubject}:`, error);
@@ -796,7 +782,7 @@ Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 `;
 
-  const model = "o3";
+  const model = HIGH_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -909,16 +895,7 @@ Subject: ${category.insightSubject}
       await cachePromptExecution(model, messages, format, completion);
     }
 
-    // o3 costs 5x more than gpt-4.1
-    const usage = {
-      prompt_tokens: completion.usage.prompt_tokens * 5,
-      completion_tokens: completion.usage.completion_tokens * 5,
-      prompt_tokens_details: {
-        cached_tokens: completion.usage.prompt_tokens_details.cached_tokens * 5,
-      }
-    } as OpenAI.Completions.CompletionUsage;
-
-    return [overlaps, usage];
+    return [overlaps, completion.usage];
   } catch (error) {
     console.error('Error creating category overlaps:', error);
     console.error('Raw response:', completion.choices[0].message);
@@ -1029,7 +1006,7 @@ Subcategory: ${insightCategory.subcategory}
 Subject: ${insightCategory.insightSubject}
 `;
 
-  const model = "gpt-4.1";
+  const model = LOW_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -1263,7 +1240,7 @@ export async function generateInsightCategoryComparisonByRanking(
   "${insight.insightText}"
   `;
 
-  const model = "gpt-4.1";
+  const model = ULTRA_LOW_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -1443,7 +1420,7 @@ ${insightA.insightText}
 User B Insight (corresponds to insightComparison.insightBId):
 ${insightB.insightText}`;
 
-  const model = "gpt-4.1";
+  const model = ULTRA_LOW_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -1710,7 +1687,7 @@ Please analyze these questions and group together those that are equivalent or a
 
 {"equivalentQuestionGroups": [["What's your favorite food?", "Which food do you enjoy most?", "What food do you love eating?"], ["Do you like sports?", "Are you into athletics?"]]}`;
 
-  const model = "o3"; // Using o3 for better grouping analysis
+  const model = HIGH_MODEL; // Using o3 for better grouping analysis
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -1823,16 +1800,7 @@ Please analyze these questions and group together those that are equivalent or a
       timeout: 20000, // default 5000
     });
 
-    // o3 costs 5x more than gpt-4.1
-    const usage = {
-      prompt_tokens: (completion.usage?.prompt_tokens || 0) * 5,
-      completion_tokens: (completion.usage?.completion_tokens || 0) * 5,
-      prompt_tokens_details: {
-        cached_tokens: (completion.usage?.prompt_tokens_details?.cached_tokens || 0) * 5,
-      }
-    } as OpenAI.Completions.CompletionUsage;
-
-    return [mergedQuestionsInfo, usage];
+    return [mergedQuestionsInfo, completion.usage];
 
   } catch (error) {
     console.error(`Error reducing redundancy for questions in category ${category.insightSubject}:`, error);
@@ -2129,7 +2097,7 @@ Subject: ${category.insightSubject}
 ${publishedTag ? `Make the insight concisely focus on this topic: ${publishedTag}\n` : ''}Question: "${questionText}"
 Answer: "${answerText}"`;
 
-  const model = "gpt-4.1";
+  const model = LOW_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   
   const format = {
@@ -2229,7 +2197,7 @@ Please select the most appropriate leaf category (insightSubject) for this quest
 
 {"insightSubject":"Dietary preferences"}`;
 
-  const model = "gpt-4.1";
+  const model = LOW_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -2394,7 +2362,7 @@ If you can't generate a unique question, then output:
 {"question":"","answers":[], "insights":[], "type":"DUPLICATE"}
 `;
 
-  const model = "gpt-4.1";
+  const model = LOW_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const allowedTypes = mustBeBinary 
     ? ["BINARY", "DUPLICATE"]
