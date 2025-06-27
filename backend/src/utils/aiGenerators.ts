@@ -241,7 +241,7 @@ export async function generateBaseQuestion(
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers.  We need to generate the fun questions to answer that can explore a potential insight 
 
-You must generate a great question to facilitate finding out if a particular insight is true of a user.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  
+You must generate a great question to facilitate finding out if a particular insight is true of a user.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  Do not generate a "None of these" option if the other options aren't completely exhaustive, as it would not be able to have an insight.
 
 The allowed question types are:
 - BINARY: ${typeDescription[QuestionType.BINARY]}
