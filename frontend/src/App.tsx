@@ -181,6 +181,46 @@ function App() {
     setSelectedInsightType(insightType || 'answers');
   }, [location]);
 
+  // Fetch category details when selectedCategoryId changes (for page reload scenario)
+  useEffect(() => {
+    if (selectedCategoryId && allCategories.length > 0) {
+      const category = allCategories.find(cat => cat.id === selectedCategoryId);
+      if (category && category.insightSubject !== selectedInsightSubject) {
+        setSelectedInsightSubject(category.insightSubject);
+      }
+    } else if (!selectedCategoryId) {
+      setSelectedInsightSubject(null);
+    }
+  }, [selectedCategoryId, allCategories, selectedInsightSubject]);
+
+  // Handle case where we're on a question page but don't have category context (direct URL access)
+  useEffect(() => {
+    if (currentView === 'question' && selectedQuestionId && !selectedInsightSubject) {
+      const fetchQuestionCategory = async () => {
+        try {
+          const response = await fetch(`/api/questions/${selectedQuestionId}`);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const questionData = await response.json();
+          
+          // Set the category context if it's missing
+          if (questionData.category && questionData.category.insightSubject !== selectedInsightSubject) {
+            setSelectedInsightSubject(questionData.category.insightSubject);
+            
+            // Also ensure categoryId is set correctly
+            if (questionData.category.id !== selectedCategoryId) {
+              setSelectedCategoryId(questionData.category.id);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch question category context:', error);
+        }
+      };
+      fetchQuestionCategory();
+    }
+  }, [currentView, selectedQuestionId, selectedInsightSubject, selectedCategoryId]);
+
   // When in question view, ensure the currentQuestionIndex matches the actual question
   useEffect(() => {
     if (currentView === 'question' && selectedQuestionId) {
