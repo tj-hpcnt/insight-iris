@@ -34,8 +34,23 @@ interface CategoryTableProps {
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
 }
 
+interface Totals {
+  published: number;
+  proposed: number;
+  generated: number;
+  absoluteTotal: number;
+  newQuestions: number;
+}
+
 const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
   const [categories, setCategories] = useState<CategoryDisplay[]>([]);
+  const [totals, setTotals] = useState<Totals>({
+    published: 0,
+    proposed: 0,
+    generated: 0,
+    absoluteTotal: 0,
+    newQuestions: 0
+  });
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +72,28 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
             insightSubject: cat.insightSubject,
             questionCounts: cat.questionCounts
         }));
+        
+        // Calculate totals
+        const calculatedTotals = displayData.reduce((acc, category) => {
+          if (category.questionCounts) {
+            acc.published += category.questionCounts.published;
+            acc.proposed += category.questionCounts.proposed;
+            acc.generated += category.questionCounts.generated;
+          }
+          return acc;
+        }, {
+          published: 0,
+          proposed: 0,
+          generated: 0,
+          absoluteTotal: 0,
+          newQuestions: 0
+        });
+        
+        calculatedTotals.absoluteTotal = calculatedTotals.published + calculatedTotals.proposed + calculatedTotals.generated;
+        calculatedTotals.newQuestions = calculatedTotals.proposed + calculatedTotals.generated;
+        
         setCategories(displayData);
+        setTotals(calculatedTotals);
       } catch (e) {
         if (e instanceof Error) {
           setError(e.message);
@@ -113,6 +149,40 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
           </tr>
         ))}
       </tbody>
+      <tfoot>
+        <tr style={{ 
+          fontWeight: 'bold', 
+          borderTop: '2px solid #ddd', 
+          backgroundColor: '#f8f9fa' 
+        }}>
+          <td colSpan={3}>
+            Total
+            <span style={{ 
+              marginLeft: '8px', 
+              padding: '4px 8px', 
+              backgroundColor: '#e9ecef', 
+              borderRadius: '4px',
+              fontSize: '0.85em'
+            }}>
+              Total: {totals.absoluteTotal}
+            </span>
+            <span style={{ 
+              marginLeft: '4px', 
+              padding: '4px 8px', 
+              backgroundColor: '#d4edda', 
+              borderRadius: '4px',
+              fontSize: '0.85em'
+            }}>
+              New: {totals.newQuestions}
+            </span>
+          </td>
+          <td>
+            <QuestionCountChip count={totals.published} type="published" />
+            <QuestionCountChip count={totals.proposed} type="proposed" />
+            <QuestionCountChip count={totals.generated} type="generated" />
+          </td>
+        </tr>
+      </tfoot>
     </table>
   );
 };
