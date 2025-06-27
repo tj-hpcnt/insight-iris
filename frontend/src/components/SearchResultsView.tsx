@@ -38,9 +38,10 @@ export interface SearchResult {
 
 interface SearchResultsViewProps {
   onQuestionClick: (questionId: number) => void;
+  onCategoryClick: (categoryId: number, insightSubject: string) => void;
 }
 
-const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick }) => {
+const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick, onCategoryClick }) => {
   const location = useLocation();
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -220,7 +221,11 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick }
                   {result.proposedQuestion && !result.publishedId && (
                     <ProposedChip />
                   )}
-                  <CategoryChip insightSubject={result.category.insightSubject} />
+                  <CategoryChip 
+                    insightSubject={result.category.insightSubject} 
+                    categoryId={result.category.id}
+                    onClick={onCategoryClick} 
+                  />
                 </div>
               </td>
               <td style={{ 
@@ -252,10 +257,14 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick }
                     )}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                    {result.type === 'answer' && result.answerInsightCategory && 
-                     result.answerInsightCategory.id !== result.category.id && (
-                      <CategoryChip insightSubject={result.answerInsightCategory.insightSubject} />
-                    )}
+                                          {result.type === 'answer' && result.answerInsightCategory && 
+                       result.answerInsightCategory.id !== result.category.id && (
+                        <CategoryChip 
+                          insightSubject={result.answerInsightCategory.insightSubject} 
+                          categoryId={result.answerInsightCategory.id}
+                          onClick={onCategoryClick} 
+                        />
+                      )}
                     {result.type === 'answer' && result.answerInsightPublishedTag && (
                       <PublishedTagChip publishedTag={result.answerInsightPublishedTag} />
                     )}
@@ -267,10 +276,14 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick }
                 borderBottom: '1px solid #dee2e6',
                 color: '#495057'
               }}>
-                {result.type === 'answer' && result.answerInsightFirstCategory && 
-                 result.answerInsightFirstCategory.id !== (result.answerInsightCategory?.id || 0) && (
-                  <CategoryChip insightSubject={result.answerInsightFirstCategory.insightSubject} />
-                )}
+                                  {result.type === 'answer' && result.answerInsightFirstCategory && 
+                   result.answerInsightFirstCategory.id !== (result.answerInsightCategory?.id || 0) && (
+                    <CategoryChip 
+                      insightSubject={result.answerInsightFirstCategory.insightSubject} 
+                      categoryId={result.answerInsightFirstCategory.id}
+                      onClick={onCategoryClick} 
+                    />
+                  )}
               </td>
             </tr>
           ))}

@@ -3,6 +3,7 @@ import { getInsightSubjectStyle } from '../utils/colorUtils';
 import PublishedIdChip from './PublishedIdChip';
 import ProposedChip from './ProposedChip';
 import PublishedTagChip from './PublishedTagChip';
+import CategoryChip from './CategoryChip';
 
 // --- Data Interfaces based on backend schema and new API payload ---
 interface CategoryInfo {
@@ -75,6 +76,7 @@ interface QuestionViewProps {
   currentQuestionIndex: number; // For X of Y display and navigation (index in questions list)
   onNavigateQuestion: (direction: 'next' | 'prev') => void;
   onSkipQuestion: () => void;
+  onCategoryClick: (categoryId: number, insightSubject: string) => void;
 }
 
 const QuestionView: React.FC<QuestionViewProps> = ({
@@ -83,6 +85,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   currentQuestionIndex,
   onNavigateQuestion,
   onSkipQuestion,
+  onCategoryClick,
 }) => {
   const [questionData, setQuestionData] = useState<QuestionData | null>(null); // Changed from fullContext
   const [loadingQuestionContext, setLoadingQuestionContext] = useState<boolean>(true);
@@ -295,9 +298,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0' }}>
               <h5 style={{ marginTop: 0, marginBottom: '5px' }}>Original Inspiration:</h5>
               <div style={{ marginBottom: '5px' }}>
-                <span style={getInsightSubjectStyle(questionData.inspiration.category?.insightSubject || 'Unknown')}>
-                  {questionData.inspiration.category?.insightSubject || 'Unknown'}
-                </span>
+                <CategoryChip 
+                  insightSubject={questionData.inspiration.category?.insightSubject || 'Unknown'}
+                  categoryId={questionData.inspiration.category?.id}
+                  onClick={onCategoryClick}
+                />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <p style={{ margin: 0 }}>{questionData.inspiration.insightText}</p>
@@ -332,9 +337,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                     {answer.linkedAnswerInsight ? (
                       <div style={{ position: 'relative' }}>
                         <div style={{ marginLeft: '20px', marginBottom: '5px' }}>
-                          <span style={getInsightSubjectStyle(answer.linkedAnswerInsight.category?.insightSubject || 'Unknown')}>
-                            {answer.linkedAnswerInsight.category?.insightSubject || 'Unknown'}
-                          </span>
+                          <CategoryChip 
+                            insightSubject={answer.linkedAnswerInsight.category?.insightSubject || 'Unknown'}
+                            categoryId={answer.linkedAnswerInsight.category?.id}
+                            onClick={onCategoryClick}
+                          />
                         </div>
                         <div style={{ marginLeft: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <p style={{ fontStyle: 'italic', color: '#555', margin: 0 }}>

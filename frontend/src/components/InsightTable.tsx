@@ -65,13 +65,15 @@ interface InsightTableProps {
   insightType: InsightType; // 'inspiration' or 'answers'
   onInsightClick: (questionId: number) => void; // Changed to questionId
   onInsightTypeChange: (type: InsightType) => void;
+  onCategoryClick: (categoryId: number, insightSubject: string) => void;
 }
 
 const InsightTable: React.FC<InsightTableProps> = ({ 
   categoryId, 
   insightType, 
   onInsightClick, 
-  onInsightTypeChange 
+  onInsightTypeChange, 
+  onCategoryClick 
 }) => {
   const [questions, setQuestions] = useState<QuestionFromAPI[]>([]);
   const [displayData, setDisplayData] = useState<QuestionDisplay[]>([]);
@@ -363,26 +365,34 @@ const InsightTable: React.FC<InsightTableProps> = ({
                     />
                     <span style={{ flex: 1, marginRight: '8px' }}>{item.insightText}</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                    {item.insightCategory.id !== item.questionCategory.id && (
-                      <CategoryChip insightSubject={item.insightCategory.insightSubject} />
-                    )}
-                    {item.publishedTag && (
-                      <PublishedTagChip publishedTag={item.publishedTag} />
-                    )}
-                  </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                      {item.insightCategory.id !== item.questionCategory.id && (
+                        <CategoryChip 
+                          insightSubject={item.insightCategory.insightSubject} 
+                          categoryId={item.insightCategory.id}
+                          onClick={onCategoryClick} 
+                        />
+                      )}
+                      {item.publishedTag && (
+                        <PublishedTagChip publishedTag={item.publishedTag} />
+                      )}
+                    </div>
                 </div>
               </td>
               {insightType === 'answers' && (
-                <td style={{ 
-                  padding: '12px', 
-                  borderBottom: '1px solid #dee2e6',
-                  color: '#495057'
-                }}>
-                  {item.firstInsightCategory.id !== item.insightCategory.id && (
-                    <CategoryChip insightSubject={item.firstInsightCategory.insightSubject} />
-                  )}
-                </td>
+                                  <td style={{ 
+                    padding: '12px', 
+                    borderBottom: '1px solid #dee2e6',
+                    color: '#495057'
+                  }}>
+                    {item.firstInsightCategory.id !== item.insightCategory.id && (
+                      <CategoryChip 
+                        insightSubject={item.firstInsightCategory.insightSubject} 
+                        categoryId={item.firstInsightCategory.id}
+                        onClick={onCategoryClick} 
+                      />
+                    )}
+                  </td>
               )}
             </tr>
           ))}

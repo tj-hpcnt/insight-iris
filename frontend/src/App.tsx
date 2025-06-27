@@ -24,10 +24,12 @@ const CategoriesView = ({ onCategoryClick }: { onCategoryClick: (categoryId: num
 // Component for Insights view
 const InsightsView = ({ 
   onInsightClick, 
-  onInsightTypeChange 
+  onInsightTypeChange,
+  onCategoryClick 
 }: { 
   onInsightClick: (questionId: number) => void;
   onInsightTypeChange: (type: InsightType) => void;
+  onCategoryClick: (categoryId: number, insightSubject: string) => void;
 }) => {
   const { categoryId } = useParams<{ categoryId: string }>();
   const location = useLocation();
@@ -44,6 +46,7 @@ const InsightsView = ({
       insightType={insightType} 
       onInsightClick={onInsightClick}
       onInsightTypeChange={onInsightTypeChange}
+      onCategoryClick={onCategoryClick}
     />
   );
 };
@@ -53,12 +56,14 @@ const QuestionViewWrapper = ({
   onNavigateQuestion, 
   onSkipQuestion,
   currentQuestions,
-  currentQuestionIndex
+  currentQuestionIndex,
+  onCategoryClick
 }: { 
   onNavigateQuestion: (direction: 'next' | 'prev') => void;
   onSkipQuestion: () => void;
   currentQuestions: { id: number; questionText: string }[];
   currentQuestionIndex: number;
+  onCategoryClick: (categoryId: number, insightSubject: string) => void;
 }) => {
   const { categoryId, questionId } = useParams<{ categoryId: string; questionId: string }>();
 
@@ -73,6 +78,7 @@ const QuestionViewWrapper = ({
       currentQuestionIndex={currentQuestionIndex}
       onNavigateQuestion={onNavigateQuestion}
       onSkipQuestion={onSkipQuestion}
+      onCategoryClick={onCategoryClick}
     />
   );
 };
@@ -400,13 +406,14 @@ function App() {
         <Routes>
           <Route path="/" element={<CategoriesView onCategoryClick={handleCategoryClick} />} />
           <Route path="/categories" element={<CategoriesView onCategoryClick={handleCategoryClick} />} />
-          <Route path="/search" element={<SearchResultsView onQuestionClick={handleSearchQuestionClick} />} />
+          <Route path="/search" element={<SearchResultsView onQuestionClick={handleSearchQuestionClick} onCategoryClick={handleCategoryClick} />} />
           <Route 
             path="/categories/:categoryId" 
             element={
               <InsightsView 
                 onInsightClick={handleQuestionClick}
                 onInsightTypeChange={handleInsightTypeSelect}
+                onCategoryClick={handleCategoryClick}
               />
             } 
           />
@@ -418,6 +425,7 @@ function App() {
                 onSkipQuestion={handleSkipQuestion}
                 currentQuestions={currentQuestions}
                 currentQuestionIndex={currentQuestionIndex}
+                onCategoryClick={handleCategoryClick}
               />
             } 
           />
