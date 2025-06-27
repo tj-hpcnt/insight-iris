@@ -10,15 +10,67 @@ export interface BreadcrumbItem {
 
 interface BreadcrumbsProps {
   items: BreadcrumbItem[];
+  // Category navigation props
+  onCategoryNavigation?: (direction: 'prev' | 'next') => void;
+  canNavigatePrev?: boolean;
+  canNavigateNext?: boolean;
 }
 
-const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
+const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ 
+  items, 
+  onCategoryNavigation, 
+  canNavigatePrev = false, 
+  canNavigateNext = false 
+}) => {
+  const arrowButtonStyle = (enabled: boolean) => ({
+    background: 'none',
+    border: '1px solid #ddd',
+    borderRadius: '4px',
+    padding: '4px 8px',
+    cursor: enabled ? 'pointer' : 'not-allowed',
+    color: enabled ? '#007bff' : '#ccc',
+    fontSize: '14px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '28px',
+    height: '28px',
+    opacity: enabled ? 1 : 0.5,
+    transition: 'all 0.2s ease',
+  });
+
   return (
     <nav aria-label="breadcrumb">
-      <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex' }}>
+      <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', alignItems: 'center' }}>
         {items.map((item, index) => (
           <li key={index} style={{ display: 'flex', alignItems: 'center' }}>
             {index > 0 && <span style={{ margin: '0 0.5em' }}>/</span>}
+            
+            {/* Show navigation arrows for category items (items with insightSubject) */}
+            {item.insightSubject && onCategoryNavigation && (
+              <>
+                <button
+                  onClick={() => canNavigatePrev && onCategoryNavigation('prev')}
+                  disabled={!canNavigatePrev}
+                  style={arrowButtonStyle(canNavigatePrev)}
+                  title="Previous category"
+                  onMouseEnter={(e) => {
+                    if (canNavigatePrev) {
+                      e.currentTarget.style.backgroundColor = '#f8f9fa';
+                      e.currentTarget.style.borderColor = '#007bff';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.borderColor = '#ddd';
+                  }}
+                >
+                  ←
+                </button>
+                <span style={{ margin: '0 8px' }}></span>
+              </>
+            )}
+            
             <button
               onClick={item.onClick}
               disabled={item.isCurrent}
@@ -42,6 +94,31 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
                 </span>
               )}
             </button>
+            
+            {/* Show navigation arrows for category items (items with insightSubject) */}
+            {item.insightSubject && onCategoryNavigation && (
+              <>
+                <span style={{ margin: '0 8px' }}></span>
+                <button
+                  onClick={() => canNavigateNext && onCategoryNavigation('next')}
+                  disabled={!canNavigateNext}
+                  style={arrowButtonStyle(canNavigateNext)}
+                  title="Next category"
+                  onMouseEnter={(e) => {
+                    if (canNavigateNext) {
+                      e.currentTarget.style.backgroundColor = '#f8f9fa';
+                      e.currentTarget.style.borderColor = '#007bff';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.borderColor = '#ddd';
+                  }}
+                >
+                  →
+                </button>
+              </>
+            )}
           </li>
         ))}
       </ol>

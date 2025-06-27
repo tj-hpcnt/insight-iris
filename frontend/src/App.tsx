@@ -6,6 +6,14 @@ import InsightTable, { InsightType } from './components/InsightTable';
 import QuestionView from './components/QuestionView';
 import './App.css'; // For global styles if any
 
+// Interface for categories
+interface Category {
+  id: number;
+  category: string;
+  subcategory: string;
+  insightSubject: string;
+}
+
 // Component for Categories view
 const CategoriesView = ({ onCategoryClick }: { onCategoryClick: (categoryId: number, insightSubject: string) => void }) => {
   return <CategoryTable onCategoryClick={onCategoryClick} />;
@@ -120,6 +128,38 @@ function App() {
   // For Question View navigation - now tracks questions instead of inspiration insights
   const [currentQuestions, setCurrentQuestions] = useState<{ id: number; questionText: string }[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
+
+  // Category navigation state
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const [currentCategoryIndex, setCurrentCategoryIndex] = useState<number>(0);
+
+  // Fetch all categories for navigation
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const categories: Category[] = await response.json();
+        setAllCategories(categories);
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+        setAllCategories([]);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Update current category index when selected category changes
+  useEffect(() => {
+    if (selectedCategoryId && allCategories.length > 0) {
+      const categoryIndex = allCategories.findIndex(cat => cat.id === selectedCategoryId);
+      if (categoryIndex !== -1) {
+        setCurrentCategoryIndex(categoryIndex);
+      }
+    }
+  }, [selectedCategoryId, allCategories]);
 
   // Update state when URL changes (back/forward button)
   useEffect(() => {
@@ -256,6 +296,29 @@ function App() {
     }
   };
 
+  const handleCategoryNavigation = (direction: 'prev' | 'next') => {
+    if (!allCategories.length) return;
+    
+    let newIndex = currentCategoryIndex;
+    if (direction === 'next') {
+      newIndex = Math.min(currentCategoryIndex + 1, allCategories.length - 1);
+    } else {
+      newIndex = Math.max(currentCategoryIndex - 1, 0);
+    }
+    
+    if (newIndex !== currentCategoryIndex && allCategories[newIndex]) {
+      const newCategory = allCategories[newIndex];
+      setSelectedCategoryId(newCategory.id);
+      setSelectedInsightSubject(newCategory.insightSubject);
+      setCurrentCategoryIndex(newIndex);
+      setSelectedInsightType('answers');
+      setCurrentQuestionIndex(0);
+      
+      // Navigate to the new category
+      navigate(`/categories/${newCategory.id}?type=answers`);
+    }
+  };
+
   const breadcrumbItems: BreadcrumbItem[] = [
     { label: 'Categories', onClick: navigateToCategories, isCurrent: currentView === 'categories' },
   ];
@@ -285,7 +348,12 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <Breadcrumbs items={breadcrumbItems} />
+        <Breadcrumbs 
+          items={breadcrumbItems} 
+          onCategoryNavigation={handleCategoryNavigation}
+          canNavigatePrev={currentCategoryIndex > 0}
+          canNavigateNext={currentCategoryIndex < allCategories.length - 1}
+        />
       </header>
       <main>
         <Routes>

@@ -3,4 +3,22 @@
   text-align: center; /* Or remove if you prefer left-align for content */
 }
 
+/* Sticky header styling */
+.App-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 8px 16px; /* Reduced padding to make it thinner */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Ensure main content has proper spacing */
+.App main {
+  padding-top: 8px; /* Small padding to separate from sticky header */
+}
+
 /* You can add more specific styles for the App component layout if needed */ 
