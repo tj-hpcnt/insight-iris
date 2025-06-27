@@ -13,8 +13,8 @@ const openai = new OpenAI({
 const prisma = new PrismaClient();
 
 const ULTRA_LOW_MODEL = "gpt-4.1";
-const LOW_MODEL = "o4-mini";
-const HIGH_MODEL = "o4-mini";
+const LOW_MODEL = "o3";
+const HIGH_MODEL = "o3";
 
 export function fixIllegalEnumCharacters(str: string): string {
   str = str.replaceAll('"', "\'")
