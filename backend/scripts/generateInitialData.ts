@@ -563,60 +563,6 @@ async function main() {
       }
     });
 
-    for (const question of allQuestions) {
-      if (question.answers.length === 0) {
-        continue;
-      }
-
-      // Count categories among answer insights
-      const categoryCount = new Map<number, number>();
-      for (const answer of question.answers) {
-        if (answer.insight) {
-          const categoryId = answer.insight.categoryId;
-          categoryCount.set(categoryId, (categoryCount.get(categoryId) || 0) + 1);
-        }
-      }
-
-      if (categoryCount.size === 0) {
-        continue;
-      }
-
-      // Find the maximum count
-      const maxCount = Math.max(...categoryCount.values());
-      const mostCommonCategories = Array.from(categoryCount.entries())
-        .filter(([_, count]) => count === maxCount)
-        .map(([categoryId, _]) => categoryId);
-
-      let targetCategoryId: number;
-
-      if (mostCommonCategories.length === 1) {
-        // No tie, use the most common category
-        targetCategoryId = mostCommonCategories[0];
-      } else {
-        // There's a tie
-        if (mostCommonCategories.includes(question.categoryId)) {
-          // Question's current category is one of the tied categories, keep it
-          targetCategoryId = question.categoryId;
-        } else {
-          // Pick the first tied category
-          targetCategoryId = mostCommonCategories[0];
-        }
-      }
-
-      // Update question category if it's different
-      if (question.categoryId !== targetCategoryId) {
-        const originalCategory = categories.find(c => c.id === question.categoryId);
-        const newCategory = categories.find(c => c.id === targetCategoryId);
-        
-        await prisma.question.update({
-          where: { id: question.id },
-          data: { categoryId: targetCategoryId }
-        });
-
-        console.log(`Moved question category: "${question.questionText}" from ${originalCategory?.insightSubject} to ${newCategory?.insightSubject}`);
-      }
-    }
-
     if (GENERATE_COMPARISONS) {
       console.log('Generating insight comparisons for strong category overlaps (by relevant categories)...');
 
