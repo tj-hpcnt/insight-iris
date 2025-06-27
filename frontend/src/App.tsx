@@ -25,11 +25,13 @@ const CategoriesView = ({ onCategoryClick }: { onCategoryClick: (categoryId: num
 const InsightsView = ({ 
   onInsightClick, 
   onInsightTypeChange,
-  onCategoryClick 
+  onCategoryClick,
+  onRefresh
 }: { 
   onInsightClick: (questionId: number) => void;
   onInsightTypeChange: (type: InsightType) => void;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  onRefresh?: () => void;
 }) => {
   const { categoryId } = useParams<{ categoryId: string }>();
   const location = useLocation();
@@ -47,6 +49,7 @@ const InsightsView = ({
       onInsightClick={onInsightClick}
       onInsightTypeChange={onInsightTypeChange}
       onCategoryClick={onCategoryClick}
+      onRefresh={onRefresh}
     />
   );
 };
@@ -141,6 +144,12 @@ function App() {
   // Category navigation state
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState<number>(0);
+
+  // Generate functionality state (moved from InsightTable)
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [generationStatus, setGenerationStatus] = useState<string[]>([]);
+  const [showGenerationStatus, setShowGenerationStatus] = useState<boolean>(false);
+  const [statusLineTimestamps, setStatusLineTimestamps] = useState<Map<number, number>>(new Map());
 
   // Fetch all categories for navigation
   useEffect(() => {
@@ -257,6 +266,18 @@ function App() {
       fetchQuestionsForNavigation();
     }
   }, [selectedCategoryId]); // Only depend on selectedCategoryId, not selectedInsightType
+
+  // Effect to handle log line fading animation
+  useEffect(() => {
+    if (!showGenerationStatus) return;
+    
+    const interval = setInterval(() => {
+      // Force re-render to update opacity based on timestamps
+      setStatusLineTimestamps(prev => new Map(prev));
+    }, 100);
+    
+    return () => clearInterval(interval);
+  }, [showGenerationStatus]);
 
   const handleCategoryClick = async (categoryId: number, insightSubject: string) => {
     setSelectedCategoryId(categoryId);
@@ -399,6 +420,94 @@ function App() {
     }
   };
 
+  const handleRefreshInsights = async () => {
+    if (!selectedCategoryId) return;
+    
+    try {
+      // Refetch questions for the current category
+      const response = await fetch(`/api/categories/${selectedCategoryId}/questions`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const questions = await response.json();
+      
+      // Update the questions list for navigation
+      const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
+        id: question.id,
+        questionText: question.questionText,
+      }));
+      setCurrentQuestions(questionList);
+      
+      // Force re-render by changing the key or trigger a state update
+      // The InsightTable component will refetch its data due to the categoryId dependency
+    } catch (error) {
+      console.error('Failed to refresh insights:', error);
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (isGenerating || !selectedCategoryId) return;
+
+    setIsGenerating(true);
+    setGenerationStatus([]);
+    setShowGenerationStatus(true);
+    setStatusLineTimestamps(new Map());
+    
+    try {
+      const response = await fetch(`/api/categories/${selectedCategoryId}/generate`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n').filter(line => line.trim());
+          
+          for (const line of lines) {
+            if (line === 'GENERATION_COMPLETE') {
+              // Refresh the data when generation is complete
+              setGenerationStatus(prev => [...prev, 'Generation completed! Refreshing data...']);
+              setStatusLineTimestamps(prev => new Map(prev).set(prev.size, Date.now()));
+              setTimeout(() => {
+                handleRefreshInsights();
+                setShowGenerationStatus(false);
+                setIsGenerating(false);
+              }, 2000);
+              return;
+            } else {
+              setGenerationStatus(prev => {
+                const newStatus = [...prev, line];
+                setStatusLineTimestamps(prevTimestamps => {
+                  const newTimestamps = new Map(prevTimestamps);
+                  newTimestamps.set(newStatus.length - 1, Date.now());
+                  return newTimestamps;
+                });
+                return newStatus;
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Generation failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setGenerationStatus(prev => [...prev, `Error: ${errorMessage}`]);
+      setStatusLineTimestamps(prev => new Map(prev).set(prev.size, Date.now()));
+      setIsGenerating(false);
+    }
+  };
+
   const breadcrumbItems: BreadcrumbItem[] = [
     { label: 'Categories', onClick: navigateToCategories, isCurrent: currentView === 'categories' },
   ];
@@ -458,6 +567,24 @@ function App() {
     marginRight: '12px',
   };
 
+  const generateButtonStyle = {
+    background: '#28a745',
+    border: '1px solid #28a745',
+    borderRadius: '4px',
+    padding: '4px 8px',
+    cursor: isGenerating ? 'not-allowed' : 'pointer',
+    color: 'white',
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '24px',
+    transition: 'all 0.2s ease',
+    textDecoration: 'none',
+    marginRight: '12px',
+    opacity: isGenerating ? 0.6 : 1,
+  };
+
   return (
     <div className="App">
       <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -483,6 +610,28 @@ function App() {
           >
             📥 Export
           </button>
+          {currentView === 'insights' && (
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              style={generateButtonStyle}
+              title="Generate more questions for this category"
+              onMouseEnter={(e) => {
+                if (!isGenerating) {
+                  e.currentTarget.style.backgroundColor = '#218838';
+                  e.currentTarget.style.borderColor = '#1e7e34';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isGenerating) {
+                  e.currentTarget.style.backgroundColor = '#28a745';
+                  e.currentTarget.style.borderColor = '#28a745';
+                }
+              }}
+            >
+              {isGenerating ? '⏳ Generating...' : '🔄 Generate Questions'}
+            </button>
+          )}
           <SearchBox />
         </div>
       </header>
@@ -498,6 +647,7 @@ function App() {
                 onInsightClick={handleQuestionClick}
                 onInsightTypeChange={handleInsightTypeSelect}
                 onCategoryClick={handleCategoryClick}
+                onRefresh={handleRefreshInsights}
               />
             } 
           />
@@ -515,6 +665,118 @@ function App() {
           />
         </Routes>
       </main>
+
+      {/* Generation Status Modal */}
+      {showGenerationStatus && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '24px',
+            maxWidth: '600px',
+            maxHeight: '500px',
+            margin: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '16px' }}>
+              Generating Questions...
+            </h3>
+            
+            {/* Log area with uniform background */}
+            <div style={{ 
+              overflow: 'auto', 
+              fontFamily: 'monospace', 
+              fontSize: '12px',
+              backgroundColor: 'white',
+              padding: '12px',
+              borderRadius: '4px',
+              border: '1px solid #dee2e6',
+              marginBottom: '16px',
+            }}>
+              {generationStatus.map((status, index) => {
+                const timestamp = statusLineTimestamps.get(index) || Date.now();
+                const isLatest = index === generationStatus.length - 1;
+                const age = Date.now() - timestamp;
+                const shouldFade = !isLatest && age > 1000;
+                const shouldHide = !isLatest && age > 2000;
+                
+                if (shouldHide) return null;
+                
+                return (
+                  <div 
+                    key={index} 
+                    style={{ 
+                      marginBottom: '4px',
+                      opacity: shouldFade ? 0.3 : 1,
+                      transition: 'opacity 1s ease-out',
+                      backgroundColor: 'transparent', // Uniform background
+                    }}
+                  >
+                    {status}
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Loading spinner */}
+            {isGenerating && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginBottom: '16px',
+              }}>
+                <div style={{
+                  width: '20px',
+                  height: '20px',
+                  border: '2px solid #f3f3f3',
+                  borderTop: '2px solid #007bff',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                }}></div>
+                <style>
+                  {`
+                    @keyframes spin {
+                      0% { transform: rotate(0deg); }
+                      100% { transform: rotate(360deg); }
+                    }
+                  `}
+                </style>
+              </div>
+            )}
+            
+            {!isGenerating && (
+              <div style={{ textAlign: 'center' }}>
+                <button
+                  onClick={() => setShowGenerationStatus(false)}
+                  style={{
+                    background: '#007bff',
+                    border: '1px solid #007bff',
+                    borderRadius: '4px',
+                    padding: '8px 16px',
+                    color: 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

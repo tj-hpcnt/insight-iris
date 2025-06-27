@@ -249,6 +249,8 @@ When making a binary statement, do not include the details in the answer, simply
 
 Focus on generating a question that is specifically relevant to the target category and won't overlap with questions that would be better suited for other categories in the taxonomy.
 
+Each answer MUST have a corresponding insight.
+
 Here is the complete insight taxonomy to help you understand the scope and avoid overlap:
 ${categoryTreeStr}
 

@@ -3,6 +3,13 @@ import { PrismaClient, InsightSource, OverlapType, PolarityType, Insight, Catego
 import { searchQuestionsAnswersInsights, SearchResult } from './utils/search';
 import { generateExportData } from './utils/export';
 import type { ExportData } from './utils/export';
+import { Response } from 'express';
+import { 
+  generateInspirationInsights, generateBaseQuestion,
+  reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
+  reduceExactRedundancyForQuestions, reduceExactRedundancyForAnswers
+} from './utils/aiGenerators';
+import { processInParallel } from './utils/parallelProcessor';
 
 // Define category information structure
 type CategoryInfo = {
@@ -352,5 +359,202 @@ export class AppService {
 
   async exportData(): Promise<ExportData> {
     return await generateExportData(this.prisma);
+  }
+
+  async generateQuestionsForCategory(categoryId: number, res: Response) {
+    const BATCH_COUNT = 10;
+    const MINIMUM_TARGET_INSIGHTS = 10;
+    const MAX_NEW_INSIGHTS_PER_GENERATION = 30;
+    const MIN_NEW_INSIGHTS_PER_GENERATION = 5;
+    const BINARY_PROBABILITY = 0.3;
+
+    let totalUsage = {
+      promptTokens: 0,
+      cachedPromptTokens: 0,
+      completionTokens: 0,
+    };
+
+    // Set up streaming response
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const log = (message: string) => {
+      console.log(message);
+      res.write(`${message}\n`);
+    };
+
+    try {
+      // Get the category
+      const category = await this.prisma.category.findUnique({
+        where: { id: categoryId }
+      });
+
+      if (!category) {
+        log(`Error: Category with ID ${categoryId} not found`);
+        res.end();
+        return;
+      }
+
+      log(`Starting question generation for category: ${category.insightSubject}`);
+
+      // Phase 1: Generate inspiration insights
+      log('Phase 1: Generating inspiration insights...');
+      
+      let totalInsights = await this.prisma.insight.count({ 
+        where: { categoryId: category.id, source: InsightSource.INSPIRATION } 
+      });
+      
+      let done = false;
+      let round_fails = 0;
+      let previousTotalInsights = -1;
+
+      const targetInsights = totalInsights + MINIMUM_TARGET_INSIGHTS
+      
+      while (!done && totalInsights < targetInsights) {
+        const newTotalInsights = await this.prisma.insight.count({ 
+          where: { categoryId: category.id, source: InsightSource.INSPIRATION } 
+        });
+        
+        if (newTotalInsights === previousTotalInsights) {
+          round_fails++;
+          if (round_fails === 3) {
+            log(`Terminating inspiration pool generation after 3 rounds of failure`);
+            break;
+          }
+          continue;
+        }
+        
+        previousTotalInsights = newTotalInsights;
+        const target = Math.max(MIN_NEW_INSIGHTS_PER_GENERATION, 
+          Math.min(MAX_NEW_INSIGHTS_PER_GENERATION, targetInsights - newTotalInsights));
+        
+        const [newInsights, isDone, usage] = await generateInspirationInsights(category, target);
+        totalUsage.promptTokens += usage.prompt_tokens;
+        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+        totalUsage.completionTokens += usage.completion_tokens;
+        
+        done = isDone;
+        totalInsights = newTotalInsights + newInsights.length;
+        
+        log(`Generated ${newInsights.length} new insights (total: ${totalInsights})`);
+        for (const insight of newInsights) {
+          log(`  - ${insight.insightText}`);
+        }
+      }
+
+      // Reduce redundancy for inspiration insights
+      log('Reducing redundancy for inspiration insights...');
+      const [deletedIds, usage] = await reduceRedundancyForInspirations(category);
+      totalUsage.promptTokens += usage.prompt_tokens;
+      totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+      totalUsage.completionTokens += usage.completion_tokens;
+      log(`Reduced redundancy: ${deletedIds.length} insights deleted`);
+
+      // Phase 2: Generate questions for inspiration insights without questions
+      log('Phase 2: Generating questions for inspiration insights...');
+      
+      const inspirationInsights = await this.prisma.insight.findMany({
+        where: {
+          categoryId: category.id,
+          source: InsightSource.INSPIRATION
+        }
+      });
+
+      // Find insights that don't have questions by checking if they have a question with their inspirationId
+      const insightsWithoutQuestions = [];
+      for (const insight of inspirationInsights) {
+        const existingQuestion = await this.prisma.question.findFirst({
+          where: { inspirationId: insight.id }
+        });
+        if (!existingQuestion) {
+          insightsWithoutQuestions.push(insight);
+        }
+      }
+      log(`Found ${insightsWithoutQuestions.length} inspiration insights without questions`);
+
+      if (insightsWithoutQuestions.length > 0) {
+        await processInParallel<typeof insightsWithoutQuestions[0], void>(
+          insightsWithoutQuestions,
+          async (insight) => {
+            try {
+              const preferBinary = Math.random() < BINARY_PROBABILITY;
+              const [question, answers, answerInsights, usage] = await generateBaseQuestion(insight, preferBinary);
+              totalUsage.promptTokens += usage.prompt_tokens;
+              totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+              totalUsage.completionTokens += usage.completion_tokens;
+              
+              if (question) {
+                log(`Generated ${question.questionType} question: ${question.questionText}`);
+                log(`  Answers: ${answers.map(a => a.answerText).join(' | ')}`);
+              } else {
+                log(`Failed to generate question for insight: ${insight.insightText}`);
+              }
+            } catch (err) {
+              log(`Error processing insight ID ${insight.id}: ${err.message}`);
+            }
+          },
+          BATCH_COUNT
+        );
+      }
+
+      // Phase 3: Reduce redundancy for questions
+      log('Phase 3: Reducing redundancy for questions...');
+      const exactQuestionDupes = await reduceExactRedundancyForQuestions();
+      for (const merged of exactQuestionDupes) {
+        log(`Merged exact duplicate question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
+      }
+
+      const questionReductionResult = await reduceRedundancyForQuestions(category);
+      if (questionReductionResult) {
+        const [mergedQuestions, usage] = questionReductionResult;
+        totalUsage.promptTokens += usage.prompt_tokens;
+        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+        totalUsage.completionTokens += usage.completion_tokens;
+        for (const merged of mergedQuestions) {
+          log(`Merged similar question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
+        }
+      }
+
+      // Phase 4: Reduce redundancy for answer insights
+      log('Phase 4: Reducing redundancy for answer insights...');
+      const exactAnswerDupes = await reduceExactRedundancyForAnswers();
+      for (const merged of exactAnswerDupes) {
+        log(`Merged exact duplicate answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+      }
+
+      const answerReductionResult = await reduceRedundancyForAnswers(category);
+      if (answerReductionResult) {
+        const [mergedInsights, usage] = answerReductionResult;
+        totalUsage.promptTokens += usage.prompt_tokens;
+        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+        totalUsage.completionTokens += usage.completion_tokens;
+        for (const merged of mergedInsights) {
+          log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+        }
+      }
+
+      // Final stats
+      const finalQuestionCount = await this.prisma.question.count({
+        where: { categoryId: category.id }
+      });
+      const finalInsightCount = await this.prisma.insight.count({
+        where: { categoryId: category.id, source: InsightSource.INSPIRATION }
+      });
+
+      log(`\nGeneration completed successfully!`);
+      log(`Final counts for ${category.insightSubject}:`);
+      log(`  - Questions: ${finalQuestionCount}`);
+      log(`  - Inspiration insights: ${finalInsightCount}`);
+      log(`Token usage - Input: ${totalUsage.promptTokens}, Cached: ${totalUsage.cachedPromptTokens}, Output: ${totalUsage.completionTokens}`);
+      
+      res.write('GENERATION_COMPLETE\n');
+      res.end();
+
+    } catch (error) {
+      log(`Error during question generation: ${error.message}`);
+      log(`Stack trace: ${error.stack}`);
+      res.end();
+    }
   }
 } 

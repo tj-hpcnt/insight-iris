@@ -63,6 +63,7 @@ interface InsightTableProps {
   onInsightClick: (questionId: number) => void; // Changed to questionId
   onInsightTypeChange: (type: InsightType) => void;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  onRefresh?: () => void;
 }
 
 const InsightTable: React.FC<InsightTableProps> = ({ 
@@ -70,7 +71,8 @@ const InsightTable: React.FC<InsightTableProps> = ({
   insightType, 
   onInsightClick, 
   onInsightTypeChange, 
-  onCategoryClick 
+  onCategoryClick,
+  onRefresh
 }) => {
   const [questions, setQuestions] = useState<QuestionFromAPI[]>([]);
   const [displayData, setDisplayData] = useState<QuestionDisplay[]>([]);
@@ -79,32 +81,31 @@ const InsightTable: React.FC<InsightTableProps> = ({
   const [insightAnswerCounts, setInsightAnswerCounts] = useState<Map<number, number>>(new Map());
   const [insightToQuestionsMap, setInsightToQuestionsMap] = useState<Map<number, Array<{ id: number; questionText: string; publishedId: string | null; proposedQuestion: string | null; category: CategoryInfo }>>>(new Map());
 
+  const fetchQuestions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch(`/api/categories/${categoryId}/questions`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data: QuestionFromAPI[] = await response.json();
+      setQuestions(data);
+    } catch (e) {
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError('An unknown error occurred');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!categoryId) return;
-
-    const fetchQuestions = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await fetch(`/api/categories/${categoryId}/questions`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data: QuestionFromAPI[] = await response.json();
-        setQuestions(data);
-      } catch (e) {
-        if (e instanceof Error) {
-          setError(e.message);
-        } else {
-          setError('An unknown error occurred');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchQuestions();
   }, [categoryId]);
 
@@ -219,6 +220,12 @@ const InsightTable: React.FC<InsightTableProps> = ({
     }
     onInsightClick(questionId);
   };
+
+
+
+
+
+
 
   return (
     <div>

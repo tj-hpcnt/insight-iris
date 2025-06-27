@@ -22,6 +22,14 @@ export class AppController {
     return this.appService.listQuestionsInCategory(categoryId);
   }
 
+  @Post('categories/:categoryId/generate')
+  async generateQuestionsForCategory(
+    @Param('categoryId', ParseIntPipe) categoryId: number,
+    @Res() res: Response
+  ) {
+    return this.appService.generateQuestionsForCategory(categoryId, res);
+  }
+
   @Get('insights/:insightId/question-details')
   async getFullQuestionContextByInsightId(@Param('insightId', ParseIntPipe) insightId: number) {
     return this.appService.getFullQuestionContextByInsightId(insightId);
