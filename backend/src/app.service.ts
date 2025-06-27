@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaClient, InsightSource, OverlapType, PolarityType, Insight, Category, CategoryOverlap, InsightComparison, InsightComparisonPresentation, Question, Answer, QuestionType } from '@prisma/client';
 import { searchQuestionsAnswersInsights, SearchResult } from './utils/search';
+import { generateExportData } from './utils/export';
+import type { ExportData } from './utils/export';
 
 // Define category information structure
 type CategoryInfo = {
@@ -346,5 +348,9 @@ export class AppService {
     }
 
     return await searchQuestionsAnswersInsights(searchQuery.trim());
+  }
+
+  async exportData(): Promise<ExportData> {
+    return await generateExportData(this.prisma);
   }
 } 

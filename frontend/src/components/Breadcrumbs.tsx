@@ -20,7 +20,7 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   items, 
   onCategoryNavigation, 
   canNavigatePrev = false, 
-  canNavigateNext = false 
+  canNavigateNext = false
 }) => {
   const arrowButtonStyle = (enabled: boolean) => ({
     background: 'none',
@@ -39,10 +39,12 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
     transition: 'all 0.2s ease',
   });
 
+
+
   return (
     <nav aria-label="breadcrumb">
       <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', alignItems: 'center' }}>
-        {items.map((item, index) => (
+          {items.map((item, index) => (
           <li key={index} style={{ display: 'flex', alignItems: 'center' }}>
             {index > 0 && <span style={{ margin: '0 0.5em' }}>/</span>}
             
@@ -121,7 +123,7 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
             )}
           </li>
         ))}
-      </ol>
+        </ol>
     </nav>
   );
 };

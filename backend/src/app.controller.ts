@@ -1,5 +1,7 @@
-import { Controller, Get, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ParseIntPipe, Res } from '@nestjs/common';
 import { AppService } from './app.service';
+import { Response } from 'express';
+import { generateTimestampedFilename } from './utils/export';
 
 @Controller('api')
 export class AppController {
@@ -33,5 +35,15 @@ export class AppController {
   @Post('search')
   async searchQuestionsAnswersInsights(@Body() body: { query: string }) {
     return this.appService.searchQuestionsAnswersInsights(body.query);
+  }
+
+  @Get('export')
+  async exportData(@Res() res: Response) {
+    const exportData = await this.appService.exportData();
+    const filename = generateTimestampedFilename();
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(JSON.stringify(exportData, null, 2));
   }
 } 

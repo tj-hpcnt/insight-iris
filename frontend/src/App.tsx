@@ -431,6 +431,33 @@ function App() {
     });
   }
 
+  const handleExport = () => {
+    const link = document.createElement('a');
+    link.href = '/api/export';
+    link.download = '';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportButtonStyle = {
+    background: '#007bff',
+    border: '1px solid #007bff',
+    borderRadius: '4px',
+    padding: '4px 8px',
+    cursor: 'pointer',
+    color: 'white',
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '24px',
+    transition: 'all 0.2s ease',
+    textDecoration: 'none',
+    marginLeft: '12px',
+    marginRight: '12px',
+  };
+
   return (
     <div className="App">
       <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -440,7 +467,24 @@ function App() {
           canNavigatePrev={currentCategoryIndex > 0}
           canNavigateNext={currentCategoryIndex < allCategories.length - 1}
         />
-        <SearchBox />
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <button
+            onClick={handleExport}
+            style={exportButtonStyle}
+            title="Export all data as JSON"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#0056b3';
+              e.currentTarget.style.borderColor = '#0056b3';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#007bff';
+              e.currentTarget.style.borderColor = '#007bff';
+            }}
+          >
+            📥 Export
+          </button>
+          <SearchBox />
+        </div>
       </header>
       <main>
         <Routes>
