@@ -42,7 +42,6 @@ model Category {
   insightSubject   String
   expandedHints    String?
   insights         Insight[] @relation("CurrentCategory")
-  firstInsights    Insight[] @relation("FirstCategory")
   questions        Question[]
   categoryOverlapA CategoryOverlap[] @relation("CategoryA")
   categoryOverlapB CategoryOverlap[] @relation("CategoryB")
@@ -51,21 +50,18 @@ model Category {
 model Insight {
   id                Int       @id @default(autoincrement())
   categoryId        Int
-  firstCategoryId   Int
   insightText       String
   source            InsightSource
   generationOrder   Int?
   publishedTag      String?
   legacyDirection   InsightDirection?
   category          Category  @relation("CurrentCategory", fields: [categoryId], references: [id])
-  firstCategory     Category  @relation("FirstCategory", fields: [firstCategoryId], references: [id])
   answers           Answer[]
   insightCompareA   InsightComparison[] @relation("InsightA")
   insightCompareB   InsightComparison[] @relation("InsightB")
   question          Question? @relation("QuestionInspiration") // Relation to Question if this insight is an inspiration
 
   @@index([categoryId])
-  @@index([firstCategoryId])
 }
 
 model Style {

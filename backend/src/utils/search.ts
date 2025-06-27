@@ -23,12 +23,6 @@ export interface SearchResult {
     subcategory: string;
     insightSubject: string;
   };
-  answerInsightFirstCategory?: {
-    id: number;
-    category: string;
-    subcategory: string;
-    insightSubject: string;
-  };
   answerInsightPublishedTag?: string | null;
   explanation: string;
 }
@@ -72,14 +66,6 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
               insightSubject: true,
             },
           },
-          firstCategory: {
-            select: {
-              id: true,
-              category: true,
-              subcategory: true,
-              insightSubject: true,
-            },
-          },
         },
       },
       answers: {
@@ -87,14 +73,6 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
           insight: {
             include: {
               category: {
-                select: {
-                  id: true,
-                  category: true,
-                  subcategory: true,
-                  insightSubject: true,
-                },
-              },
-              firstCategory: {
                 select: {
                   id: true,
                   category: true,
@@ -161,7 +139,6 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
           answerText: answer.answerText,
           answerInsight: answer.insight.insightText,
           answerInsightCategory: answer.insight.category,
-          answerInsightFirstCategory: answer.insight.firstCategory,
           answerInsightPublishedTag: answer.insight.publishedTag,
           explanation: useRegex ? 'Regex match' : 'Text match',
         });

@@ -26,12 +26,6 @@ export interface SearchResult {
     subcategory: string;
     insightSubject: string;
   };
-  answerInsightFirstCategory?: {
-    id: number;
-    category: string;
-    subcategory: string;
-    insightSubject: string;
-  };
   answerInsightPublishedTag?: string | null;
   explanation: string;
 }
@@ -179,15 +173,6 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick, 
             }}>
               Insight
             </th>
-            <th style={{ 
-              padding: '12px', 
-              textAlign: 'left', 
-              borderBottom: '2px solid #dee2e6',
-              fontWeight: '600',
-              color: '#495057'
-            }}>
-              Moved From
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -270,20 +255,6 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick, 
                     )}
                   </div>
                 </div>
-              </td>
-              <td style={{ 
-                padding: '12px', 
-                borderBottom: '1px solid #dee2e6',
-                color: '#495057'
-              }}>
-                                  {result.type === 'answer' && result.answerInsightFirstCategory && 
-                   result.answerInsightFirstCategory.id !== (result.answerInsightCategory?.id || 0) && (
-                    <CategoryChip 
-                      insightSubject={result.answerInsightFirstCategory.insightSubject} 
-                      categoryId={result.answerInsightFirstCategory.id}
-                      onClick={onCategoryClick} 
-                    />
-                  )}
               </td>
             </tr>
           ))}

@@ -146,7 +146,6 @@ async function main() {
       const inspirationInsight = await prisma.insight.create({
         data: {
           categoryId: matchingCategory.id,
-          firstCategoryId: matchingCategory.id,
           insightText: `Question imported: ${questionRow.question_stem}`,
           source: InsightSource.INSPIRATION,
         },
@@ -187,7 +186,6 @@ async function main() {
           insight = await prisma.insight.create({
             data: {
               categoryId: matchingCategory.id,
-              firstCategoryId: matchingCategory.id,
               insightText: "IMPORTED",
               source: InsightSource.ANSWER,
               publishedTag: insightTag.tag == 'nan' ? undefined : insightTag.tag,
