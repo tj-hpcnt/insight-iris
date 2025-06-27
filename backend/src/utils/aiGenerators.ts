@@ -1884,33 +1884,33 @@ export async function reduceExactRedundancyForInspirations(): Promise<{oldInsigh
   const mergedInsightsInfo: {oldInsight: Insight, newInsight: Insight}[] = [];
 
   await prisma.$transaction(async (tx) => {
-    for (const [_text, group] of insightsByText) {
-      if (group.length < 2) {
+    for (const [_text, rawGroup] of insightsByText) {
+      if (rawGroup.length < 2) {
         continue; // No redundancy in this group
       }
+
+      const existing = rawGroup.filter(insight => insight.question?.publishedId)
+      const proposed = rawGroup.filter(insight => insight.question?.proposedQuestion)
+      const generated  = rawGroup.filter(insight => !insight.question?.publishedId && !insight.question?.proposedQuestion)
+      const group = existing.concat(proposed).concat(generated)
 
       // Prioritize insights with questions, then by ID (ascending)
       const insightsWithQuestions = group.filter(insight => insight.question);
       const insightsWithoutQuestions = group.filter(insight => !insight.question);
       
-      let primaryInsight: typeof group[0];
-      let redundantInsights: typeof group;
-
-      if (insightsWithQuestions.length > 0) {
-        // If any insights have questions, keep the first one with a question and delete the rest
-        primaryInsight = insightsWithQuestions[0];
-        redundantInsights = [...insightsWithQuestions.slice(1), ...insightsWithoutQuestions];
-      } else {
-        // If none have questions, keep the first one by ID
-        primaryInsight = group[0];
-        redundantInsights = group.slice(1);
-      }
+      let primaryInsight: typeof group[0] = group[0];
+      let redundantInsights: typeof group = group.slice(1);
 
       // Iterate over redundant insights in the current group
       for (const redundantInsight of redundantInsights) {
         // Should not happen given unique IDs and selection logic, but as a safeguard:
         if (redundantInsight.id === primaryInsight.id) {
           console.warn(`Primary and redundant insight are the same (ID: ${primaryInsight.id}, Text: "${primaryInsight.insightText}"). Skipping merge for this item.`);
+          continue;
+        }
+
+        if (redundantInsight.question?.publishedId) {
+          console.warn(`Redundant insight text "${redundantInsight.insightText}" is published. Skipping deletion for this item.`);
           continue;
         }
 
