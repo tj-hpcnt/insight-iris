@@ -47,19 +47,40 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick }
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Function to highlight exact matches of search query in text
+  // Function to highlight matches of search query in text (supports regex)
   const highlightText = (text: string, searchQuery: string): React.ReactNode => {
     if (!searchQuery || searchQuery.trim().length === 0) {
       return text;
     }
 
     const query = searchQuery.trim();
-    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-    const parts = text.split(regex);
+    let searchRegex: RegExp;
+    
+    try {
+      // Try to create a regex from the query with global and case-insensitive flags
+      searchRegex = new RegExp(`(${query})`, 'gi');
+    } catch (error) {
+      // If regex compilation fails, fall back to escaped text matching
+      const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      searchRegex = new RegExp(`(${escapedQuery})`, 'gi');
+    }
+
+    const parts = text.split(searchRegex);
 
     return parts.map((part, index) => {
-      if (part.toLowerCase() === query.toLowerCase()) {
-        return <strong key={index}>{part}</strong>;
+      // Check if this part matches the original regex pattern
+      try {
+        const testRegex = new RegExp(query, 'i');
+        if (testRegex.test(part)) {
+          return <strong key={index}>{part}</strong>;
+        }
+      } catch (error) {
+        // For escaped patterns, do simple case-insensitive comparison
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const testRegex = new RegExp(escapedQuery, 'i');
+        if (testRegex.test(part)) {
+          return <strong key={index}>{part}</strong>;
+        }
       }
       return part;
     });
@@ -166,23 +187,16 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick }
             }}>
               Moved From
             </th>
-            <th style={{ 
-              padding: '12px', 
-              textAlign: 'left', 
-              borderBottom: '2px solid #dee2e6',
-              fontWeight: '600',
-              color: '#495057'
-            }}>
-              Go
-            </th>
           </tr>
         </thead>
         <tbody>
           {searchResults.map((result, index) => (
             <tr 
               key={`${result.questionId}-${result.type}-${index}`}
+              onClick={() => onQuestionClick(result.questionId)}
               style={{ 
-                transition: 'background-color 0.2s ease'
+                transition: 'background-color 0.2s ease',
+                cursor: 'pointer'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = '#f8f9fa';
@@ -257,33 +271,6 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick }
                  result.answerInsightFirstCategory.id !== (result.answerInsightCategory?.id || 0) && (
                   <CategoryChip insightSubject={result.answerInsightFirstCategory.insightSubject} />
                 )}
-              </td>
-              <td style={{ 
-                padding: '12px', 
-                borderBottom: '1px solid #dee2e6',
-                color: '#495057'
-              }}>
-                <button
-                  onClick={() => onQuestionClick(result.questionId)}
-                  style={{
-                    padding: '4px 8px',
-                    backgroundColor: '#007bff',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '500'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#0056b3';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#007bff';
-                  }}
-                >
-                  Go →
-                </button>
               </td>
             </tr>
           ))}

@@ -34,8 +34,8 @@ export interface SearchResult {
 }
 
 /**
- * Searches through all questions, answers, and insights using simple text matching
- * @param searchQuery The search query text
+ * Searches through all questions, answers, and insights using regex matching (with fallback to text matching)
+ * @param searchQuery The search query text (can be a regex pattern)
  * @returns Array of search results
  */
 export async function searchQuestionsAnswersInsights(searchQuery: string): Promise<SearchResult[]> {
@@ -43,7 +43,21 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
     return [];
   }
 
-  const query = searchQuery.trim().toLowerCase();
+  const query = searchQuery.trim();
+  
+  // Try to create a regex from the query, with case-insensitive flag
+  let searchRegex: RegExp;
+  let useRegex = false;
+  
+  try {
+    // Attempt to compile as regex with case-insensitive flag
+    searchRegex = new RegExp(query, 'i');
+    useRegex = true;
+  } catch (error) {
+    // If regex compilation fails, fall back to simple text matching
+    searchRegex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); // Escape special chars
+    useRegex = false;
+  }
   
   // Get all questions with their answers and insights
   const allQuestions = await prisma.question.findMany({
@@ -112,10 +126,10 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
   const searchResults: SearchResult[] = [];
 
   for (const question of allQuestions) {
-    // Check if question text or inspiration insight matches
+    // Check if question text or inspiration insight matches using regex
     const questionMatches = 
-      question.questionText.toLowerCase().includes(query) ||
-      question.inspiration.insightText.toLowerCase().includes(query);
+      searchRegex.test(question.questionText) ||
+      searchRegex.test(question.inspiration.insightText);
 
     if (questionMatches) {
       searchResults.push({
@@ -126,15 +140,15 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
         proposedQuestion: question.proposedQuestion,
         category: question.category,
         inspirationInsight: question.inspiration.insightText,
-        explanation: '',
+        explanation: useRegex ? 'Regex match' : 'Text match',
       });
     }
 
-    // Check each answer and its insight
+    // Check each answer and its insight using regex
     for (const answer of question.answers) {
       const answerMatches = 
-        answer.answerText.toLowerCase().includes(query) ||
-        answer.insight.insightText.toLowerCase().includes(query);
+        searchRegex.test(answer.answerText) ||
+        searchRegex.test(answer.insight.insightText);
 
       if (answerMatches) {
         searchResults.push({
@@ -149,7 +163,7 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
           answerInsightCategory: answer.insight.category,
           answerInsightFirstCategory: answer.insight.firstCategory,
           answerInsightPublishedTag: answer.insight.publishedTag,
-          explanation: '',
+          explanation: useRegex ? 'Regex match' : 'Text match',
         });
       }
     }
