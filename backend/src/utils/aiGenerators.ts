@@ -1671,17 +1671,46 @@ export async function reduceRedundancyForQuestions(
 
   const questions = inspirationInsights.map(insight => insight.question);
 
-  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and remove equivalent questions within a category that essentially ask the same thing.
+  // Build question contexts with their answers and insights for more sophisticated analysis
+  const questionContexts = questions.map(question => {
+    const answers = question.answers || [];
+    const answerData = answers.map(answer => ({
+      answer: answer.answerText,
+      insight: answer.insight?.insightText
+    }));
+    
+    return {
+      question: question.questionText,
+      answers: answerData,
+      inspirationText: inspirationInsights.find(i => i.id === question.inspirationId)?.insightText || 'No inspiration'
+    };
+  });
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to identify and remove equivalent questions within a category that essentially ask the same thing, but ONLY when they truly serve the same purpose and would generate equivalent insights.
 
 Category Classification:
 Category: ${category.category}
 Subcategory: ${category.subcategory}
 Subject: ${category.insightSubject}
 
-Here are all the questions for this category:
-${questions.map((question) => `"${question.questionText}"`).join('\n')}
+Here are all the questions for this category with their complete context:
+${questionContexts.map((ctx) => JSON.stringify(ctx)).join('\n')}
 
-Please analyze these questions and group together those that are equivalent or ask essentially the same thing. For each group, the first question in the list should be the clearest or most preferred representation. Don't output single questions, only groups of 2 or more. Output JSON only. Each question can only appear in one group. Format:
+Please analyze these questions considering their complete context - including their answers, generated insights, and inspiration. Group together only those that are truly equivalent and serve the same purpose. For each group, the first question in the list should be the clearest or most preferred representation. Don't output single questions, only groups of 2 or more. Each question can only appear in one group.
+
+Only group questions as equivalent if they truly serve the same purpose AND would generate equivalent insights. Different question formats or answer structures may lead to questions that seem similar but are actually distinct in their purpose. For example:
+- "Do you like spicy food?" (binary) vs "What's your spice tolerance level?" (single choice) might explore the same concept but with different granularity
+- "What's your favorite cuisine?" vs "What cuisine do you cook most?" might both be about food but explore different aspects
+- Questions with different answer options that explore different facets of the same topic should NOT be grouped
+
+Be conservative in grouping - only group questions that are clearly redundant and would provide essentially the same dating insights. Consider:
+- Do the questions explore the same specific aspect of the category?
+- Would the insights generated help users in the same way for compatibility matching?
+- Are the answer options exploring the same dimensions of preference/behavior?
+
+When ordering questions in a group, list the more general/clearer questions first, then the more specific or awkwardly worded ones.
+
+Output JSON only. Format:
 
 {"equivalentQuestionGroups": [["What's your favorite food?", "Which food do you enjoy most?", "What food do you love eating?"], ["Do you like sports?", "Are you into athletics?"]]}`;
 
