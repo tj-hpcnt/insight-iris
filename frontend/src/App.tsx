@@ -71,13 +71,15 @@ const QuestionViewWrapper = ({
   onSkipQuestion,
   currentQuestions,
   currentQuestionIndex,
-  onCategoryClick
+  onCategoryClick,
+  onRegenerateQuestion
 }: { 
   onNavigateQuestion: (direction: 'next' | 'prev') => void;
   onSkipQuestion: () => void;
   currentQuestions: { id: number; questionText: string }[];
   currentQuestionIndex: number;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  onRegenerateQuestion: (questionId: number, feedback: string) => void;
 }) => {
   const { categoryId, questionId } = useParams<{ categoryId: string; questionId: string }>();
 
@@ -93,6 +95,7 @@ const QuestionViewWrapper = ({
       onNavigateQuestion={onNavigateQuestion}
       onSkipQuestion={onSkipQuestion}
       onCategoryClick={onCategoryClick}
+      onRegenerateQuestion={onRegenerateQuestion}
     />
   );
 };
@@ -186,6 +189,16 @@ function App() {
 
   // Add refresh trigger for CategoryTable
   const [categoryRefreshTrigger, setCategoryRefreshTrigger] = useState<number>(0);
+
+  // Regenerate Question modal state
+  const [showRegenerateModal, setShowRegenerateModal] = useState<boolean>(false);
+  const [isRegenerating, setIsRegenerating] = useState<boolean>(false);
+  const [regenerationStatus, setRegenerationStatus] = useState<string[]>([]);
+  const [showRegenerationStatus, setShowRegenerationStatus] = useState<boolean>(false);
+  const [currentRegenerationMessageIndex, setCurrentRegenerationMessageIndex] = useState<number>(0);
+  const [isRegenerationTransitioning, setIsRegenerationTransitioning] = useState<boolean>(false);
+  const [regenerationFeedback, setRegenerationFeedback] = useState<string>('');
+  const [regeneratingQuestionId, setRegeneratingQuestionId] = useState<number | null>(null);
 
   // Add refresh function for categories
   const handleRefreshCategories = async () => {
@@ -363,6 +376,28 @@ function App() {
     
     return () => clearTimeout(timer);
   }, [showProposalStatus, proposalStatus.length, currentProposalMessageIndex]);
+
+  // Effect to handle regeneration message queue and transitions
+  useEffect(() => {
+    if (!showRegenerationStatus || regenerationStatus.length === 0) return;
+    
+    // If we're at the end of messages and regeneration is still ongoing, don't advance
+    if (currentRegenerationMessageIndex >= regenerationStatus.length - 1) return;
+    
+    const timer = setTimeout(() => {
+      // Start transition
+      setIsRegenerationTransitioning(true);
+      
+      // After fade out duration, change message and fade in
+      setTimeout(() => {
+        setCurrentRegenerationMessageIndex(prev => Math.min(prev + 1, regenerationStatus.length - 1));
+        setIsRegenerationTransitioning(false);
+      }, 100); // 0.1 second transition
+      
+    }, 500); // 0.5 second minimum display time
+    
+    return () => clearTimeout(timer);
+  }, [showRegenerationStatus, regenerationStatus.length, currentRegenerationMessageIndex]);
 
   const handleCategoryClick = async (categoryId: number, insightSubject: string) => {
     setSelectedCategoryId(categoryId);
@@ -806,6 +841,85 @@ function App() {
     setProposedQuestionText('');
   };
 
+  const handleRegenerateQuestion = (questionId: number, feedback: string) => {
+    setRegeneratingQuestionId(questionId);
+    setRegenerationFeedback(feedback);
+    setShowRegenerateModal(true);
+  };
+
+  const handleExecuteRegeneration = async () => {
+    if (isRegenerating || !regeneratingQuestionId) return;
+
+    setIsRegenerating(true);
+    setRegenerationStatus([]);
+    setShowRegenerationStatus(true);
+    setCurrentRegenerationMessageIndex(0);
+    setIsRegenerationTransitioning(false);
+    setShowRegenerateModal(false);
+    
+    try {
+      const response = await fetch(`/api/questions/${regeneratingQuestionId}/regenerate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          feedback: regenerationFeedback,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n').filter(line => line.trim());
+          
+          for (const line of lines) {
+            if (line.startsWith('REGENERATION_COMPLETE:')) {
+              // Extract question ID from the response
+              const questionId = parseInt(line.split(':')[1]);
+              
+              setRegenerationStatus(prev => [...prev, 'Regeneration completed! Refreshing view...']);
+              setTimeout(() => {
+                setShowRegenerationStatus(false);
+                setIsRegenerating(false);
+                setRegenerationFeedback('');
+                setRegeneratingQuestionId(null);
+                
+                // Refresh the page to show the updated question
+                window.location.reload();
+              }, 2000);
+              return;
+            } else {
+              setRegenerationStatus(prev => [...prev, line]);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Regeneration failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setRegenerationStatus(prev => [...prev, `Error: ${errorMessage}`]);
+      setIsRegenerating(false);
+    }
+  };
+
+  const handleCancelRegeneration = () => {
+    setShowRegenerateModal(false);
+    setRegenerationFeedback('');
+    setRegeneratingQuestionId(null);
+  };
+
   const breadcrumbItems: BreadcrumbItem[] = [
     { label: 'Categories', onClick: navigateToCategories, isCurrent: currentView === 'categories' },
   ];
@@ -953,6 +1067,44 @@ function App() {
               {isGenerating ? '⏳ Generating...' : '🔄 Generate Questions'}
             </button>
           )}
+          {currentView === 'question' && selectedQuestionId && (
+            <button
+              onClick={() => handleRegenerateQuestion(selectedQuestionId, '')}
+              disabled={isRegenerating}
+              style={{
+                background: '#17a2b8',
+                border: '1px solid #17a2b8',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                cursor: isRegenerating ? 'not-allowed' : 'pointer',
+                color: 'white',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '24px',
+                transition: 'all 0.2s ease',
+                textDecoration: 'none',
+                marginRight: '12px',
+                opacity: isRegenerating ? 0.6 : 1,
+              }}
+              title="Regenerate this question"
+              onMouseEnter={(e) => {
+                if (!isRegenerating) {
+                  e.currentTarget.style.backgroundColor = '#138496';
+                  e.currentTarget.style.borderColor = '#117a8b';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isRegenerating) {
+                  e.currentTarget.style.backgroundColor = '#17a2b8';
+                  e.currentTarget.style.borderColor = '#17a2b8';
+                }
+              }}
+            >
+              {isRegenerating ? '⏳ Regenerating...' : '🔄 Regenerate'}
+            </button>
+          )}
           <button
             onClick={() => setShowAddCategoryModal(true)}
             style={addCategoryButtonStyle}
@@ -1022,6 +1174,7 @@ function App() {
                 currentQuestions={currentQuestions}
                 currentQuestionIndex={currentQuestionIndex}
                 onCategoryClick={handleCategoryClick}
+                onRegenerateQuestion={handleRegenerateQuestion}
               />
             } 
           />
@@ -1423,6 +1576,197 @@ function App() {
               <div style={{ textAlign: 'center' }}>
                 <button
                   onClick={() => setShowProposalStatus(false)}
+                  style={{
+                    background: '#17a2b8',
+                    border: '1px solid #17a2b8',
+                    borderRadius: '4px',
+                    padding: '8px 16px',
+                    color: 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Regenerate Question Modal */}
+      {showRegenerateModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '24px',
+            width: '35%',
+            margin: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            boxSizing: 'border-box',
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px' }}>
+              Regenerate Question
+            </h3>
+            
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                Feedback (optional):
+              </label>
+              <textarea
+                value={regenerationFeedback}
+                onChange={(e) => setRegenerationFeedback(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.ctrlKey && !isRegenerating) {
+                    handleExecuteRegeneration();
+                  }
+                }}
+                placeholder="Enter feedback to improve the question (leave empty for a random variation)..."
+                style={{
+                  width: '100%',
+                  height: '80px',
+                  padding: '12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box',
+                  resize: 'vertical',
+                }}
+                disabled={isRegenerating}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={handleCancelRegeneration}
+                disabled={isRegenerating}
+                style={{
+                  background: '#6c757d',
+                  border: '1px solid #6c757d',
+                  borderRadius: '4px',
+                  padding: '8px 16px',
+                  color: 'white',
+                  cursor: isRegenerating ? 'not-allowed' : 'pointer',
+                  opacity: isRegenerating ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExecuteRegeneration}
+                disabled={isRegenerating}
+                style={{
+                  background: '#17a2b8',
+                  border: '1px solid #17a2b8',
+                  borderRadius: '4px',
+                  padding: '8px 16px',
+                  color: 'white',
+                  cursor: isRegenerating ? 'not-allowed' : 'pointer',
+                  opacity: isRegenerating ? 0.6 : 1,
+                }}
+              >
+                {isRegenerating ? 'Regenerating...' : 'Regenerate Question'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Regeneration Status Modal */}
+      {showRegenerationStatus && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '24px',
+            width: '35vw',
+            height: '30vh',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <h3 style={{ 
+              marginTop: 0, 
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}>
+              Regenerating Question
+              {isRegenerating && (
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid #f3f3f3',
+                  borderTop: '2px solid #17a2b8',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                }}></div>
+              )}
+              <style>
+                {`
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+                `}
+              </style>
+            </h3>
+            
+            {/* Log area with current message display */}
+            <div style={{ 
+              flex: 1,
+              fontFamily: 'monospace', 
+              fontSize: '24px',
+              backgroundColor: 'transparent',
+              padding: '16px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              {regenerationStatus.length > 0 && (
+                <div 
+                  style={{ 
+                    textAlign: 'center',
+                    width: '100%',
+                  }}
+                >
+                  {regenerationStatus[currentRegenerationMessageIndex] || 'Starting...'}
+                </div>
+              )}
+            </div>
+              
+            {!isRegenerating && (
+              <div style={{ textAlign: 'center' }}>
+                <button
+                  onClick={() => setShowRegenerationStatus(false)}
                   style={{
                     background: '#17a2b8',
                     border: '1px solid #17a2b8',

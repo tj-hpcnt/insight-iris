@@ -160,23 +160,17 @@ ${extraHints}${existingInsightsText}`;
 }
 
 /**
- * Generates a question for a given insight and style
+ * Builds the prompt and messages for question generation
  * @param insight The insight to generate a question for
- * @param style The style to use for question generation
- * @returns Tuple containing the created question object, array of answers, array of insights, and token usage statistics
+ * @param category The category for the insight
+ * @param preferBinary Whether to prefer binary questions
+ * @returns Tuple containing the prompt messages, format schema, and model
  */
-export async function generateBaseQuestion(
+async function buildQuestionGenerationPrompt(
   insight: Insight,
+  category: Category,
   preferBinary: boolean
-): Promise<[Question, Answer[], Insight[], OpenAI.Completions.CompletionUsage] | null> {
-  const category = await prisma.category.findUnique({
-    where: { id: insight.categoryId }
-  });
-
-  if (!category) {
-    throw new Error(`Category not found for insight ${insight.id}`);
-  }
-
+): Promise<[OpenAI.Chat.ChatCompletionMessageParam[], any, string]> {
   // Get all categories to build taxonomy
   const allCategories = await prisma.category.findMany();
   
@@ -227,7 +221,6 @@ export async function generateBaseQuestion(
   });
   const questions = existingQuestionsRaw.map(q => ({ text: q.questionText }));
 
-
   const typeDescription = {
     [QuestionType.BINARY]: "a statement that the user will either press heart or X on (yes/no, true/false, agree/disagree)",
     [QuestionType.SINGLE_CHOICE]: "a multiple-choice question were only one option makes sense to select",
@@ -238,7 +231,6 @@ export async function generateBaseQuestion(
   const preferBinaryPrompt = preferBinary ? "" : `
   If an insight could have parallel interesting insights, then prefer a single choice or multiple choice based answer instead of a binary statement.
   `;
-
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers.  We need to generate the fun questions to answer that can explore a potential insight 
 
@@ -310,6 +302,29 @@ If you can't generate a unique question, then output:
       }
     }
   };
+
+  return [messages, format, model];
+}
+
+/**
+ * Generates a question for a given insight and style
+ * @param insight The insight to generate a question for
+ * @param preferBinary Whether to prefer binary questions
+ * @returns Tuple containing the created question object, array of answers, array of insights, and token usage statistics
+ */
+export async function generateBaseQuestion(
+  insight: Insight,
+  preferBinary: boolean
+): Promise<[Question, Answer[], Insight[], OpenAI.Completions.CompletionUsage] | null> {
+  const category = await prisma.category.findUnique({
+    where: { id: insight.categoryId }
+  });
+
+  if (!category) {
+    throw new Error(`Category not found for insight ${insight.id}`);
+  }
+
+  const [messages, format, model] = await buildQuestionGenerationPrompt(insight, category, preferBinary);
 
   // Try to fetch from cache first
   const cachedCompletion = await fetchCachedExecution(model, messages, format);
@@ -2566,6 +2581,190 @@ Make sure your rewritten answers still logically lead to the same insights!`;
     return [updatedQuestion, completion.usage];
   } catch (error) {
     console.error('Error regenerating question:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
+}
+
+/**
+ * Regenerates an existing question with human feedback
+ * @param existingQuestion The existing question to regenerate (must include answers with insights)
+ * @param feedback Human feedback for improving the question (can be empty)
+ * @returns Tuple containing the updated question object, new answers, new insights, and token usage statistics
+ */
+export async function regenerateQuestionWithFeedback(
+  existingQuestion: Question & {
+    answers: (Answer & {
+      insight: Insight;
+    })[];
+    inspiration: Insight;
+  },
+  feedback: string
+): Promise<[Question, Answer[], Insight[], OpenAI.Completions.CompletionUsage] | null> {
+  const category = await prisma.category.findUnique({
+    where: { id: existingQuestion.categoryId }
+  });
+
+  if (!category) {
+    throw new Error(`Category not found for question ${existingQuestion.id}`);
+  }
+
+  // Build the base prompt using the extracted function
+  const [baseMessages, format, model] = await buildQuestionGenerationPrompt(
+    existingQuestion.inspiration, 
+    category, 
+    existingQuestion.questionType === QuestionType.BINARY
+  );
+
+  // Format the existing question as an assistant response
+  const existingQuestionResponse = {
+    question: existingQuestion.questionText,
+    answers: existingQuestion.answers.map(answer => answer.answerText),
+    insights: existingQuestion.answers.map(answer => answer.insight.insightText),
+    type: existingQuestion.questionType
+  };
+
+  // Create feedback prompt
+  var feedbackPrompt = feedback.trim() 
+    ? `The previous question generation needs improvement based on this feedback: "${feedback}". Please generate another attempt at creating a question for the same insight, incorporating this feedback while maintaining the same concept exploration but with a different style or approach.`
+    : `Please generate another attempt at creating a question for the same insight. Try a different style or approach while maintaining the same concept exploration.`;
+
+    feedbackPrompt = `${feedbackPrompt}
+
+    You are allowed to change the question type, answers, and insights.  You must output the new question in the same JSON format as before.
+    `
+
+  // Build messages with existing question as assistant response and feedback as new system message
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    ...baseMessages,
+    { role: "assistant", content: JSON.stringify(existingQuestionResponse) },
+    { role: "system", content: feedbackPrompt }
+  ];
+
+  const completion = await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const questionData = (completion.choices[0].message as any).parsed as {
+      question: string;
+      answers: string[];
+      insights: string[];
+      type: string;
+    };
+
+    if (!questionData) {
+      throw new Error("Parse error");
+    }
+    if (questionData.answers.length != questionData.insights.length) {
+      throw new Error("Answers and insights length mismatch");
+    }
+    if (questionData.type === "DUPLICATE") {
+      // Return the original question unchanged if duplicate is generated
+      return [existingQuestion, existingQuestion.answers, existingQuestion.answers.map(a => a.insight), completion.usage];
+    }
+
+    // Update the question and answers in a transaction
+    const [updatedQuestion, newAnswers, newInsights] = await prisma.$transaction(async (tx) => {
+      // Get all insights that will be affected by this change
+      const oldAnswerInsightIds = existingQuestion.answers.map(answer => answer.insight.id);
+
+      // For each old answer insight, check if it's used by other questions
+      for (const insightId of oldAnswerInsightIds) {
+        const otherAnswers = await tx.answer.findMany({
+          where: {
+            insightId: insightId,
+            questionId: { not: existingQuestion.id }
+          }
+        });
+
+        // If the insight is used by other questions, we can't delete it
+        // Instead, we'll just unlink it from this question
+        if (otherAnswers.length === 0) {
+          // Delete insight comparisons involving this insight
+          await tx.insightComparisonPresentation.deleteMany({
+            where: {
+              insightComparison: {
+                OR: [
+                  { insightAId: insightId },
+                  { insightBId: insightId }
+                ]
+              }
+            }
+          });
+
+          await tx.insightComparison.deleteMany({
+            where: {
+              OR: [
+                { insightAId: insightId },
+                { insightBId: insightId }
+              ]
+            }
+          });
+        }
+      }
+
+      // Delete existing answers (this will also unlink the insights)
+      await tx.answer.deleteMany({
+        where: { questionId: existingQuestion.id }
+      });
+
+      // Delete orphaned insights that are no longer used by any answers
+      for (const insightId of oldAnswerInsightIds) {
+        const remainingAnswers = await tx.answer.findMany({
+          where: { insightId: insightId }
+        });
+
+        if (remainingAnswers.length === 0) {
+          await tx.insight.delete({
+            where: { id: insightId }
+          });
+        }
+      }
+
+      // Update the question
+      const updatedQuestion = await tx.question.update({
+        where: { id: existingQuestion.id },
+        data: {
+          questionText: fixIllegalEnumCharacters(questionData.question),
+          questionType: questionData.type as QuestionType,
+        },
+      });
+
+      const newAnswers: Answer[] = [];
+      const newInsights: Insight[] = [];
+
+      // Create new insights and answers
+      for (let i = 0; i < questionData.answers.length; i++) {
+        // Create new insight for each answer
+        const newInsight = await tx.insight.create({
+          data: {
+            insightText: fixIllegalEnumCharacters(questionData.insights[i]),
+            categoryId: category.id,
+            source: InsightSource.ANSWER,
+          },
+        });
+        newInsights.push(newInsight);
+
+        // Create answer linking question to insight
+        const answer = await tx.answer.create({
+          data: {
+            answerText: questionData.answers[i],
+            questionId: updatedQuestion.id,
+            insightId: newInsight.id,
+          },
+        });
+        newAnswers.push(answer);
+      }
+
+      return [updatedQuestion, newAnswers, newInsights];
+    });
+
+    return [updatedQuestion, newAnswers, newInsights, completion.usage];
+  } catch (error) {
+    console.error('Error regenerating question with feedback:', error);
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }

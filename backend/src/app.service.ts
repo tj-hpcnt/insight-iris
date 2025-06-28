@@ -795,6 +795,96 @@ export class AppService {
     }
   }
 
+  async regenerateQuestion(questionId: number, feedback: string, res: Response) {
+    const { regenerateQuestionWithFeedback, reduceExactRedundancyForAnswers } = await import('./utils/aiGenerators');
+
+    const log = (message: string) => {
+      res.write(`${message}\n`);
+    };
+
+    const createProgressIndicator = (baseMessage: string) => {
+      let dotCount = 0;
+      return setInterval(() => {
+        dotCount = (dotCount + 1) % 4;
+        const dots = '.'.repeat(dotCount);
+        const spaces = ' '.repeat(3 - dotCount);
+        log(`${baseMessage}${dots}${spaces}`);
+      }, 500);
+    };
+
+    try {
+      // Set up streaming response
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      // Get the existing question with all related data
+      log('Fetching question data...');
+      const existingQuestion = await this.prisma.question.findUnique({
+        where: { id: questionId },
+        include: {
+          answers: {
+            include: {
+              insight: true
+            }
+          },
+          inspiration: true
+        }
+      });
+
+      if (!existingQuestion) {
+        throw new Error(`Question with ID ${questionId} not found`);
+      }
+
+      if (!existingQuestion.inspiration) {
+        throw new Error(`Inspiration insight not found for question ${questionId}`);
+      }
+
+      // Regenerate the question with feedback
+      log('Regenerating question with AI...');
+      const progressIndicator = createProgressIndicator('Regenerating question with AI');
+      
+      const result = await regenerateQuestionWithFeedback(
+        existingQuestion as any, // Type assertion since we know the structure
+        feedback
+      );
+
+      clearInterval(progressIndicator);
+
+      if (!result) {
+        throw new Error('Failed to regenerate question');
+      }
+
+      const [updatedQuestion, newAnswers, newInsights, usage] = result;
+
+      log('Question regenerated successfully!');
+      log(`Token usage: ${usage.prompt_tokens} prompt + ${usage.completion_tokens} completion = ${usage.prompt_tokens + usage.completion_tokens} total`);
+
+      // Apply answer insight reduction
+      log('Reducing redundancy in answer insights...');
+      const redundancyProgressIndicator = createProgressIndicator('Reducing answer redundancy');
+
+      const redundancyResult = await reduceExactRedundancyForAnswers();
+      
+      clearInterval(redundancyProgressIndicator);
+
+      if (redundancyResult && redundancyResult.length > 0) {
+        log(`Merged ${redundancyResult.length} redundant answer insights`);
+      } else {
+        log('No redundant answer insights found');
+      }
+
+      log('Question regeneration complete!');
+      res.write(`REGENERATION_COMPLETE:${updatedQuestion.id}\n`);
+      res.end();
+    } catch (error) {
+      console.error('Error in regenerateQuestion:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      log(`Error: ${errorMessage}`);
+      res.status(500).end();
+    }
+  }
+
   async deleteQuestion(questionId: number) {
     try {
       await deleteQuestion(questionId);

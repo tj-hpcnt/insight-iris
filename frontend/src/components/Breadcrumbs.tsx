@@ -69,10 +69,33 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                 >
                   ←
                 </button>
-                <span style={{ margin: '0 4px' }}></span>
               </>
             )}
             
+            {/* Show navigation arrows for category items (items with insightSubject) */}
+            {item.insightSubject && onCategoryNavigation && (
+              <>
+                <button
+                  onClick={() => canNavigateNext && onCategoryNavigation('next')}
+                  disabled={!canNavigateNext}
+                  style={arrowButtonStyle(canNavigateNext)}
+                  title="Next category"
+                  onMouseEnter={(e) => {
+                    if (canNavigateNext) {
+                      e.currentTarget.style.backgroundColor = '#f8f9fa';
+                      e.currentTarget.style.borderColor = '#007bff';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.borderColor = '#ddd';
+                  }}
+                >
+                  →
+                </button>
+              </>
+            )}
+
             <button
               onClick={item.onClick}
               disabled={item.isCurrent}
@@ -96,31 +119,6 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                 </span>
               )}
             </button>
-            
-            {/* Show navigation arrows for category items (items with insightSubject) */}
-            {item.insightSubject && onCategoryNavigation && (
-              <>
-                <span style={{ margin: '0 4px' }}></span>
-                <button
-                  onClick={() => canNavigateNext && onCategoryNavigation('next')}
-                  disabled={!canNavigateNext}
-                  style={arrowButtonStyle(canNavigateNext)}
-                  title="Next category"
-                  onMouseEnter={(e) => {
-                    if (canNavigateNext) {
-                      e.currentTarget.style.backgroundColor = '#f8f9fa';
-                      e.currentTarget.style.borderColor = '#007bff';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.borderColor = '#ddd';
-                  }}
-                >
-                  →
-                </button>
-              </>
-            )}
           </li>
         ))}
         </ol>

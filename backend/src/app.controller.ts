@@ -73,6 +73,15 @@ export class AppController {
     res.send(JSON.stringify(exportData, null, 2));
   }
 
+  @Post('questions/:questionId/regenerate')
+  async regenerateQuestion(
+    @Param('questionId', ParseIntPipe) questionId: number,
+    @Body() body: { feedback?: string },
+    @Res() res: Response
+  ) {
+    return this.appService.regenerateQuestion(questionId, body.feedback || '', res);
+  }
+
   @Delete('questions/:questionId')
   async deleteQuestion(@Param('questionId', ParseIntPipe) questionId: number) {
     return this.appService.deleteQuestion(questionId);
