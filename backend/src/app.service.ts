@@ -10,6 +10,7 @@ import {
   reduceExactRedundancyForQuestions, reduceExactRedundancyForAnswers,
   predictQuestionCandidateCategory, generateQuestionFromProposal
 } from './utils/aiGenerators';
+import { deleteQuestion, deleteAnswer, getAnswerCount } from './utils/delete';
 import { processInParallel } from './utils/parallelProcessor';
 
 // Define category information structure
@@ -791,6 +792,33 @@ export class AppService {
       log(`Error during question proposal: ${error.message}`);
       log(`Stack trace: ${error.stack}`);
       res.end();
+    }
+  }
+
+  async deleteQuestion(questionId: number) {
+    try {
+      await deleteQuestion(questionId);
+      return { success: true, message: 'Question deleted successfully' };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async deleteAnswer(answerId: number) {
+    try {
+      await deleteAnswer(answerId);
+      return { success: true, message: 'Answer deleted successfully' };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async getQuestionAnswerCount(questionId: number) {
+    try {
+      const count = await getAnswerCount(questionId);
+      return { count, canDeleteAnswers: count > 2 };
+    } catch (error) {
+      throw new NotFoundException('Question not found');
     }
   }
 } 

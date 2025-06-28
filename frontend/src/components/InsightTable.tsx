@@ -82,6 +82,8 @@ const InsightTable: React.FC<InsightTableProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [insightAnswerCounts, setInsightAnswerCounts] = useState<Map<number, number>>(new Map());
   const [insightToQuestionsMap, setInsightToQuestionsMap] = useState<Map<number, Array<{ id: number; questionText: string; publishedId: string | null; proposedQuestion: string | null; category: CategoryInfo }>>>(new Map());
+  const [answerCounts, setAnswerCounts] = useState<Map<number, number>>(new Map());
+  const [deleting, setDeleting] = useState<{ type: 'question' | 'answer'; id: number } | null>(null);
 
   const fetchQuestions = async () => {
     try {
@@ -116,6 +118,47 @@ const InsightTable: React.FC<InsightTableProps> = ({
     if (!categoryId || refreshTrigger === undefined) return;
     fetchQuestions();
   }, [refreshTrigger]);
+
+  // Fetch answer counts for questions when questions change
+  useEffect(() => {
+    const fetchAnswerCounts = async () => {
+      if (questions.length === 0) {
+        setAnswerCounts(new Map());
+        return;
+      }
+      
+      console.log('Fetching answer counts for', questions.length, 'questions');
+      
+      const countPromises = questions.map(async (question) => {
+        try {
+          const response = await fetch(`/api/questions/${question.id}/answer-count`);
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`Question ${question.id} has ${data.count} answers`);
+            return { questionId: question.id, count: data.count };
+          } else {
+            console.warn(`Failed to fetch answer count for question ${question.id}: ${response.status}`);
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch answer count for question ${question.id}:`, error);
+        }
+        // Default to the number of answers we already have in the data
+        const fallbackCount = question.answers?.length || 0;
+        console.log(`Using fallback count ${fallbackCount} for question ${question.id}`);
+        return { questionId: question.id, count: fallbackCount };
+      });
+      
+      const results = await Promise.all(countPromises);
+      const newAnswerCounts = new Map();
+      results.forEach(({ questionId, count }) => {
+        newAnswerCounts.set(questionId, count);
+      });
+      console.log('Answer counts:', Array.from(newAnswerCounts.entries()));
+      setAnswerCounts(newAnswerCounts);
+    };
+    
+    fetchAnswerCounts();
+  }, [questions]);
 
   useEffect(() => {
     // Transform the questions data based on the selected tab
@@ -229,6 +272,71 @@ const InsightTable: React.FC<InsightTableProps> = ({
     onInsightClick(questionId);
   };
 
+  // Add delete functions
+  const handleDeleteQuestion = async (questionId: number, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent row click
+    if (deleting) return;
+    
+    const confirmed = window.confirm('Are you sure you want to delete this question? This will also delete the inspiration insight and cannot be undone.');
+    if (!confirmed) return;
+    
+    try {
+      setDeleting({ type: 'question', id: questionId });
+      const response = await fetch(`/api/questions/${questionId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      // Refresh the data
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Failed to delete question:', error);
+      alert('Failed to delete question: ' + (error as Error).message);
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const handleDeleteAnswer = async (answerId: number, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent row click
+    if (deleting) return;
+    
+    const confirmed = window.confirm('Are you sure you want to delete this answer? This will also delete the associated insight and cannot be undone.');
+    if (!confirmed) return;
+    
+    try {
+      setDeleting({ type: 'answer', id: answerId });
+      const response = await fetch(`/api/answers/${answerId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      // Refresh the data
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Failed to delete answer:', error);
+      alert('Failed to delete answer: ' + (error as Error).message);
+    } finally {
+      setDeleting(null);
+    }
+  };
+
 
 
 
@@ -331,23 +439,98 @@ const InsightTable: React.FC<InsightTableProps> = ({
                 borderBottom: '1px solid #dee2e6',
                 color: '#495057'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  {item.questionText}
-                  {item.publishedId && (
-                    <PublishedIdChip publishedId={item.publishedId} />
-                  )}
-                  {item.proposedQuestion && !item.publishedId && (
-                    <ProposedChip />
-                  )}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                    {item.questionText}
+                    {item.publishedId && (
+                      <PublishedIdChip publishedId={item.publishedId} />
+                    )}
+                    {item.proposedQuestion && !item.publishedId && (
+                      <ProposedChip />
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => handleDeleteQuestion(item.questionId, e)}
+                    disabled={deleting?.type === 'question' && deleting?.id === item.questionId}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#dc3545',
+                      fontSize: '14px',
+                      cursor: deleting?.type === 'question' && deleting?.id === item.questionId ? 'not-allowed' : 'pointer',
+                      padding: '4px',
+                      borderRadius: '3px',
+                      opacity: deleting?.type === 'question' && deleting?.id === item.questionId ? 0.5 : 0.7,
+                      transition: 'opacity 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!(deleting?.type === 'question' && deleting?.id === item.questionId)) {
+                        e.currentTarget.style.opacity = '1';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!(deleting?.type === 'question' && deleting?.id === item.questionId)) {
+                        e.currentTarget.style.opacity = '0.7';
+                      }
+                    }}
+                    title="Delete question"
+                  >
+                    {deleting?.type === 'question' && deleting?.id === item.questionId ? '⏳' : '✕'}
+                  </button>
                 </div>
               </td>
+
               {insightType === 'answers' && (
                 <td style={{ 
                   padding: '12px', 
                   borderBottom: '1px solid #dee2e6',
                   color: '#495057'
                 }}>
-                  {item.answerText}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ flex: 1 }}>{item.answerText}</span>
+                    {(() => {
+                      const count = answerCounts.get(item.questionId) ?? 0;
+                      const shouldShow = count > 2;
+                      console.log(`Answer for question ${item.questionId}: count=${count}, shouldShowDeleteAnswer=${shouldShow}`);
+                      return shouldShow;
+                    })() && (
+                      <button
+                        onClick={(e) => {
+                          // Find the answer ID by matching the question and answer text
+                          const question = questions.find(q => q.id === item.questionId);
+                          const answer = question?.answers.find(a => a.answerText === item.answerText);
+                          if (answer) {
+                            handleDeleteAnswer(answer.id, e);
+                          }
+                        }}
+                        disabled={deleting?.type === 'answer'}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#dc3545',
+                          fontSize: '14px',
+                          cursor: deleting?.type === 'answer' ? 'not-allowed' : 'pointer',
+                          padding: '4px',
+                          borderRadius: '3px',
+                          opacity: deleting?.type === 'answer' ? 0.5 : 0.7,
+                          transition: 'opacity 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (deleting?.type !== 'answer') {
+                            e.currentTarget.style.opacity = '1';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (deleting?.type !== 'answer') {
+                            e.currentTarget.style.opacity = '0.7';
+                          }
+                        }}
+                        title="Delete answer (question has more than 2 answers)"
+                      >
+                        {deleting?.type === 'answer' ? '⏳' : '✕'}
+                      </button>
+                    )}
+                  </div>
                 </td>
               )}
               <td style={{ 

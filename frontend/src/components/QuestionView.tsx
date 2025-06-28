@@ -105,6 +105,8 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [hoveredAnswerOptionId, setHoveredAnswerOptionId] = useState<number | null>(null);
   const [hoveredPrevButton, setHoveredPrevButton] = useState<boolean>(false);
   const [hoveredNextButton, setHoveredNextButton] = useState<boolean>(false);
+  const [canDeleteAnswers, setCanDeleteAnswers] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<{ type: 'question' | 'answer'; id: number } | null>(null);
   
   // Add state for insight question counts and mappings
   const [insightAnswerCounts, setInsightAnswerCounts] = useState<Map<number, number>>(new Map());
@@ -117,13 +119,23 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     const fetchQuestionData = async () => {
       try {
         setLoadingQuestionContext(true);
-        const response = await fetch(`/api/questions/${questionId}`);
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
-            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        const [questionResponse, countResponse] = await Promise.all([
+          fetch(`/api/questions/${questionId}`),
+          fetch(`/api/questions/${questionId}/answer-count`)
+        ]);
+        
+        if (!questionResponse.ok) {
+            const errorData = await questionResponse.json().catch(() => ({ message: `HTTP error! status: ${questionResponse.status}` }));
+            throw new Error(errorData.message || `HTTP error! status: ${questionResponse.status}`);
         }
-        const data: QuestionData = await response.json();
+        
+        const data: QuestionData = await questionResponse.json();
         setQuestionData(data);
+        
+        if (countResponse.ok) {
+          const countData = await countResponse.json();
+          setCanDeleteAnswers(countData.canDeleteAnswers);
+        }
       } catch (e) {
         if (e instanceof Error) setError(e.message);
         else setError('An unknown error occurred while fetching question data');
@@ -244,6 +256,61 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     }
   };
 
+  // Add delete functions
+  const handleDeleteQuestion = async () => {
+    if (!questionData || deleting) return;
+    
+    const confirmed = window.confirm('Are you sure you want to delete this question? This will also delete the inspiration insight and cannot be undone.');
+    if (!confirmed) return;
+    
+    try {
+      setDeleting({ type: 'question', id: questionData.id });
+      const response = await fetch(`/api/questions/${questionData.id}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      // Navigate back or refresh the parent view
+      onSkipQuestion();
+    } catch (error) {
+      console.error('Failed to delete question:', error);
+      alert('Failed to delete question: ' + (error as Error).message);
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const handleDeleteAnswer = async (answerId: number) => {
+    if (!questionData || deleting) return;
+    
+    const confirmed = window.confirm('Are you sure you want to delete this answer? This will also delete the associated insight and cannot be undone.');
+    if (!confirmed) return;
+    
+    try {
+      setDeleting({ type: 'answer', id: answerId });
+      const response = await fetch(`/api/answers/${answerId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      // Refresh the question data
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to delete answer:', error);
+      alert('Failed to delete answer: ' + (error as Error).message);
+    } finally {
+      setDeleting(null);
+    }
+  };
+
   if (loadingQuestionContext) return <p>Loading question context...</p>;
   if (error) return <p>Error: {error}</p>;
   if (!questionData) {
@@ -308,6 +375,34 @@ const QuestionView: React.FC<QuestionViewProps> = ({
               {questionData.proposedQuestion && !questionData.publishedId && (
                 <ProposedChip />
               )}
+              <button
+                onClick={handleDeleteQuestion}
+                disabled={deleting?.type === 'question'}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#dc3545',
+                  fontSize: '16px',
+                  cursor: deleting?.type === 'question' ? 'not-allowed' : 'pointer',
+                  padding: '4px',
+                  borderRadius: '3px',
+                  opacity: deleting?.type === 'question' ? 0.5 : 0.7,
+                  transition: 'opacity 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (deleting?.type !== 'question') {
+                    e.currentTarget.style.opacity = '1';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (deleting?.type !== 'question') {
+                    e.currentTarget.style.opacity = '0.7';
+                  }
+                }}
+                title="Delete question"
+              >
+                {deleting?.type === 'question' ? '⏳' : '✕'}
+              </button>
             </div>
           </div>
           <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
@@ -334,24 +429,63 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {options.map((option) => {
               const isHovered = hoveredAnswerOptionId === option.id;
+              const isDeleting = deleting?.type === 'answer' && deleting?.id === option.id;
               return (
-                <button 
-                  key={option.id} 
-                  onMouseEnter={() => handleAnswerHover(option)}
-                  onMouseLeave={() => handleAnswerHover(null)}
-                  style={{
-                    padding: '15px',
-                    fontSize: '16px',
-                    borderRadius: '8px',
-                    border: isHovered ? '2px solid #007bff' : '2px solid transparent',
-                    backgroundColor: isHovered ? '#e7f3ff' : 'white',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'background-color 0.2s ease, border-color 0.2s ease'
-                  }}
-                >
-                  {option.answerText}
-                </button>
+                <div key={option.id} style={{ position: 'relative' }}>
+                  <button 
+                    onMouseEnter={() => handleAnswerHover(option)}
+                    onMouseLeave={() => handleAnswerHover(null)}
+                    style={{
+                      padding: '15px',
+                      paddingRight: canDeleteAnswers ? '50px' : '15px',
+                      fontSize: '16px',
+                      borderRadius: '8px',
+                      border: isHovered ? '2px solid #007bff' : '2px solid transparent',
+                      backgroundColor: isHovered ? '#e7f3ff' : 'white',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.2s ease, border-color 0.2s ease',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    {option.answerText}
+                  </button>
+                  {canDeleteAnswers && (
+                    <button
+                      onClick={() => handleDeleteAnswer(option.id)}
+                      disabled={isDeleting}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#dc3545',
+                        fontSize: '14px',
+                        cursor: isDeleting ? 'not-allowed' : 'pointer',
+                        padding: '4px',
+                        borderRadius: '3px',
+                        opacity: isDeleting ? 0.5 : 0.7,
+                        transition: 'opacity 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isDeleting) {
+                          e.currentTarget.style.opacity = '1';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isDeleting) {
+                          e.currentTarget.style.opacity = '0.7';
+                        }
+                      }}
+                      title="Delete answer"
+                    >
+                      {isDeleting ? '⏳' : '✕'}
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>

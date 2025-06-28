@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
 import { fetchCachedExecution, cachePromptExecution } from './llmCaching';
 import { pickSampleQuestions } from '../../scripts/questions';
+import { deleteQuestionWithCascade } from './delete';
 
 dotenv.config();
 
@@ -1933,86 +1934,7 @@ export async function reduceExactRedundancyForInspirations(): Promise<{oldInsigh
   return mergedInsightsInfo;
 }
 
-/**
- * Helper function to delete a question and all its cascading relationships within a transaction
- * @param tx The Prisma transaction context
- * @param question The question to delete (with answers and insights included)
- * @returns void
- */
-async function deleteQuestionWithCascade(
-  tx: any, // Prisma transaction type
-  question: {
-    id: number;
-    answers: Array<{
-      insight: Insight | null;
-    }>;
-  }
-): Promise<void> {
-  // Get all answer insights for this question
-  const answerInsights = question.answers.map(answer => answer.insight).filter(insight => insight !== null) as Insight[];
-  
-  // For each answer insight, check if it's referenced by other answers outside this question
-  const orphanedAnswerInsights: Map<number, Insight> = new Map();
-  for (const answerInsight of answerInsights) {
-    const otherAnswerReferences = await tx.answer.count({
-      where: {
-        insightId: answerInsight.id,
-        questionId: { not: question.id },
-      },
-    });
 
-    if (otherAnswerReferences === 0) {
-      // This answer insight is only referenced by answers from this question
-      orphanedAnswerInsights.set(answerInsight.id, answerInsight);
-    }
-  }
-
-  // Delete insight comparisons for orphaned answer insights
-  for (const orphanedInsight of orphanedAnswerInsights.values()) {
-    // Delete presentations first
-    const comparisons = await tx.insightComparison.findMany({
-      where: {
-        OR: [
-          { insightAId: orphanedInsight.id },
-          { insightBId: orphanedInsight.id },
-        ],
-      },
-    });
-
-    for (const comparison of comparisons) {
-      await tx.insightComparisonPresentation.deleteMany({
-        where: { insightComparisonId: comparison.id },
-      });
-    }
-
-    // Delete the comparisons themselves
-    await tx.insightComparison.deleteMany({
-      where: {
-        OR: [
-          { insightAId: orphanedInsight.id },
-          { insightBId: orphanedInsight.id },
-        ],
-      },
-    });
-  }
-
-  // Delete all answers for this question
-  await tx.answer.deleteMany({
-    where: { questionId: question.id },
-  });
-
-  // Delete orphaned answer insights
-  for (const orphanedInsight of orphanedAnswerInsights.values()) {
-    await tx.insight.delete({
-      where: { id: orphanedInsight.id },
-    });
-  }
-
-  // Delete the question itself
-  await tx.question.delete({
-    where: { id: question.id },
-  });
-}
 
 /**
  * Reduces redundancy in questions by identifying and merging questions with identical text.

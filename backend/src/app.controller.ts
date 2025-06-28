@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, ParseIntPipe, Res } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, ParseIntPipe, Res } from '@nestjs/common';
 import { AppService } from './app.service';
 import { Response } from 'express';
 import { generateTimestampedFilename } from './utils/export';
@@ -66,5 +66,20 @@ export class AppController {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(JSON.stringify(exportData, null, 2));
+  }
+
+  @Delete('questions/:questionId')
+  async deleteQuestion(@Param('questionId', ParseIntPipe) questionId: number) {
+    return this.appService.deleteQuestion(questionId);
+  }
+
+  @Delete('answers/:answerId')
+  async deleteAnswer(@Param('answerId', ParseIntPipe) answerId: number) {
+    return this.appService.deleteAnswer(answerId);
+  }
+
+  @Get('questions/:questionId/answer-count')
+  async getQuestionAnswerCount(@Param('questionId', ParseIntPipe) questionId: number) {
+    return this.appService.getQuestionAnswerCount(questionId);
   }
 } 
