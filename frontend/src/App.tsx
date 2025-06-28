@@ -396,6 +396,23 @@ function App() {
         }
       }
       
+      // Refresh the questions list for this category to get correct index
+      const questionsResponse = await fetch(`/api/categories/${categoryId}/questions`);
+      if (questionsResponse.ok) {
+        const questions = await questionsResponse.json();
+        const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
+          id: question.id,
+          questionText: question.questionText,
+        }));
+        setCurrentQuestions(questionList);
+        
+        // Find the index of the question
+        const questionIndex = questionList.findIndex(q => q.id === questionId);
+        if (questionIndex !== -1) {
+          setCurrentQuestionIndex(questionIndex);
+        }
+      }
+      
       // Navigate to the question
       navigate(`/categories/${categoryId}/questions/${questionId}`);
     } catch (error) {
@@ -665,10 +682,34 @@ function App() {
               const categoryId = parseInt(parts[2]);
               
               setProposalStatus(prev => [...prev, 'Proposal completed! Navigating to new question...']);
-              setTimeout(() => {
+              setTimeout(async () => {
                 setShowProposalStatus(false);
                 setIsProposing(false);
                 setProposedQuestionText('');
+                
+                // Update the category context first
+                setSelectedCategoryId(categoryId);
+                
+                // Refresh the questions list to include the new question
+                try {
+                  const response = await fetch(`/api/categories/${categoryId}/questions`);
+                  if (response.ok) {
+                    const questions = await response.json();
+                    const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
+                      id: question.id,
+                      questionText: question.questionText,
+                    }));
+                    setCurrentQuestions(questionList);
+                    
+                    // Find the index of the new question
+                    const newQuestionIndex = questionList.findIndex(q => q.id === questionId);
+                    if (newQuestionIndex !== -1) {
+                      setCurrentQuestionIndex(newQuestionIndex);
+                    }
+                  }
+                } catch (error) {
+                  console.error('Failed to refresh questions after proposal:', error);
+                }
                 
                 // Navigate to the new question
                 navigate(`/categories/${categoryId}/questions/${questionId}`);
@@ -689,7 +730,29 @@ function App() {
                   const questionResponse = await fetch(`/api/questions/${questionId}`);
                   if (questionResponse.ok) {
                     const questionData = await questionResponse.json();
-                    navigate(`/categories/${questionData.category.id}/questions/${questionId}`);
+                    const categoryId = questionData.category.id;
+                    
+                    // Update the category context
+                    setSelectedCategoryId(categoryId);
+                    
+                    // Refresh the questions list for this category
+                    const response = await fetch(`/api/categories/${categoryId}/questions`);
+                    if (response.ok) {
+                      const questions = await response.json();
+                      const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
+                        id: question.id,
+                        questionText: question.questionText,
+                      }));
+                      setCurrentQuestions(questionList);
+                      
+                      // Find the index of the existing question
+                      const existingQuestionIndex = questionList.findIndex(q => q.id === questionId);
+                      if (existingQuestionIndex !== -1) {
+                        setCurrentQuestionIndex(existingQuestionIndex);
+                      }
+                    }
+                    
+                    navigate(`/categories/${categoryId}/questions/${questionId}`);
                   } else {
                     // Fallback - just show an alert
                     alert(`Question already exists with ID ${questionId}`);
@@ -733,21 +796,8 @@ function App() {
     breadcrumbItems.push({
       label: '',
       onClick: () => navigateToInsightsView(), // Defaults to current or inspiration type
-      isCurrent: currentView === 'insights' && !selectedQuestionId,
+      isCurrent: currentView === 'insights',
       insightSubject: selectedInsightSubject || undefined
-    });
-     // Add button group for Inspiration/Answers if in insights view or deeper
-  }
-
-  // This is a conceptual placement for Inspiration/Answers type selection within the breadcrumb area or nearby
-  // Actual UI for this selection needs to be designed. For now, it's handled by direct state changes.
-
-  if (selectedQuestionId && currentView === 'question') {
-    const currentTitle = currentQuestions[currentQuestionIndex]?.questionText || "Question";
-    breadcrumbItems.push({
-      label: currentTitle ||  "Question", // Use question text if available, fallback to insight text
-      onClick: () => { /* Clicking current question in breadcrumb might do nothing or reload */ },
-      isCurrent: true
     });
   }
 

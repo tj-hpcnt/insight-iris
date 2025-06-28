@@ -1699,7 +1699,6 @@ ${questionContexts.map((ctx) => JSON.stringify(ctx)).join('\n')}
 Please analyze these questions considering their complete context - including their answers, generated insights, and inspiration. Group together only those that are truly equivalent and serve the same purpose. For each group, the first question in the list should be the clearest or most preferred representation. Don't output single questions, only groups of 2 or more. Each question can only appear in one group.
 
 Only group questions as equivalent if they truly serve the same purpose AND would generate equivalent insights. Different question formats or answer structures may lead to questions that seem similar but are actually distinct in their purpose. For example:
-- "Do you like spicy food?" (binary) vs "What's your spice tolerance level?" (single choice) might explore the same concept but with different granularity
 - "What's your favorite cuisine?" vs "What cuisine do you cook most?" might both be about food but explore different aspects
 - Questions with different answer options that explore different facets of the same topic should NOT be grouped
 
