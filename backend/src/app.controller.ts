@@ -35,6 +35,14 @@ export class AppController {
     return this.appService.generateQuestionsForCategory(categoryId, res);
   }
 
+  @Post('propose')
+  async proposeQuestion(
+    @Body() body: { proposedQuestionText: string },
+    @Res() res: Response
+  ) {
+    return this.appService.proposeQuestion(body.proposedQuestionText, res);
+  }
+
   @Get('insights/:insightId/question-details')
   async getFullQuestionContextByInsightId(@Param('insightId', ParseIntPipe) insightId: number) {
     return this.appService.getFullQuestionContextByInsightId(insightId);

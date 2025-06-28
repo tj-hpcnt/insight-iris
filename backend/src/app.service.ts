@@ -7,7 +7,8 @@ import { Response } from 'express';
 import { 
   generateInspirationInsights, generateBaseQuestion,
   reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
-  reduceExactRedundancyForQuestions, reduceExactRedundancyForAnswers
+  reduceExactRedundancyForQuestions, reduceExactRedundancyForAnswers,
+  predictQuestionCandidateCategory, generateQuestionFromProposal
 } from './utils/aiGenerators';
 import { processInParallel } from './utils/parallelProcessor';
 
@@ -622,6 +623,172 @@ export class AppService {
 
     } catch (error) {
       log(`Error during question generation: ${error.message}`);
+      log(`Stack trace: ${error.stack}`);
+      res.end();
+    }
+  }
+
+  async proposeQuestion(proposedQuestionText: string, res: Response) {
+    let totalUsage = {
+      promptTokens: 0,
+      cachedPromptTokens: 0,
+      completionTokens: 0,
+    };
+
+    // Set up streaming response
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const log = (message: string) => {
+      console.log(message);
+      res.write(`${message}\n`);
+    };
+
+    // Helper function to create a progress indicator with cycling dots
+    const createProgressIndicator = (baseMessage: string) => {
+      let dotCount = 1;
+      const timer = setInterval(() => {
+        const dots = '.'.repeat(dotCount);
+        const spaces = ' '.repeat(4 - dotCount); // Pad to keep consistent length
+        res.write(`\r${baseMessage}${dots}${spaces}`);
+        dotCount = (dotCount % 4) + 1;
+      }, 2000);
+
+      return () => {
+        clearInterval(timer);
+        res.write('\n'); // Move to next line after clearing
+      };
+    };
+
+    try {
+      if (!proposedQuestionText?.trim()) {
+        log('Error: Proposed question text is required');
+        res.end();
+        return;
+      }
+
+      const trimmedProposal = proposedQuestionText.trim();
+      log(`Processing proposed question: "${trimmedProposal}"`);
+
+      // Check if a question with this exact proposal already exists
+      const existingQuestion = await this.prisma.question.findFirst({
+        where: { 
+          proposedQuestion: trimmedProposal
+        },
+      });
+
+      if (existingQuestion) {
+        log(`Question with this proposal already exists: ${trimmedProposal}`);
+        log(`Existing question ID: ${existingQuestion.id}`);
+        res.write(`EXISTING_QUESTION:${existingQuestion.id}\n`);
+        res.end();
+        return;
+      }
+
+      // Phase 1: Predict category for the proposed question
+      log('Phase 1: Predicting question category...');
+      const stopProgress1 = createProgressIndicator('Analyzing question category');
+      const categoryResult = await predictQuestionCandidateCategory(trimmedProposal);
+      stopProgress1();
+
+      if (!categoryResult) {
+        log(`Failed to predict category for proposed question: ${trimmedProposal}`);
+        res.end();
+        return;
+      }
+
+      const [category, categoryUsage] = categoryResult;
+      totalUsage.promptTokens += categoryUsage.prompt_tokens;
+      totalUsage.cachedPromptTokens += categoryUsage.prompt_tokens_details?.cached_tokens || 0;
+      totalUsage.completionTokens += categoryUsage.completion_tokens;
+
+      log(`Predicted category: ${category.insightSubject}`);
+
+      // Phase 2: Generate the complete question from the proposal
+      log('Phase 2: Generating complete question...');
+      const stopProgress2 = createProgressIndicator('Generating question and answers');
+      const questionResult = await generateQuestionFromProposal(category, trimmedProposal, false);
+      stopProgress2();
+
+      if (!questionResult) {
+        log(`Failed to generate question from proposal: ${trimmedProposal}`);
+        res.end();
+        return;
+      }
+
+      const [question, answers, insights, questionUsage] = questionResult;
+      totalUsage.promptTokens += questionUsage.prompt_tokens;
+      totalUsage.cachedPromptTokens += questionUsage.prompt_tokens_details?.cached_tokens || 0;
+      totalUsage.completionTokens += questionUsage.completion_tokens;
+
+      if (!question) {
+        log(`No question generated from proposal (likely duplicate): ${trimmedProposal}`);
+        res.end();
+        return;
+      }
+
+      log(`Generated ${question.questionType} question: ${question.questionText}`);
+      log(`Generated answers: ${answers.map(a => a.answerText).join(' | ')}`);
+      log(`Generated insights: ${insights.map(i => i.insightText).join(' | ')}`);
+
+      // Phase 3: Reduce redundancy for questions in the category
+      log('Phase 3: Reducing redundancy for questions...');
+      const exactQuestionDupes = await reduceExactRedundancyForQuestions();
+      for (const merged of exactQuestionDupes) {
+        log(`Merged exact duplicate question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
+      }
+
+      const stopProgress3 = createProgressIndicator('Reducing redundancy for questions');
+      const questionReductionResult = await reduceRedundancyForQuestions(category);
+      stopProgress3();
+      if (questionReductionResult) {
+        const [mergedQuestions, usage] = questionReductionResult;
+        totalUsage.promptTokens += usage.prompt_tokens;
+        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+        totalUsage.completionTokens += usage.completion_tokens;
+        for (const merged of mergedQuestions) {
+          log(`Merged similar question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
+        }
+      }
+
+      // Phase 4: Reduce redundancy for answer insights in the category
+      log('Phase 4: Reducing redundancy for answer insights...');
+      const exactAnswerDupes = await reduceExactRedundancyForAnswers();
+      for (const merged of exactAnswerDupes) {
+        log(`Merged exact duplicate answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+      }
+
+      const stopProgress4 = createProgressIndicator('Reducing redundancy for answer insights');
+      const answerReductionResult = await reduceRedundancyForAnswers(category);
+      stopProgress4();
+      if (answerReductionResult) {
+        const [mergedInsights, usage] = answerReductionResult;
+        totalUsage.promptTokens += usage.prompt_tokens;
+        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+        totalUsage.completionTokens += usage.completion_tokens;
+        for (const merged of mergedInsights) {
+          log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+        }
+      }
+
+      // Get the final question to return its ID
+      const finalQuestion = await this.prisma.question.findFirst({
+        where: { 
+          proposedQuestion: trimmedProposal
+        },
+      });
+
+      log(`\nProposal processing completed successfully!`);
+      log(`Generated question ID: ${finalQuestion?.id || question.id}`);
+      log(`Category: ${category.insightSubject}`);
+      log(`Token usage - Input: ${totalUsage.promptTokens}, Cached: ${totalUsage.cachedPromptTokens}, Output: ${totalUsage.completionTokens}`);
+      
+      res.write(`PROPOSAL_COMPLETE:${finalQuestion?.id || question.id}:${category.id}\n`);
+      res.end();
+
+    } catch (error) {
+      log(`Error during question proposal: ${error.message}`);
       log(`Stack trace: ${error.stack}`);
       res.end();
     }

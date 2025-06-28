@@ -164,6 +164,15 @@ function App() {
     insightSubject: ''
   });
 
+  // Propose Question modal state
+  const [showProposeModal, setShowProposeModal] = useState<boolean>(false);
+  const [isProposing, setIsProposing] = useState<boolean>(false);
+  const [proposalStatus, setProposalStatus] = useState<string[]>([]);
+  const [showProposalStatus, setShowProposalStatus] = useState<boolean>(false);
+  const [currentProposalMessageIndex, setCurrentProposalMessageIndex] = useState<number>(0);
+  const [isProposalTransitioning, setIsProposalTransitioning] = useState<boolean>(false);
+  const [proposedQuestionText, setProposedQuestionText] = useState<string>('');
+
   // Refresh trigger for InsightTable
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
@@ -304,6 +313,28 @@ function App() {
     
     return () => clearTimeout(timer);
   }, [showGenerationStatus, generationStatus.length, currentMessageIndex]);
+
+  // Effect to handle proposal message queue and transitions
+  useEffect(() => {
+    if (!showProposalStatus || proposalStatus.length === 0) return;
+    
+    // If we're at the end of messages and proposal is still ongoing, don't advance
+    if (currentProposalMessageIndex >= proposalStatus.length - 1) return;
+    
+    const timer = setTimeout(() => {
+      // Start transition
+      setIsProposalTransitioning(true);
+      
+      // After fade out duration, change message and fade in
+      setTimeout(() => {
+        setCurrentProposalMessageIndex(prev => Math.min(prev + 1, proposalStatus.length - 1));
+        setIsProposalTransitioning(false);
+      }, 100); // 0.1 second transition
+      
+    }, 500); // 0.5 second minimum display time
+    
+    return () => clearTimeout(timer);
+  }, [showProposalStatus, proposalStatus.length, currentProposalMessageIndex]);
 
   const handleCategoryClick = async (categoryId: number, insightSubject: string) => {
     setSelectedCategoryId(categoryId);
@@ -583,6 +614,111 @@ function App() {
     setNewCategoryData({ category: '', subcategory: '', insightSubject: '' });
   };
 
+  const handleProposeQuestion = async () => {
+    if (isProposing) return;
+    
+    // Validate form data
+    if (!proposedQuestionText.trim()) {
+      alert('Please enter a question idea');
+      return;
+    }
+
+    setIsProposing(true);
+    setProposalStatus([]);
+    setShowProposalStatus(true);
+    setCurrentProposalMessageIndex(0);
+    setIsProposalTransitioning(false);
+    setShowProposeModal(false);
+    
+    try {
+      const response = await fetch('/api/propose', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          proposedQuestionText: proposedQuestionText.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n').filter(line => line.trim());
+          
+          for (const line of lines) {
+            if (line.startsWith('PROPOSAL_COMPLETE:')) {
+              // Extract question ID and category ID from the response
+              const parts = line.split(':');
+              const questionId = parseInt(parts[1]);
+              const categoryId = parseInt(parts[2]);
+              
+              setProposalStatus(prev => [...prev, 'Proposal completed! Navigating to new question...']);
+              setTimeout(() => {
+                setShowProposalStatus(false);
+                setIsProposing(false);
+                setProposedQuestionText('');
+                
+                // Navigate to the new question
+                navigate(`/categories/${categoryId}/questions/${questionId}`);
+              }, 2000);
+              return;
+            } else if (line.startsWith('EXISTING_QUESTION:')) {
+              // Extract existing question ID
+              const questionId = parseInt(line.split(':')[1]);
+              
+              setProposalStatus(prev => [...prev, 'Question already exists! Navigating to existing question...']);
+              setTimeout(async () => {
+                setShowProposalStatus(false);
+                setIsProposing(false);
+                setProposedQuestionText('');
+                
+                // Get the question details to find its category
+                try {
+                  const questionResponse = await fetch(`/api/questions/${questionId}`);
+                  if (questionResponse.ok) {
+                    const questionData = await questionResponse.json();
+                    navigate(`/categories/${questionData.category.id}/questions/${questionId}`);
+                  } else {
+                    // Fallback - just show an alert
+                    alert(`Question already exists with ID ${questionId}`);
+                  }
+                } catch (error) {
+                  console.error('Failed to get question details:', error);
+                  alert(`Question already exists with ID ${questionId}`);
+                }
+              }, 2000);
+              return;
+            } else {
+              setProposalStatus(prev => [...prev, line]);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Proposal failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setProposalStatus(prev => [...prev, `Error: ${errorMessage}`]);
+      setIsProposing(false);
+    }
+  };
+
+  const handleCancelProposeQuestion = () => {
+    setShowProposeModal(false);
+    setProposedQuestionText('');
+  };
+
   const breadcrumbItems: BreadcrumbItem[] = [
     { label: 'Categories', onClick: navigateToCategories, isCurrent: currentView === 'categories' },
   ];
@@ -678,6 +814,24 @@ function App() {
     opacity: isAddingCategory ? 0.6 : 1,
   };
 
+  const proposeButtonStyle = {
+    background: '#17a2b8',
+    border: '1px solid #17a2b8',
+    borderRadius: '4px',
+    padding: '4px 8px',
+    cursor: isProposing ? 'not-allowed' : 'pointer',
+    color: 'white',
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '24px',
+    transition: 'all 0.2s ease',
+    textDecoration: 'none',
+    marginRight: '12px',
+    opacity: isProposing ? 0.6 : 1,
+  };
+
   return (
     <div className="App">
       <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -744,6 +898,26 @@ function App() {
             }}
           >
             ➕ Add Category
+          </button>
+          <button
+            onClick={() => setShowProposeModal(true)}
+            style={proposeButtonStyle}
+            title="Propose a new question"
+            disabled={isProposing}
+            onMouseEnter={(e) => {
+              if (!isProposing) {
+                e.currentTarget.style.backgroundColor = '#138496';
+                e.currentTarget.style.borderColor = '#117a8b';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isProposing) {
+                e.currentTarget.style.backgroundColor = '#17a2b8';
+                e.currentTarget.style.borderColor = '#17a2b8';
+              }
+            }}
+          >
+            💡 Propose
           </button>
           <SearchBox />
         </div>
@@ -998,6 +1172,196 @@ function App() {
                 {isAddingCategory ? 'Adding...' : 'Add Category'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Propose Question Modal */}
+      {showProposeModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '24px',
+            width: '35%',
+            margin: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            boxSizing: 'border-box',
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px' }}>
+              Propose a Question
+            </h3>
+            
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                Question Idea:
+              </label>
+              <input
+                type="text"
+                value={proposedQuestionText}
+                onChange={(e) => setProposedQuestionText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isProposing && proposedQuestionText.trim()) {
+                    handleProposeQuestion();
+                  }
+                }}
+                placeholder="Enter your question idea here..."
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box',
+                }}
+                disabled={isProposing}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={handleCancelProposeQuestion}
+                disabled={isProposing}
+                style={{
+                  background: '#6c757d',
+                  border: '1px solid #6c757d',
+                  borderRadius: '4px',
+                  padding: '8px 16px',
+                  color: 'white',
+                  cursor: isProposing ? 'not-allowed' : 'pointer',
+                  opacity: isProposing ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleProposeQuestion}
+                disabled={isProposing}
+                style={{
+                  background: '#17a2b8',
+                  border: '1px solid #17a2b8',
+                  borderRadius: '4px',
+                  padding: '8px 16px',
+                  color: 'white',
+                  cursor: isProposing ? 'not-allowed' : 'pointer',
+                  opacity: isProposing ? 0.6 : 1,
+                }}
+              >
+                {isProposing ? 'Proposing...' : 'Propose Question'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Proposal Status Modal */}
+      {showProposalStatus && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '24px',
+            width: '35vw',
+            height: '30vh',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <h3 style={{ 
+              marginTop: 0, 
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}>
+              Processing Question Proposal
+              {isProposing && (
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid #f3f3f3',
+                  borderTop: '2px solid #17a2b8',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                }}></div>
+              )}
+              <style>
+                {`
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+                `}
+              </style>
+            </h3>
+            
+            {/* Log area with current message display */}
+            <div style={{ 
+              flex: 1,
+              fontFamily: 'monospace', 
+              fontSize: '24px',
+              backgroundColor: 'transparent',
+              padding: '16px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              {proposalStatus.length > 0 && (
+                <div 
+                  style={{ 
+                    textAlign: 'center',
+                    width: '100%',
+                  }}
+                >
+                  {proposalStatus[currentProposalMessageIndex] || 'Starting...'}
+                </div>
+              )}
+            </div>
+              
+            {!isProposing && (
+              <div style={{ textAlign: 'center' }}>
+                <button
+                  onClick={() => setShowProposalStatus(false)}
+                  style={{
+                    background: '#17a2b8',
+                    border: '1px solid #17a2b8',
+                    borderRadius: '4px',
+                    padding: '8px 16px',
+                    color: 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
