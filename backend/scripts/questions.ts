@@ -105,7 +105,7 @@ export function pickSampleQuestions(totalCount: number, allowedTypes?: Array<'BI
   return finalSelection.map(q => {
     const answersStr = q.answers.join(', ');
     const insightsStr = q.insights.join(' | ');
-    return `[${q.type}] ${q.question}\nAnswers: ${answersStr}\nInsights: ${insightsStr}`;
+    return `${q.question}\nType: ${q.type}\nAnswers: ${answersStr}\nInsights: ${insightsStr}`;
   }).join('\n\n');
 }
 

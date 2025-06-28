@@ -250,7 +250,7 @@ The allowed question types are:
 - MULTIPLE_CHOICE: ${typeDescription[QuestionType.MULTIPLE_CHOICE]}
 ${preferBinaryPrompt}
 
-When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.  Do not include any annotation of type etc in the question text.
+When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.
 
 Focus on generating a question that is specifically relevant to the target category and won't overlap with questions that would be better suited for other categories in the taxonomy.
 
@@ -2269,7 +2269,7 @@ export async function generateQuestionFromProposal(
   const sampleQuestions = pickSampleQuestions(18, allowedSampleTypes);
   
   const questionTypePrompt = mustBeBinary 
-    ? `You MUST generate a BINARY question type only. Format it as ${typeDescription[QuestionType.BINARY]}. When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with. `
+    ? `You MUST generate a BINARY question type only.  When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with. `
     : `You can generate either SINGLE_CHOICE or MULTIPLE_CHOICE question types. Choose the most appropriate:
 - SINGLE_CHOICE: ${typeDescription[QuestionType.SINGLE_CHOICE]}
 - MULTIPLE_CHOICE: ${typeDescription[QuestionType.MULTIPLE_CHOICE]}
@@ -2285,7 +2285,7 @@ Your task is to:
 
 ${questionTypePrompt}
 
-Make sure any question does not actually contain a chain of dependent questions. Don't make new questions that are too similar to existing questions. If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.  Do not include any annotation of type etc in the question text.
+Make sure any question does not actually contain a chain of dependent questions. Don't make new questions that are too similar to existing questions. If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.
 
 Focus on generating a question that is specifically relevant to the target category and won't overlap with questions that would be better suited for other categories in the taxonomy.
 
@@ -2369,4 +2369,204 @@ If you can't generate a unique question, then output:
     false, // shouldDeleteExisting
     proposedQuestionText
   );
+}
+
+/**
+ * Regenerates an existing imported question to better match sample question style
+ * while preserving the exact insights and question type
+ * @param question The existing question to regenerate (must include answers with insights)
+ * @returns Tuple containing the updated question object and token usage statistics
+ */
+export async function regenerateImportedQuestion(
+  question: Question & {
+    answers: (Answer & {
+      insight: Insight;
+    })[];
+  }
+): Promise<[Question, OpenAI.Completions.CompletionUsage] | null> {
+  const category = await prisma.category.findUnique({
+    where: { id: question.categoryId }
+  });
+
+  if (!category) {
+    throw new Error(`Category not found for question ${question.id}`);
+  }
+
+  // Get all categories to build taxonomy
+  const allCategories = await prisma.category.findMany();
+  
+  // Build category tree for context
+  const categoryTree = allCategories.reduce((tree, cat) => {
+    if (!tree[cat.category]) {
+      tree[cat.category] = {};
+    }
+    if (!tree[cat.category][cat.subcategory]) {
+      tree[cat.category][cat.subcategory] = [];
+    }
+    tree[cat.category][cat.subcategory].push(cat.insightSubject);
+    return tree;
+  }, {} as Record<string, Record<string, string[]>>);
+
+  // Convert tree to string representation
+  const categoryTreeStr = Object.entries(categoryTree)
+    .map(([category, subcategories]) => {
+      return `${category}:\n${Object.entries(subcategories)
+        .map(([subcategory, subjects]) => {
+          return `  ${subcategory}:\n${subjects
+            .map(subject => `    - ${subject}`)
+            .join('\n')}`;
+        })
+        .join('\n')}`;
+    })
+    .join('\n');
+
+  const typeDescription = {
+    [QuestionType.BINARY]: "a statement that the user will either press heart or X on (yes/no, true/false, agree/disagree)",
+    [QuestionType.SINGLE_CHOICE]: "a multiple-choice question were only one option makes sense to select",
+    [QuestionType.MULTIPLE_CHOICE]: "a multiple-choice question where multiple options can be selected"
+  };
+
+  // Filter sample questions to only show the same type as the existing question
+  const allowedSampleTypes: Array<'BINARY' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE'> = [question.questionType as 'BINARY' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE'];
+  const sampleQuestions = pickSampleQuestions(18, allowedSampleTypes);
+
+  // Build current question context
+  const currentAnswersAndInsights = question.answers.map(answer => ({
+    answer: answer.answerText,
+    insight: answer.insight.insightText
+  }));
+
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. You have an existing question that was imported and needs to be rewritten to better match our style and format.
+
+Your task is to:
+1. Rewrite the question text to be more engaging, clear, and match our style examples
+2. Rewrite the answer options to be more natural and appealing
+3. PRESERVE THE EXACT INSIGHTS - each rewritten answer must still logically lead to the same insight
+
+CRITICAL REQUIREMENTS:
+- You MUST preserve the question type: ${question.questionType}
+- You MUST generate exactly ${question.answers.length} answers
+- Each answer must still logically conclude to its corresponding insight
+- The insights themselves must NOT be changed
+
+Question Type: ${question.questionType} - ${typeDescription[question.questionType as QuestionType]}
+
+${question.questionType === 'BINARY' ? 'When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.' : ''}
+
+Focus on making the question specifically relevant to the target category and following the style of our sample questions.
+
+Here is the complete insight taxonomy to help you understand the scope:
+${categoryTreeStr}
+
+The classification for the target category is:
+Category: ${category.category}	
+Subcategory: ${category.subcategory}
+Subject: ${category.insightSubject}
+
+Current question and answer-insight pairs:
+Question: "${question.questionText}"
+${currentAnswersAndInsights.map((item, i) => `Answer ${i + 1}: "${item.answer}" -> Insight: "${item.insight}"`).join('\n')}
+
+Output JSON only. Follow this format and use the examples to guide style:
+${sampleQuestions}
+
+Make sure your rewritten answers still logically lead to the same insights!`;
+
+  const model = LOW_MODEL;
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "question_regeneration",
+      schema: {
+        type: "object",
+        properties: {
+          question: {
+            type: "string"
+          },
+          answers: {
+            type: "array",
+            items: {
+              type: "string"
+            }
+          },
+          insights: {
+            type: "array",
+            items: {
+              type: "string"
+            }
+          },
+          type: {
+            type: "string",
+            enum: [question.questionType]
+          }
+        },
+        required: ["question", "answers", "insights", "type"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const regenerationData = (completion.choices[0].message as any).parsed as {
+      question: string;
+      answers: string[];
+      insights: string[];
+      type: QuestionType;
+    };
+
+    if (!regenerationData) {
+      throw new Error("Parse error");
+    }
+
+    if (regenerationData.answers.length !== question.answers.length) {
+      throw new Error(`Answer count mismatch: expected ${question.answers.length}, got ${regenerationData.answers.length}`);
+    }
+
+    if (regenerationData.insights.length !== question.answers.length) {
+      throw new Error(`Insight count mismatch: expected ${question.answers.length}, got ${regenerationData.insights.length}`);
+    }
+
+    // Update the question and answers in a transaction
+    const updatedQuestion = await prisma.$transaction(async (tx) => {
+      // Update the question text
+      const updatedQuestion = await tx.question.update({
+        where: { id: question.id },
+        data: {
+          questionText: fixIllegalEnumCharacters(regenerationData.question),
+        },
+      });
+
+      // Update each answer text (keeping the same insight)
+      for (let i = 0; i < question.answers.length; i++) {
+        await tx.answer.update({
+          where: { id: question.answers[i].id },
+          data: {
+            answerText: regenerationData.answers[i],
+          },
+        });
+      }
+
+      return updatedQuestion;
+    });
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+
+    return [updatedQuestion, completion.usage];
+  } catch (error) {
+    console.error('Error regenerating question:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
 }

@@ -6,7 +6,7 @@ import {
   generateInsightCategoryOverlap, generateInsightComparisonPresentation,
   reduceExactRedundancyForQuestions, reduceExactRedundancyForInspirations, reduceExactRedundancyForAnswers, 
   reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
-  predictQuestionCandidateCategory, generateQuestionFromProposal,
+  predictQuestionCandidateCategory, generateQuestionFromProposal, regenerateImportedQuestion,
   } from '../src/utils/aiGenerators';
 import { EXTRA_CATEGORIES, parseCategoriesFromCSV } from './categories';
 import { FIXED_STYLES } from './styles';
@@ -21,6 +21,7 @@ const MIN_NEW_INSIGHTS_PER_GENERATION = 5
 const BINARY_PROBABILITY = 0.3;
 
 const GENERATE_COMPARISONS = false;
+const REGENERATE_IMPORTED_QUESTIONS = true;
 
 async function main() {
   try {
@@ -316,6 +317,52 @@ async function main() {
       }
     } else {
       console.log('No inspiration insights need text updates');
+    }
+
+    if (REGENERATE_IMPORTED_QUESTIONS) {
+      console.log('Regenerating imported questions to match style guidelines...');
+      const publishedQuestions = await prisma.question.findMany({
+        where: {
+          publishedId: {
+            not: null,
+          },
+        },
+        include: {
+          answers: {
+            include: {
+              insight: true,
+            },
+          },
+        },
+      });
+
+      if (publishedQuestions.length > 0) {
+        console.log(`Regenerating ${publishedQuestions.length} published questions`);
+        
+        await processInParallel<typeof publishedQuestions[0], void>(
+          publishedQuestions,
+          async (question) => {
+            try {
+              const result = await regenerateImportedQuestion(question);
+              if (result) {
+                const [updatedQuestion, usage] = result;
+                totalUsage.promptTokens += usage.prompt_tokens;
+                totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
+                totalUsage.completionTokens += usage.completion_tokens;
+
+                console.log(`Regenerated question "${question.questionText}" -> "${updatedQuestion.questionText}"`);
+              } else {
+                console.error(`Failed to regenerate question: ${question.questionText}`);
+              }
+            } catch (error) {
+              console.error(`Error regenerating question ${question.id}:`, error);
+            }
+          },
+          BATCH_COUNT
+        );
+      } else {
+        console.log('No published questions found, skipping regeneration phase');
+      }
     }
 
     console.log('Generating questions from proposed concepts...');
