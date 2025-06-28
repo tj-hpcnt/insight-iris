@@ -64,6 +64,7 @@ interface InsightTableProps {
   onInsightTypeChange: (type: InsightType) => void;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
   onRefresh?: () => void;
+  refreshTrigger?: number; // Add refresh trigger prop
 }
 
 const InsightTable: React.FC<InsightTableProps> = ({ 
@@ -72,7 +73,8 @@ const InsightTable: React.FC<InsightTableProps> = ({
   onInsightClick, 
   onInsightTypeChange, 
   onCategoryClick,
-  onRefresh
+  onRefresh,
+  refreshTrigger
 }) => {
   const [questions, setQuestions] = useState<QuestionFromAPI[]>([]);
   const [displayData, setDisplayData] = useState<QuestionDisplay[]>([]);
@@ -108,6 +110,12 @@ const InsightTable: React.FC<InsightTableProps> = ({
     if (!categoryId) return;
     fetchQuestions();
   }, [categoryId]);
+
+  // Refresh data when refreshTrigger changes
+  useEffect(() => {
+    if (!categoryId || refreshTrigger === undefined) return;
+    fetchQuestions();
+  }, [refreshTrigger]);
 
   useEffect(() => {
     // Transform the questions data based on the selected tab

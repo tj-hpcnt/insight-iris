@@ -26,12 +26,14 @@ const InsightsView = ({
   onInsightClick, 
   onInsightTypeChange,
   onCategoryClick,
-  onRefresh
+  onRefresh,
+  refreshTrigger
 }: { 
   onInsightClick: (questionId: number) => void;
   onInsightTypeChange: (type: InsightType) => void;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
   onRefresh?: () => void;
+  refreshTrigger?: number;
 }) => {
   const { categoryId } = useParams<{ categoryId: string }>();
   const location = useLocation();
@@ -50,6 +52,7 @@ const InsightsView = ({
       onInsightTypeChange={onInsightTypeChange}
       onCategoryClick={onCategoryClick}
       onRefresh={onRefresh}
+      refreshTrigger={refreshTrigger}
     />
   );
 };
@@ -159,6 +162,9 @@ function App() {
     subcategory: '',
     insightSubject: ''
   });
+
+  // Refresh trigger for InsightTable
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
   // Fetch all categories for navigation
   useEffect(() => {
@@ -447,8 +453,8 @@ function App() {
       }));
       setCurrentQuestions(questionList);
       
-      // Force re-render by changing the key or trigger a state update
-      // The InsightTable component will refetch its data due to the categoryId dependency
+      // Trigger InsightTable refresh
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Failed to refresh insights:', error);
     }
@@ -753,6 +759,7 @@ function App() {
                 onInsightTypeChange={handleInsightTypeSelect}
                 onCategoryClick={handleCategoryClick}
                 onRefresh={handleRefreshInsights}
+                refreshTrigger={refreshTrigger}
               />
             } 
           />
