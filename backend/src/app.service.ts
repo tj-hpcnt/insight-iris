@@ -10,7 +10,7 @@ import {
   reduceExactRedundancyForQuestions, reduceExactRedundancyForAnswers,
   predictQuestionCandidateCategory, generateQuestionFromProposal
 } from './utils/aiGenerators';
-import { deleteQuestion, deleteAnswer, getAnswerCount } from './utils/delete';
+import { deleteQuestion, deleteAnswer, getAnswerCount, deleteCategory } from './utils/delete';
 import { processInParallel } from './utils/parallelProcessor';
 
 // Define category information structure
@@ -819,6 +819,15 @@ export class AppService {
       return { count, canDeleteAnswers: count > 2 };
     } catch (error) {
       throw new NotFoundException('Question not found');
+    }
+  }
+
+  async deleteCategory(categoryId: number) {
+    try {
+      await deleteCategory(categoryId);
+      return { success: true, message: 'Category deleted successfully' };
+    } catch (error) {
+      throw new BadRequestException(error.message);
     }
   }
 } 

@@ -229,4 +229,109 @@ export async function getAnswerCount(questionId: number): Promise<number> {
   return await prisma.answer.count({
     where: { questionId }
   });
-} 
+}
+
+/**
+ * Deletes a category and ALL its associated relationships recursively
+ * This will delete all questions, answers, and insights in the category
+ * @param categoryId The ID of the category to delete
+ * @returns void
+ */
+export async function deleteCategory(categoryId: number): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    // Get the category with all its questions and insights
+    const category = await tx.category.findUnique({
+      where: { id: categoryId },
+      include: {
+        questions: {
+          include: {
+            answers: {
+              include: {
+                insight: true,
+              }
+            }
+          }
+        },
+        insights: true,
+      }
+    });
+
+    if (!category) {
+      throw new Error(`Category with ID ${categoryId} not found`);
+    }
+
+    // Delete all questions in this category (this will cascade to delete answers and orphaned insights)
+    for (const question of category.questions) {
+      await deleteQuestionWithCascade(tx, question);
+    }
+
+    // After deleting all questions, check for any remaining insights that belong to this category
+    // and are not referenced by any answers from other categories
+    const remainingInsights = await tx.insight.findMany({
+      where: { categoryId: categoryId },
+      include: {
+        answers: {
+          include: {
+            question: true
+          }
+        }
+      }
+    });
+
+    for (const insight of remainingInsights) {
+      // Check if this insight is referenced by answers from questions in other categories
+      const hasExternalReferences = insight.answers.some(answer => 
+        answer.question.categoryId !== categoryId
+      );
+
+      if (!hasExternalReferences) {
+        // This insight is only used within this category, safe to delete
+        
+        // Delete insight comparisons first
+        const comparisons = await tx.insightComparison.findMany({
+          where: {
+            OR: [
+              { insightAId: insight.id },
+              { insightBId: insight.id },
+            ],
+          },
+        });
+
+        for (const comparison of comparisons) {
+          await tx.insightComparisonPresentation.deleteMany({
+            where: { insightComparisonId: comparison.id },
+          });
+        }
+
+        await tx.insightComparison.deleteMany({
+          where: {
+            OR: [
+              { insightAId: insight.id },
+              { insightBId: insight.id },
+            ],
+          },
+        });
+
+        // Delete the insight itself
+        await tx.insight.delete({
+          where: { id: insight.id }
+        });
+      }
+    }
+
+    // Delete category overlaps that reference this category
+    await tx.categoryOverlap.deleteMany({
+      where: {
+        OR: [
+          { categoryAId: categoryId },
+          { categoryBId: categoryId }
+        ]
+      }
+    });
+
+    // Finally, delete the category itself
+    await tx.category.delete({
+      where: { id: categoryId }
+    });
+  });
+}

@@ -17,8 +17,16 @@ interface Category {
 }
 
 // Component for Categories view
-const CategoriesView = ({ onCategoryClick }: { onCategoryClick: (categoryId: number, insightSubject: string) => void }) => {
-  return <CategoryTable onCategoryClick={onCategoryClick} />;
+const CategoriesView = ({ 
+  onCategoryClick, 
+  onRefresh,
+  refreshTrigger
+}: { 
+  onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  onRefresh?: () => void;
+  refreshTrigger?: number;
+}) => {
+  return <CategoryTable onCategoryClick={onCategoryClick} onRefresh={onRefresh} refreshTrigger={refreshTrigger} />;
 };
 
 // Component for Insights view
@@ -175,6 +183,26 @@ function App() {
 
   // Refresh trigger for InsightTable
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+
+  // Add refresh trigger for CategoryTable
+  const [categoryRefreshTrigger, setCategoryRefreshTrigger] = useState<number>(0);
+
+  // Add refresh function for categories
+  const handleRefreshCategories = async () => {
+    try {
+      const response = await fetch('/api/categories');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const categories: Category[] = await response.json();
+      setAllCategories(categories);
+      
+      // Trigger CategoryTable refresh
+      setCategoryRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error('Failed to refresh categories:', error);
+    }
+  };
 
   // Fetch all categories for navigation
   useEffect(() => {
@@ -608,11 +636,7 @@ function App() {
       setNewCategoryData({ category: '', subcategory: '', insightSubject: '' });
       
       // Refresh categories list
-      const categoriesResponse = await fetch('/api/categories');
-      if (categoriesResponse.ok) {
-        const categories: Category[] = await categoriesResponse.json();
-        setAllCategories(categories);
-      }
+      await handleRefreshCategories();
       
       // Navigate to the new category
       handleCategoryClick(createdCategory.id, createdCategory.insightSubject);
@@ -974,8 +998,8 @@ function App() {
       </header>
       <main>
         <Routes>
-          <Route path="/" element={<CategoriesView onCategoryClick={handleCategoryClick} />} />
-          <Route path="/categories" element={<CategoriesView onCategoryClick={handleCategoryClick} />} />
+          <Route path="/" element={<CategoriesView onCategoryClick={handleCategoryClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />} />
+          <Route path="/categories" element={<CategoriesView onCategoryClick={handleCategoryClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />} />
           <Route path="/search" element={<SearchResultsView onQuestionClick={handleSearchQuestionClick} onCategoryClick={handleCategoryClick} />} />
           <Route 
             path="/categories/:categoryId" 

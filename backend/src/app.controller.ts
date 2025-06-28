@@ -22,6 +22,11 @@ export class AppController {
     return this.appService.createCategory(body.category, body.subcategory, body.insightSubject);
   }
 
+  @Delete('categories/:categoryId')
+  async deleteCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
+    return this.appService.deleteCategory(categoryId);
+  }
+
   @Get('categories/:categoryId/questions')
   async listQuestionsInCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
     return this.appService.listQuestionsInCategory(categoryId);

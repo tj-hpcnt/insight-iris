@@ -32,6 +32,8 @@ interface CategoryDisplay {
 
 interface CategoryTableProps {
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  onRefresh?: () => void;
+  refreshTrigger?: number;
 }
 
 interface Totals {
@@ -42,7 +44,7 @@ interface Totals {
   newQuestions: number;
 }
 
-const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
+const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onRefresh, refreshTrigger }) => {
   const [categories, setCategories] = useState<CategoryDisplay[]>([]);
   const [totals, setTotals] = useState<Totals>({
     published: 0,
@@ -53,60 +55,103 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
   });
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+
+  // Extract fetchCategories as a reusable function
+  const fetchCategories = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/categories'); 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data: CategoryFromAPI[] = await response.json();
+      
+      const displayData = data.map(cat => ({
+          id: cat.id,
+          name: cat.category, 
+          subcategory: cat.subcategory, 
+          insightSubject: cat.insightSubject,
+          questionCounts: cat.questionCounts
+      }));
+      
+      // Calculate totals
+      const calculatedTotals = displayData.reduce((acc, category) => {
+        if (category.questionCounts) {
+          acc.published += category.questionCounts.published;
+          acc.proposed += category.questionCounts.proposed;
+          acc.generated += category.questionCounts.generated;
+        }
+        return acc;
+      }, {
+        published: 0,
+        proposed: 0,
+        generated: 0,
+        absoluteTotal: 0,
+        newQuestions: 0
+      });
+      
+      calculatedTotals.absoluteTotal = calculatedTotals.published + calculatedTotals.proposed + calculatedTotals.generated;
+      calculatedTotals.newQuestions = calculatedTotals.proposed + calculatedTotals.generated;
+      
+      setCategories(displayData);
+      setTotals(calculatedTotals);
+    } catch (e) {
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError('An unknown error occurred');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add delete function
+  const handleDeleteCategory = async (categoryId: number, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent row click
+    if (deleting) return;
+    
+    const confirmed = window.confirm('Are you sure you want to delete this category? This will permanently delete ALL questions, answers, and insights in this category. This action cannot be undone.');
+    if (!confirmed) return;
+    
+    try {
+      setDeleting(categoryId);
+      const response = await fetch(`/api/categories/${categoryId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      // Refresh the data
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        // Manually refresh if no onRefresh callback
+        await fetchCategories();
+      }
+    } catch (error) {
+      console.error('Failed to delete category:', error);
+      alert('Failed to delete category: ' + (error as Error).message);
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch('/api/categories'); 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data: CategoryFromAPI[] = await response.json();
-        
-        const displayData = data.map(cat => ({
-            id: cat.id,
-            name: cat.category, 
-            subcategory: cat.subcategory, 
-            insightSubject: cat.insightSubject,
-            questionCounts: cat.questionCounts
-        }));
-        
-        // Calculate totals
-        const calculatedTotals = displayData.reduce((acc, category) => {
-          if (category.questionCounts) {
-            acc.published += category.questionCounts.published;
-            acc.proposed += category.questionCounts.proposed;
-            acc.generated += category.questionCounts.generated;
-          }
-          return acc;
-        }, {
-          published: 0,
-          proposed: 0,
-          generated: 0,
-          absoluteTotal: 0,
-          newQuestions: 0
-        });
-        
-        calculatedTotals.absoluteTotal = calculatedTotals.published + calculatedTotals.proposed + calculatedTotals.generated;
-        calculatedTotals.newQuestions = calculatedTotals.proposed + calculatedTotals.generated;
-        
-        setCategories(displayData);
-        setTotals(calculatedTotals);
-      } catch (e) {
-        if (e instanceof Error) {
-          setError(e.message);
-        } else {
-          setError('An unknown error occurred');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchCategories();
   }, []);
+
+  // Refresh data when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger !== undefined) {
+      fetchCategories();
+    }
+  }, [refreshTrigger]);
 
   if (loading) return <p>Loading categories...</p>;
   if (error) return <p>Error loading categories: {error}</p>;
@@ -130,12 +175,45 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick }) => {
           >
             <td>{category.name}</td>
             <td>{category.subcategory}</td>
-            <td>
-              {category.insightSubject && (
-                <span style={getInsightSubjectStyle(category.insightSubject)}>
-                  {category.insightSubject}
-                </span>
-              )}
+            <td style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ flex: 1 }}>
+                  {category.insightSubject && (
+                    <span style={getInsightSubjectStyle(category.insightSubject)}>
+                      {category.insightSubject}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={(e) => handleDeleteCategory(category.id, e)}
+                  disabled={deleting === category.id}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#dc3545',
+                    fontSize: '14px',
+                    cursor: deleting === category.id ? 'not-allowed' : 'pointer',
+                    padding: '4px',
+                    borderRadius: '3px',
+                    opacity: deleting === category.id ? 0.5 : 0.7,
+                    transition: 'opacity 0.2s ease',
+                    marginLeft: '8px'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (deleting !== category.id) {
+                      e.currentTarget.style.opacity = '1';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (deleting !== category.id) {
+                      e.currentTarget.style.opacity = '0.7';
+                    }
+                  }}
+                  title="Delete category and all its contents (questions, answers, insights)"
+                >
+                  {deleting === category.id ? '⏳' : '✕'}
+                </button>
+              </div>
             </td>
             <td>
               {category.questionCounts && (
