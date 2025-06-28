@@ -157,111 +157,113 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onRefres
   if (error) return <p>Error loading categories: {error}</p>;
 
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Category Name</th>
-          <th>Subcategory</th>
-          <th>Insight Subject</th>
-          <th>Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        {categories.map((category) => (
-          <tr 
-            key={category.id} 
-            onClick={() => category.insightSubject && onCategoryClick(category.id, category.insightSubject)}
-            style={{ cursor: 'pointer' }} 
-          >
-            <td>{category.name}</td>
-            <td>{category.subcategory}</td>
-            <td style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ flex: 1 }}>
-                  {category.insightSubject && (
-                    <span style={getInsightSubjectStyle(category.insightSubject)}>
-                      {category.insightSubject}
-                    </span>
-                  )}
+    <div style={{ paddingBottom: '50vh' }}>
+      <table>
+        <thead>
+          <tr>
+            <th>Category Name</th>
+            <th>Subcategory</th>
+            <th>Insight Subject</th>
+            <th>Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {categories.map((category) => (
+            <tr 
+              key={category.id} 
+              onClick={() => category.insightSubject && onCategoryClick(category.id, category.insightSubject)}
+              style={{ cursor: 'pointer' }} 
+            >
+              <td>{category.name}</td>
+              <td>{category.subcategory}</td>
+              <td style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ flex: 1 }}>
+                    {category.insightSubject && (
+                      <span style={getInsightSubjectStyle(category.insightSubject)}>
+                        {category.insightSubject}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => handleDeleteCategory(category.id, e)}
+                    disabled={deleting === category.id}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#dc3545',
+                      fontSize: '14px',
+                      cursor: deleting === category.id ? 'not-allowed' : 'pointer',
+                      padding: '4px',
+                      borderRadius: '3px',
+                      opacity: deleting === category.id ? 0.5 : 0.7,
+                      transition: 'opacity 0.2s ease',
+                      marginLeft: '8px'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (deleting !== category.id) {
+                        e.currentTarget.style.opacity = '1';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (deleting !== category.id) {
+                        e.currentTarget.style.opacity = '0.7';
+                      }
+                    }}
+                    title="Delete category and all its contents (questions, answers, insights)"
+                  >
+                    {deleting === category.id ? '⏳' : '✕'}
+                  </button>
                 </div>
-                <button
-                  onClick={(e) => handleDeleteCategory(category.id, e)}
-                  disabled={deleting === category.id}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#dc3545',
-                    fontSize: '14px',
-                    cursor: deleting === category.id ? 'not-allowed' : 'pointer',
-                    padding: '4px',
-                    borderRadius: '3px',
-                    opacity: deleting === category.id ? 0.5 : 0.7,
-                    transition: 'opacity 0.2s ease',
-                    marginLeft: '8px'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (deleting !== category.id) {
-                      e.currentTarget.style.opacity = '1';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (deleting !== category.id) {
-                      e.currentTarget.style.opacity = '0.7';
-                    }
-                  }}
-                  title="Delete category and all its contents (questions, answers, insights)"
-                >
-                  {deleting === category.id ? '⏳' : '✕'}
-                </button>
-              </div>
+              </td>
+              <td>
+                {category.questionCounts && (
+                  <>
+                    <QuestionCountChip count={category.questionCounts.published} type="published" />
+                    <QuestionCountChip count={category.questionCounts.proposed} type="proposed" />
+                    <QuestionCountChip count={category.questionCounts.generated} type="generated" />
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr style={{ 
+            fontWeight: 'bold', 
+            borderTop: '2px solid #ddd', 
+            backgroundColor: '#f8f9fa' 
+          }}>
+            <td colSpan={3}>
+              Total
+              <span style={{ 
+                marginLeft: '8px', 
+                padding: '4px 8px', 
+                backgroundColor: '#e9ecef', 
+                borderRadius: '4px',
+                fontSize: '0.85em'
+              }}>
+                Total: {totals.absoluteTotal}
+              </span>
+              <span style={{ 
+                marginLeft: '4px', 
+                padding: '4px 8px', 
+                backgroundColor: '#d4edda', 
+                borderRadius: '4px',
+                fontSize: '0.85em'
+              }}>
+                New: {totals.newQuestions}
+              </span>
             </td>
             <td>
-              {category.questionCounts && (
-                <>
-                  <QuestionCountChip count={category.questionCounts.published} type="published" />
-                  <QuestionCountChip count={category.questionCounts.proposed} type="proposed" />
-                  <QuestionCountChip count={category.questionCounts.generated} type="generated" />
-                </>
-              )}
+              <QuestionCountChip count={totals.published} type="published" />
+              <QuestionCountChip count={totals.proposed} type="proposed" />
+              <QuestionCountChip count={totals.generated} type="generated" />
             </td>
           </tr>
-        ))}
-      </tbody>
-      <tfoot>
-        <tr style={{ 
-          fontWeight: 'bold', 
-          borderTop: '2px solid #ddd', 
-          backgroundColor: '#f8f9fa' 
-        }}>
-          <td colSpan={3}>
-            Total
-            <span style={{ 
-              marginLeft: '8px', 
-              padding: '4px 8px', 
-              backgroundColor: '#e9ecef', 
-              borderRadius: '4px',
-              fontSize: '0.85em'
-            }}>
-              Total: {totals.absoluteTotal}
-            </span>
-            <span style={{ 
-              marginLeft: '4px', 
-              padding: '4px 8px', 
-              backgroundColor: '#d4edda', 
-              borderRadius: '4px',
-              fontSize: '0.85em'
-            }}>
-              New: {totals.newQuestions}
-            </span>
-          </td>
-          <td>
-            <QuestionCountChip count={totals.published} type="published" />
-            <QuestionCountChip count={totals.proposed} type="proposed" />
-            <QuestionCountChip count={totals.generated} type="generated" />
-          </td>
-        </tr>
-      </tfoot>
-    </table>
+        </tfoot>
+      </table>
+    </div>
   );
 };
 

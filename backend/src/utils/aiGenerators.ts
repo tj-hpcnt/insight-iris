@@ -159,6 +159,14 @@ ${extraHints}${existingInsightsText}`;
   }
 }
 
+
+const TYPE_DESCRIPTIONS = {
+  [QuestionType.BINARY]: "a statement that the user will either press heart or X on (e.g. allowed answers are only Yes or No)",
+  [QuestionType.SINGLE_CHOICE]: "a multiple-choice question were only one option makes sense to select",
+  [QuestionType.MULTIPLE_CHOICE]: "a multiple-choice question where multiple options can be selected"
+};
+
+
 /**
  * Builds the prompt and messages for question generation
  * @param insight The insight to generate a question for
@@ -221,12 +229,6 @@ async function buildQuestionGenerationPrompt(
   });
   const questions = existingQuestionsRaw.map(q => ({ text: q.questionText }));
 
-  const typeDescription = {
-    [QuestionType.BINARY]: "a statement that the user will either press heart or X on (yes/no, true/false, agree/disagree)",
-    [QuestionType.SINGLE_CHOICE]: "a multiple-choice question were only one option makes sense to select",
-    [QuestionType.MULTIPLE_CHOICE]: "a multiple-choice question where multiple options can be selected"
-  };
-
   const sampleQuestions = pickSampleQuestions(18);
   const preferBinaryPrompt = preferBinary ? "" : `
   If an insight could have parallel interesting insights, then prefer a single choice or multiple choice based answer instead of a binary statement.
@@ -237,9 +239,9 @@ async function buildQuestionGenerationPrompt(
 You must generate a great question to facilitate finding out if a particular insight is true of a user.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  Do not generate a "None of these" option if the other options aren't completely exhaustive, as it would not be able to have an insight.
 
 The allowed question types are:
-- BINARY: ${typeDescription[QuestionType.BINARY]}
-- SINGLE_CHOICE: ${typeDescription[QuestionType.SINGLE_CHOICE]}
-- MULTIPLE_CHOICE: ${typeDescription[QuestionType.MULTIPLE_CHOICE]}
+- BINARY: ${TYPE_DESCRIPTIONS[QuestionType.BINARY]}
+- SINGLE_CHOICE: ${TYPE_DESCRIPTIONS[QuestionType.SINGLE_CHOICE]}
+- MULTIPLE_CHOICE: ${TYPE_DESCRIPTIONS[QuestionType.MULTIPLE_CHOICE]}
 ${preferBinaryPrompt}
 
 When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.
@@ -2267,12 +2269,6 @@ export async function generateQuestionFromProposal(
   });
   const questions = existingQuestionsRaw.map(q => ({ text: q.questionText }));
 
-  const typeDescription = {
-    [QuestionType.BINARY]: "a statement that the user will either press heart or X on (yes/no, true/false, agree/disagree)",
-    [QuestionType.SINGLE_CHOICE]: "a multiple-choice question were only one option makes sense to select",
-    [QuestionType.MULTIPLE_CHOICE]: "a multiple-choice question where multiple options can be selected"
-  };
-
   // Filter sample questions based on the allowed types
   const allowedSampleTypes: Array<'BINARY' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE'> = mustBeBinary 
     ? ['BINARY']
@@ -2280,10 +2276,10 @@ export async function generateQuestionFromProposal(
   const sampleQuestions = pickSampleQuestions(18, allowedSampleTypes);
   
   const questionTypePrompt = mustBeBinary 
-    ? `You MUST generate a BINARY question type only.  When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with. `
+    ? `You MUST generate a BINARY question type only which is ${TYPE_DESCRIPTIONS[QuestionType.BINARY]}`
     : `You can generate either SINGLE_CHOICE or MULTIPLE_CHOICE question types. Choose the most appropriate:
-- SINGLE_CHOICE: ${typeDescription[QuestionType.SINGLE_CHOICE]}
-- MULTIPLE_CHOICE: ${typeDescription[QuestionType.MULTIPLE_CHOICE]}
+- SINGLE_CHOICE: ${TYPE_DESCRIPTIONS[QuestionType.SINGLE_CHOICE]}
+- MULTIPLE_CHOICE: ${TYPE_DESCRIPTIONS[QuestionType.MULTIPLE_CHOICE]}
 
 If the question could have parallel interesting insights, prefer a single choice or multiple choice based answer instead of a binary statement.`;
 
@@ -2431,12 +2427,6 @@ export async function regenerateImportedQuestion(
     })
     .join('\n');
 
-  const typeDescription = {
-    [QuestionType.BINARY]: "a statement that the user will either press heart or X on (yes/no, true/false, agree/disagree)",
-    [QuestionType.SINGLE_CHOICE]: "a multiple-choice question were only one option makes sense to select",
-    [QuestionType.MULTIPLE_CHOICE]: "a multiple-choice question where multiple options can be selected"
-  };
-
   // Filter sample questions to only show the same type as the existing question
   const allowedSampleTypes: Array<'BINARY' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE'> = [question.questionType as 'BINARY' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE'];
   const sampleQuestions = pickSampleQuestions(18, allowedSampleTypes);
@@ -2460,7 +2450,7 @@ CRITICAL REQUIREMENTS:
 - Each answer must still logically conclude to its corresponding insight
 - The insights themselves must NOT be changed
 
-Question Type: ${question.questionType} - ${typeDescription[question.questionType as QuestionType]}
+Question Type: ${question.questionType} - ${TYPE_DESCRIPTIONS[question.questionType as QuestionType]}
 
 ${question.questionType === 'BINARY' ? 'When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.' : ''}
 

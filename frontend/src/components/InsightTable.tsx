@@ -337,14 +337,8 @@ const InsightTable: React.FC<InsightTableProps> = ({
     }
   };
 
-
-
-
-
-
-
   return (
-    <div>
+    <div style={{ paddingBottom: '50vh' }}>
       {/* Tabbed Header */}
       <div style={tabStyle}>
         <button
