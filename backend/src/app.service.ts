@@ -427,6 +427,22 @@ export class AppService {
       res.write(`${message}\n`);
     };
 
+    // Helper function to create a progress indicator with cycling dots
+    const createProgressIndicator = (baseMessage: string) => {
+      let dotCount = 1;
+      const timer = setInterval(() => {
+        const dots = '.'.repeat(dotCount);
+        const spaces = ' '.repeat(4 - dotCount); // Pad to keep consistent length
+        res.write(`\r${baseMessage}${dots}${spaces}`);
+        dotCount = (dotCount % 4) + 1;
+      }, 2000);
+
+      return () => {
+        clearInterval(timer);
+        res.write('\n'); // Move to next line after clearing
+      };
+    };
+
     try {
       // Get the category
       const category = await this.prisma.category.findUnique({
@@ -472,7 +488,9 @@ export class AppService {
         const target = Math.max(MIN_NEW_INSIGHTS_PER_GENERATION, 
           Math.min(MAX_NEW_INSIGHTS_PER_GENERATION, targetInsights - newTotalInsights));
         
+        const stopProgress1 = createProgressIndicator('Generating inspiration insights');
         const [newInsights, isDone, usage] = await generateInspirationInsights(category, target);
+        stopProgress1();
         totalUsage.promptTokens += usage.prompt_tokens;
         totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
         totalUsage.completionTokens += usage.completion_tokens;
@@ -488,7 +506,9 @@ export class AppService {
 
       // Reduce redundancy for inspiration insights
       log('Reducing redundancy for inspiration insights...');
+      const stopProgress2 = createProgressIndicator('Reducing redundancy for inspiration insights');
       const [deletedIds, usage] = await reduceRedundancyForInspirations(category);
+      stopProgress2();
       totalUsage.promptTokens += usage.prompt_tokens;
       totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
       totalUsage.completionTokens += usage.completion_tokens;
@@ -517,6 +537,7 @@ export class AppService {
       log(`Found ${insightsWithoutQuestions.length} inspiration insights without questions`);
 
       if (insightsWithoutQuestions.length > 0) {
+        const stopProgress3 = createProgressIndicator('Generating questions for insights');
         await processInParallel<typeof insightsWithoutQuestions[0], void>(
           insightsWithoutQuestions,
           async (insight) => {
@@ -539,6 +560,7 @@ export class AppService {
           },
           BATCH_COUNT
         );
+        stopProgress3();
       }
 
       // Phase 3: Reduce redundancy for questions
@@ -548,7 +570,9 @@ export class AppService {
         log(`Merged exact duplicate question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
       }
 
+      const stopProgress4 = createProgressIndicator('Reducing redundancy for questions');
       const questionReductionResult = await reduceRedundancyForQuestions(category);
+      stopProgress4();
       if (questionReductionResult) {
         const [mergedQuestions, usage] = questionReductionResult;
         totalUsage.promptTokens += usage.prompt_tokens;
@@ -566,7 +590,9 @@ export class AppService {
         log(`Merged exact duplicate answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
       }
 
+      const stopProgress5 = createProgressIndicator('Reducing redundancy for answer insights');
       const answerReductionResult = await reduceRedundancyForAnswers(category);
+      stopProgress5();
       if (answerReductionResult) {
         const [mergedInsights, usage] = answerReductionResult;
         totalUsage.promptTokens += usage.prompt_tokens;

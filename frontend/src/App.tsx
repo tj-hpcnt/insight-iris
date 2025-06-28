@@ -152,7 +152,8 @@ function App() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generationStatus, setGenerationStatus] = useState<string[]>([]);
   const [showGenerationStatus, setShowGenerationStatus] = useState<boolean>(false);
-  const [statusLineTimestamps, setStatusLineTimestamps] = useState<Map<number, number>>(new Map());
+  const [currentMessageIndex, setCurrentMessageIndex] = useState<number>(0);
+  const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
 
   // Add Category modal state
   const [showAddCategoryModal, setShowAddCategoryModal] = useState<boolean>(false);
@@ -282,17 +283,27 @@ function App() {
     }
   }, [selectedCategoryId]); // Only depend on selectedCategoryId, not selectedInsightType
 
-  // Effect to handle log line fading animation
+  // Effect to handle message queue and transitions
   useEffect(() => {
-    if (!showGenerationStatus) return;
+    if (!showGenerationStatus || generationStatus.length === 0) return;
     
-    const interval = setInterval(() => {
-      // Force re-render to update opacity based on timestamps
-      setStatusLineTimestamps(prev => new Map(prev));
-    }, 100);
+    // If we're at the end of messages and generation is still ongoing, don't advance
+    if (currentMessageIndex >= generationStatus.length - 1) return;
     
-    return () => clearInterval(interval);
-  }, [showGenerationStatus]);
+    const timer = setTimeout(() => {
+      // Start transition
+      setIsTransitioning(true);
+      
+      // After fade out duration, change message and fade in
+      setTimeout(() => {
+        setCurrentMessageIndex(prev => Math.min(prev + 1, generationStatus.length - 1));
+        setIsTransitioning(false);
+      }, 100); // 0.1 second transition
+      
+    }, 500); // 0.5 second minimum display time
+    
+    return () => clearTimeout(timer);
+  }, [showGenerationStatus, generationStatus.length, currentMessageIndex]);
 
   const handleCategoryClick = async (categoryId: number, insightSubject: string) => {
     setSelectedCategoryId(categoryId);
@@ -466,7 +477,8 @@ function App() {
     setIsGenerating(true);
     setGenerationStatus([]);
     setShowGenerationStatus(true);
-    setStatusLineTimestamps(new Map());
+    setCurrentMessageIndex(0);
+    setIsTransitioning(false);
     
     try {
       const response = await fetch(`/api/categories/${selectedCategoryId}/generate`, {
@@ -493,7 +505,6 @@ function App() {
             if (line === 'GENERATION_COMPLETE') {
               // Refresh the data when generation is complete
               setGenerationStatus(prev => [...prev, 'Generation completed! Refreshing data...']);
-              setStatusLineTimestamps(prev => new Map(prev).set(prev.size, Date.now()));
               setTimeout(() => {
                 handleRefreshInsights();
                 setShowGenerationStatus(false);
@@ -501,15 +512,7 @@ function App() {
               }, 2000);
               return;
             } else {
-              setGenerationStatus(prev => {
-                const newStatus = [...prev, line];
-                setStatusLineTimestamps(prevTimestamps => {
-                  const newTimestamps = new Map(prevTimestamps);
-                  newTimestamps.set(newStatus.length - 1, Date.now());
-                  return newTimestamps;
-                });
-                return newStatus;
-              });
+              setGenerationStatus(prev => [...prev, line]);
             }
           }
         }
@@ -518,7 +521,6 @@ function App() {
       console.error('Generation failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setGenerationStatus(prev => [...prev, `Error: ${errorMessage}`]);
-      setStatusLineTimestamps(prev => new Map(prev).set(prev.size, Date.now()));
       setIsGenerating(false);
     }
   };
@@ -792,82 +794,69 @@ function App() {
           justifyContent: 'center',
           zIndex: 1000,
         }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            padding: '24px',
-            maxWidth: '600px',
-            maxHeight: '500px',
-            margin: '20px',
+                          <div style={{
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          padding: '24px',
+          width: '35vw',
+          height: '30vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <h3 style={{ 
+            marginTop: 0, 
+            marginBottom: '16px',
             display: 'flex',
-            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px'
           }}>
-            <h3 style={{ marginTop: 0, marginBottom: '16px' }}>
-              Generating Questions...
-            </h3>
-            
-            {/* Log area with uniform background */}
-            <div style={{ 
-              overflow: 'auto', 
-              fontFamily: 'monospace', 
-              fontSize: '12px',
-              backgroundColor: 'white',
-              padding: '12px',
-              borderRadius: '4px',
-              border: '1px solid #dee2e6',
-              marginBottom: '16px',
-            }}>
-              {generationStatus.map((status, index) => {
-                const timestamp = statusLineTimestamps.get(index) || Date.now();
-                const isLatest = index === generationStatus.length - 1;
-                const age = Date.now() - timestamp;
-                const shouldFade = !isLatest && age > 1000;
-                const shouldHide = !isLatest && age > 2000;
-                
-                if (shouldHide) return null;
-                
-                return (
-                  <div 
-                    key={index} 
-                    style={{ 
-                      marginBottom: '4px',
-                      opacity: shouldFade ? 0.3 : 1,
-                      transition: 'opacity 1s ease-out',
-                      backgroundColor: 'transparent', // Uniform background
-                    }}
-                  >
-                    {status}
-                  </div>
-                );
-              })}
-            </div>
-            
-            {/* Loading spinner */}
+            Generating Questions
             {isGenerating && (
               <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginBottom: '16px',
-              }}>
-                <div style={{
-                  width: '20px',
-                  height: '20px',
-                  border: '2px solid #f3f3f3',
-                  borderTop: '2px solid #007bff',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                }}></div>
-                <style>
-                  {`
-                    @keyframes spin {
-                      0% { transform: rotate(0deg); }
-                      100% { transform: rotate(360deg); }
-                    }
-                  `}
-                </style>
+                width: '16px',
+                height: '16px',
+                border: '2px solid #f3f3f3',
+                borderTop: '2px solid #007bff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+              }}></div>
+            )}
+            <style>
+              {`
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              `}
+            </style>
+          </h3>
+          
+          {/* Log area with current message display */}
+          <div style={{ 
+            flex: 1,
+            fontFamily: 'monospace', 
+            fontSize: '24px',
+            backgroundColor: 'transparent',
+            padding: '16px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            {generationStatus.length > 0 && (
+              <div 
+                style={{ 
+                  textAlign: 'center',
+                  width: '100%',
+                }}
+              >
+                {generationStatus[currentMessageIndex] || 'Starting...'}
               </div>
             )}
+          </div>
             
             {!isGenerating && (
               <div style={{ textAlign: 'center' }}>
