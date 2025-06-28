@@ -565,28 +565,8 @@ export class AppService {
         stopProgress3();
       }
 
-      // Phase 3: Reduce redundancy for questions
-      log('Phase 3: Reducing redundancy for questions...');
-      const exactQuestionDupes = await reduceExactRedundancyForQuestions();
-      for (const merged of exactQuestionDupes) {
-        log(`Merged exact duplicate question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
-      }
-
-      const stopProgress4 = createProgressIndicator('Reducing redundancy for questions');
-      const questionReductionResult = await reduceRedundancyForQuestions(category);
-      stopProgress4();
-      if (questionReductionResult) {
-        const [mergedQuestions, usage] = questionReductionResult;
-        totalUsage.promptTokens += usage.prompt_tokens;
-        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-        totalUsage.completionTokens += usage.completion_tokens;
-        for (const merged of mergedQuestions) {
-          log(`Merged similar question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
-        }
-      }
-
-      // Phase 4: Reduce redundancy for answer insights
-      log('Phase 4: Reducing redundancy for answer insights...');
+      // Phase 3: Reduce redundancy for answer insights
+      log('Phase 3: Reducing redundancy for answer insights...');
       const exactAnswerDupes = await reduceExactRedundancyForAnswers();
       for (const merged of exactAnswerDupes) {
         log(`Merged exact duplicate answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
@@ -602,6 +582,27 @@ export class AppService {
         totalUsage.completionTokens += usage.completion_tokens;
         for (const merged of mergedInsights) {
           log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+        }
+      }
+
+      
+      // Phase 4: Reduce redundancy for questions
+      log('Phase 4: Reducing redundancy for questions...');
+      const exactQuestionDupes = await reduceExactRedundancyForQuestions();
+      for (const merged of exactQuestionDupes) {
+        log(`Merged exact duplicate question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
+      }
+
+      const stopProgress4 = createProgressIndicator('Reducing redundancy for questions');
+      const questionReductionResult = await reduceRedundancyForQuestions(category);
+      stopProgress4();
+      if (questionReductionResult) {
+        const [mergedQuestions, usage] = questionReductionResult;
+        totalUsage.promptTokens += usage.prompt_tokens;
+        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+        totalUsage.completionTokens += usage.completion_tokens;
+        for (const merged of mergedQuestions) {
+          log(`Merged similar question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
         }
       }
 

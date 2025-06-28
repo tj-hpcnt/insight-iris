@@ -79,7 +79,6 @@ interface QuestionViewProps {
   onNavigateQuestion: (direction: 'next' | 'prev') => void;
   onSkipQuestion: () => void;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
-  onRegenerateQuestion: (questionId: number, feedback: string) => void;
 }
 
 // Add interface for related questions (similar to InsightTable)
@@ -98,7 +97,6 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   onNavigateQuestion,
   onSkipQuestion,
   onCategoryClick,
-  onRegenerateQuestion,
 }) => {
   const navigate = useNavigate();
   const [questionData, setQuestionData] = useState<QuestionData | null>(null); // Changed from fullContext
@@ -377,30 +375,6 @@ const QuestionView: React.FC<QuestionViewProps> = ({
               {questionData.proposedQuestion && !questionData.publishedId && (
                 <ProposedChip />
               )}
-              <button
-                onClick={() => onRegenerateQuestion(questionData.id, '')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#17a2b8',
-                  fontSize: '16px',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  borderRadius: '3px',
-                  opacity: 0.7,
-                  transition: 'opacity 0.2s ease',
-                  marginRight: '8px'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = '1';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '0.7';
-                }}
-                title="Regenerate question"
-              >
-                🔄
-              </button>
               <button
                 onClick={handleDeleteQuestion}
                 disabled={deleting?.type === 'question'}

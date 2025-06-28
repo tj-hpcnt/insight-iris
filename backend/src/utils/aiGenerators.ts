@@ -1714,14 +1714,10 @@ ${questionContexts.map((ctx) => JSON.stringify(ctx)).join('\n')}
 
 Please analyze these questions considering their complete context - including their answers, generated insights, and inspiration. Group together only those that are truly equivalent and serve the same purpose. For each group, the first question in the list should be the clearest or most preferred representation. Don't output single questions, only groups of 2 or more. Each question can only appear in one group.
 
-Only group questions as equivalent if they truly serve the same purpose AND would generate equivalent insights. Different question formats or answer structures may lead to questions that seem similar but are actually distinct in their purpose. For example:
-- "What's your favorite cuisine?" vs "What cuisine do you cook most?" might both be about food but explore different aspects
-- Questions with different answer options that explore different facets of the same topic should NOT be grouped
-
-Be conservative in grouping - only group questions that are clearly redundant and would provide essentially the same dating insights. Consider:
+Group questions that are highly redundant and would provide multiple equivalent insights.  Consider:
 - Do the questions explore the same specific aspect of the category?
-- Would the insights generated help users in the same way for compatibility matching?
 - Are the answer options exploring the same dimensions of preference/behavior?
+- Are multiple of the answer options going to produce the same insights as other questions?
 
 When ordering questions in a group, list the more general/clearer questions first, then the more specific or awkwardly worded ones.
 
@@ -2669,7 +2665,7 @@ export async function regenerateQuestionWithFeedback(
     // Update the question and answers in a transaction
     const [updatedQuestion, newAnswers, newInsights] = await prisma.$transaction(async (tx) => {
       // Get all insights that will be affected by this change
-      const oldAnswerInsightIds = existingQuestion.answers.map(answer => answer.insight.id);
+      const oldAnswerInsightIds = new Set(existingQuestion.answers.map(answer => answer.insight.id));
 
       // For each old answer insight, check if it's used by other questions
       for (const insightId of oldAnswerInsightIds) {

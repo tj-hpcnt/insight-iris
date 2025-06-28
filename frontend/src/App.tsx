@@ -71,15 +71,13 @@ const QuestionViewWrapper = ({
   onSkipQuestion,
   currentQuestions,
   currentQuestionIndex,
-  onCategoryClick,
-  onRegenerateQuestion
+  onCategoryClick
 }: { 
   onNavigateQuestion: (direction: 'next' | 'prev') => void;
   onSkipQuestion: () => void;
   currentQuestions: { id: number; questionText: string }[];
   currentQuestionIndex: number;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
-  onRegenerateQuestion: (questionId: number, feedback: string) => void;
 }) => {
   const { categoryId, questionId } = useParams<{ categoryId: string; questionId: string }>();
 
@@ -95,7 +93,6 @@ const QuestionViewWrapper = ({
       onNavigateQuestion={onNavigateQuestion}
       onSkipQuestion={onSkipQuestion}
       onCategoryClick={onCategoryClick}
-      onRegenerateQuestion={onRegenerateQuestion}
     />
   );
 };
@@ -1174,7 +1171,6 @@ function App() {
                 currentQuestions={currentQuestions}
                 currentQuestionIndex={currentQuestionIndex}
                 onCategoryClick={handleCategoryClick}
-                onRegenerateQuestion={handleRegenerateQuestion}
               />
             } 
           />
