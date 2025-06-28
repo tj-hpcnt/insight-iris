@@ -151,6 +151,15 @@ function App() {
   const [showGenerationStatus, setShowGenerationStatus] = useState<boolean>(false);
   const [statusLineTimestamps, setStatusLineTimestamps] = useState<Map<number, number>>(new Map());
 
+  // Add Category modal state
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState<boolean>(false);
+  const [isAddingCategory, setIsAddingCategory] = useState<boolean>(false);
+  const [newCategoryData, setNewCategoryData] = useState({
+    category: '',
+    subcategory: '',
+    insightSubject: ''
+  });
+
   // Fetch all categories for navigation
   useEffect(() => {
     const fetchCategories = async () => {
@@ -508,6 +517,64 @@ function App() {
     }
   };
 
+  const handleAddCategory = async () => {
+    if (isAddingCategory) return;
+    
+    // Validate form data
+    if (!newCategoryData.category.trim() || !newCategoryData.subcategory.trim() || !newCategoryData.insightSubject.trim()) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    setIsAddingCategory(true);
+    
+    try {
+      const response = await fetch('/api/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          category: newCategoryData.category.trim(),
+          subcategory: newCategoryData.subcategory.trim(),
+          insightSubject: newCategoryData.insightSubject.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const createdCategory = await response.json();
+      
+      // Close modal and reset form
+      setShowAddCategoryModal(false);
+      setNewCategoryData({ category: '', subcategory: '', insightSubject: '' });
+      
+      // Refresh categories list
+      const categoriesResponse = await fetch('/api/categories');
+      if (categoriesResponse.ok) {
+        const categories: Category[] = await categoriesResponse.json();
+        setAllCategories(categories);
+      }
+      
+      // Navigate to the new category
+      handleCategoryClick(createdCategory.id, createdCategory.insightSubject);
+      
+    } catch (error) {
+      console.error('Failed to add category:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to add category: ${errorMessage}`);
+    } finally {
+      setIsAddingCategory(false);
+    }
+  };
+
+  const handleCancelAddCategory = () => {
+    setShowAddCategoryModal(false);
+    setNewCategoryData({ category: '', subcategory: '', insightSubject: '' });
+  };
+
   const breadcrumbItems: BreadcrumbItem[] = [
     { label: 'Categories', onClick: navigateToCategories, isCurrent: currentView === 'categories' },
   ];
@@ -585,6 +652,24 @@ function App() {
     opacity: isGenerating ? 0.6 : 1,
   };
 
+  const addCategoryButtonStyle = {
+    background: '#6f42c1',
+    border: '1px solid #6f42c1',
+    borderRadius: '4px',
+    padding: '4px 8px',
+    cursor: isAddingCategory ? 'not-allowed' : 'pointer',
+    color: 'white',
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '24px',
+    transition: 'all 0.2s ease',
+    textDecoration: 'none',
+    marginRight: '12px',
+    opacity: isAddingCategory ? 0.6 : 1,
+  };
+
   return (
     <div className="App">
       <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -632,6 +717,26 @@ function App() {
               {isGenerating ? '⏳ Generating...' : '🔄 Generate Questions'}
             </button>
           )}
+          <button
+            onClick={() => setShowAddCategoryModal(true)}
+            style={addCategoryButtonStyle}
+            title="Add a new category"
+            disabled={isAddingCategory}
+            onMouseEnter={(e) => {
+              if (!isAddingCategory) {
+                e.currentTarget.style.backgroundColor = '#5a32a3';
+                e.currentTarget.style.borderColor = '#5a32a3';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isAddingCategory) {
+                e.currentTarget.style.backgroundColor = '#6f42c1';
+                e.currentTarget.style.borderColor = '#6f42c1';
+              }
+            }}
+          >
+            ➕ Add Category
+          </button>
           <SearchBox />
         </div>
       </header>
@@ -774,6 +879,129 @@ function App() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Add Category Modal */}
+      {showAddCategoryModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '24px',
+            maxWidth: '500px',
+            margin: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px' }}>
+              Add New Category
+            </h3>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
+                Category:
+              </label>
+              <input
+                type="text"
+                value={newCategoryData.category}
+                onChange={(e) => setNewCategoryData(prev => ({ ...prev, category: e.target.value }))}
+                placeholder="e.g., Personal Development"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                }}
+                disabled={isAddingCategory}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
+                Subcategory:
+              </label>
+              <input
+                type="text"
+                value={newCategoryData.subcategory}
+                onChange={(e) => setNewCategoryData(prev => ({ ...prev, subcategory: e.target.value }))}
+                placeholder="e.g., Goal Setting"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                }}
+                disabled={isAddingCategory}
+              />
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
+                Insight Subject:
+              </label>
+              <input
+                type="text"
+                value={newCategoryData.insightSubject}
+                onChange={(e) => setNewCategoryData(prev => ({ ...prev, insightSubject: e.target.value }))}
+                placeholder="e.g., Personal goal-setting strategies"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                }}
+                disabled={isAddingCategory}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={handleCancelAddCategory}
+                disabled={isAddingCategory}
+                style={{
+                  background: '#6c757d',
+                  border: '1px solid #6c757d',
+                  borderRadius: '4px',
+                  padding: '8px 16px',
+                  color: 'white',
+                  cursor: isAddingCategory ? 'not-allowed' : 'pointer',
+                  opacity: isAddingCategory ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddCategory}
+                disabled={isAddingCategory}
+                style={{
+                  background: '#6f42c1',
+                  border: '1px solid #6f42c1',
+                  borderRadius: '4px',
+                  padding: '8px 16px',
+                  color: 'white',
+                  cursor: isAddingCategory ? 'not-allowed' : 'pointer',
+                  opacity: isAddingCategory ? 0.6 : 1,
+                }}
+              >
+                {isAddingCategory ? 'Adding...' : 'Add Category'}
+              </button>
+            </div>
           </div>
         </div>
       )}

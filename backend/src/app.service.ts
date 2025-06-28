@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaClient, InsightSource, OverlapType, PolarityType, Insight, Category, CategoryOverlap, InsightComparison, InsightComparisonPresentation, Question, Answer, QuestionType } from '@prisma/client';
 import { searchQuestionsAnswersInsights, SearchResult } from './utils/search';
 import { generateExportData } from './utils/export';
@@ -93,6 +93,49 @@ export class AppService {
     );
 
     return categoriesWithCounts;
+  }
+
+  async createCategory(category: string, subcategory: string, insightSubject: string) {
+    // Validate input
+    if (!category?.trim() || !subcategory?.trim() || !insightSubject?.trim()) {
+      throw new BadRequestException('All fields (category, subcategory, insightSubject) are required');
+    }
+
+    const trimmedCategory = category.trim();
+    const trimmedSubcategory = subcategory.trim();
+    const trimmedInsightSubject = insightSubject.trim();
+
+    // Check for duplicate category
+    const existingCategory = await this.prisma.category.findFirst({
+      where: {
+        category: trimmedCategory,
+        subcategory: trimmedSubcategory,
+        insightSubject: trimmedInsightSubject,
+      },
+    });
+
+    if (existingCategory) {
+      throw new BadRequestException('A category with the same combination of category, subcategory, and insight subject already exists');
+    }
+
+    // Create the new category
+    const newCategory = await this.prisma.category.create({
+      data: {
+        category: trimmedCategory,
+        subcategory: trimmedSubcategory,
+        insightSubject: trimmedInsightSubject,
+      },
+    });
+
+    // Return the created category with question counts (initially all zeros)
+    return {
+      ...newCategory,
+      questionCounts: {
+        published: 0,
+        proposed: 0,
+        generated: 0,
+      },
+    };
   }
 
   async listQuestionsInCategory(categoryId: number) {

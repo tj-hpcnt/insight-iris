@@ -17,6 +17,11 @@ export class AppController {
     return this.appService.listCategories();
   }
 
+  @Post('categories')
+  async createCategory(@Body() body: { category: string; subcategory: string; insightSubject: string }) {
+    return this.appService.createCategory(body.category, body.subcategory, body.insightSubject);
+  }
+
   @Get('categories/:categoryId/questions')
   async listQuestionsInCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
     return this.appService.listQuestionsInCategory(categoryId);
