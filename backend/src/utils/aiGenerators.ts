@@ -244,7 +244,7 @@ The allowed question types are:
 - MULTIPLE_CHOICE: ${TYPE_DESCRIPTIONS[QuestionType.MULTIPLE_CHOICE]}
 ${preferBinaryPrompt}
 
-When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.
+When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with by choosing Yes or No.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.
 
 Focus on generating a question that is specifically relevant to the target category and won't overlap with questions that would be better suited for other categories in the taxonomy.
 
@@ -2441,8 +2441,8 @@ export async function regenerateImportedQuestion(
 
 Your task is to:
 1. Rewrite the question text to be more engaging, clear, and match our style examples
-2. Rewrite the answer options to be more natural and appealing
-3. PRESERVE THE EXACT INSIGHTS - each rewritten answer must still logically lead to the same insight
+2. PRESERVE THE EXACT INSIGHTS - each rewritten answer must still logically lead to the same insight
+${question.questionType === 'BINARY' ? ' 3. Keep the exact answers as Yes or No, do not change them.' : '3. Rewrite the answer options to be more natural and appealing.'}
 
 CRITICAL REQUIREMENTS:
 - You MUST preserve the question type: ${question.questionType}

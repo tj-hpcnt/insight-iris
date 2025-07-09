@@ -565,46 +565,46 @@ export class AppService {
         stopProgress3();
       }
 
-      // Phase 3: Reduce redundancy for answer insights
-      log('Phase 3: Reducing redundancy for answer insights...');
-      const exactAnswerDupes = await reduceExactRedundancyForAnswers();
-      for (const merged of exactAnswerDupes) {
-        log(`Merged exact duplicate answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
-      }
+      // // Phase 3: Reduce redundancy for answer insights
+      // log('Phase 3: Reducing redundancy for answer insights...');
+      // const exactAnswerDupes = await reduceExactRedundancyForAnswers();
+      // for (const merged of exactAnswerDupes) {
+      //   log(`Merged exact duplicate answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+      // }
 
-      const stopProgress5 = createProgressIndicator('Reducing redundancy for answer insights');
-      const answerReductionResult = await reduceRedundancyForAnswers(category);
-      stopProgress5();
-      if (answerReductionResult) {
-        const [mergedInsights, usage] = answerReductionResult;
-        totalUsage.promptTokens += usage.prompt_tokens;
-        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-        totalUsage.completionTokens += usage.completion_tokens;
-        for (const merged of mergedInsights) {
-          log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
-        }
-      }
+      // const stopProgress5 = createProgressIndicator('Reducing redundancy for answer insights');
+      // const answerReductionResult = await reduceRedundancyForAnswers(category);
+      // stopProgress5();
+      // if (answerReductionResult) {
+      //   const [mergedInsights, usage] = answerReductionResult;
+      //   totalUsage.promptTokens += usage.prompt_tokens;
+      //   totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+      //   totalUsage.completionTokens += usage.completion_tokens;
+      //   for (const merged of mergedInsights) {
+      //     log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+      //   }
+      // }
 
       
-      // Phase 4: Reduce redundancy for questions
-      log('Phase 4: Reducing redundancy for questions...');
-      const exactQuestionDupes = await reduceExactRedundancyForQuestions();
-      for (const merged of exactQuestionDupes) {
-        log(`Merged exact duplicate question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
-      }
+      // // Phase 4: Reduce redundancy for questions
+      // log('Phase 4: Reducing redundancy for questions...');
+      // const exactQuestionDupes = await reduceExactRedundancyForQuestions();
+      // for (const merged of exactQuestionDupes) {
+      //   log(`Merged exact duplicate question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
+      // }
 
-      const stopProgress4 = createProgressIndicator('Reducing redundancy for questions');
-      const questionReductionResult = await reduceRedundancyForQuestions(category);
-      stopProgress4();
-      if (questionReductionResult) {
-        const [mergedQuestions, usage] = questionReductionResult;
-        totalUsage.promptTokens += usage.prompt_tokens;
-        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-        totalUsage.completionTokens += usage.completion_tokens;
-        for (const merged of mergedQuestions) {
-          log(`Merged similar question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
-        }
-      }
+      // const stopProgress4 = createProgressIndicator('Reducing redundancy for questions');
+      // const questionReductionResult = await reduceRedundancyForQuestions(category);
+      // stopProgress4();
+      // if (questionReductionResult) {
+      //   const [mergedQuestions, usage] = questionReductionResult;
+      //   totalUsage.promptTokens += usage.prompt_tokens;
+      //   totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+      //   totalUsage.completionTokens += usage.completion_tokens;
+      //   for (const merged of mergedQuestions) {
+      //     log(`Merged similar question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
+      //   }
+      // }
 
       // Final stats
       const finalQuestionCount = await this.prisma.question.count({
@@ -734,45 +734,45 @@ export class AppService {
       log(`Generated answers: ${answers.map(a => a.answerText).join(' | ')}`);
       log(`Generated insights: ${insights.map(i => i.insightText).join(' | ')}`);
 
-      // Phase 3: Reduce redundancy for questions in the category
-      log('Phase 3: Reducing redundancy for questions...');
-      const exactQuestionDupes = await reduceExactRedundancyForQuestions();
-      for (const merged of exactQuestionDupes) {
-        log(`Merged exact duplicate question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
-      }
+      // // Phase 3: Reduce redundancy for questions in the category
+      // log('Phase 3: Reducing redundancy for questions...');
+      // const exactQuestionDupes = await reduceExactRedundancyForQuestions();
+      // for (const merged of exactQuestionDupes) {
+      //   log(`Merged exact duplicate question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
+      // }
 
-      const stopProgress3 = createProgressIndicator('Reducing redundancy for questions');
-      const questionReductionResult = await reduceRedundancyForQuestions(category);
-      stopProgress3();
-      if (questionReductionResult) {
-        const [mergedQuestions, usage] = questionReductionResult;
-        totalUsage.promptTokens += usage.prompt_tokens;
-        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-        totalUsage.completionTokens += usage.completion_tokens;
-        for (const merged of mergedQuestions) {
-          log(`Merged similar question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
-        }
-      }
+      // const stopProgress3 = createProgressIndicator('Reducing redundancy for questions');
+      // const questionReductionResult = await reduceRedundancyForQuestions(category);
+      // stopProgress3();
+      // if (questionReductionResult) {
+      //   const [mergedQuestions, usage] = questionReductionResult;
+      //   totalUsage.promptTokens += usage.prompt_tokens;
+      //   totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+      //   totalUsage.completionTokens += usage.completion_tokens;
+      //   for (const merged of mergedQuestions) {
+      //     log(`Merged similar question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
+      //   }
+      // }
 
-      // Phase 4: Reduce redundancy for answer insights in the category
-      log('Phase 4: Reducing redundancy for answer insights...');
-      const exactAnswerDupes = await reduceExactRedundancyForAnswers();
-      for (const merged of exactAnswerDupes) {
-        log(`Merged exact duplicate answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
-      }
+      // // Phase 4: Reduce redundancy for answer insights in the category
+      // log('Phase 4: Reducing redundancy for answer insights...');
+      // const exactAnswerDupes = await reduceExactRedundancyForAnswers();
+      // for (const merged of exactAnswerDupes) {
+      //   log(`Merged exact duplicate answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+      // }
 
-      const stopProgress4 = createProgressIndicator('Reducing redundancy for answer insights');
-      const answerReductionResult = await reduceRedundancyForAnswers(category);
-      stopProgress4();
-      if (answerReductionResult) {
-        const [mergedInsights, usage] = answerReductionResult;
-        totalUsage.promptTokens += usage.prompt_tokens;
-        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-        totalUsage.completionTokens += usage.completion_tokens;
-        for (const merged of mergedInsights) {
-          log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
-        }
-      }
+      // const stopProgress4 = createProgressIndicator('Reducing redundancy for answer insights');
+      // const answerReductionResult = await reduceRedundancyForAnswers(category);
+      // stopProgress4();
+      // if (answerReductionResult) {
+      //   const [mergedInsights, usage] = answerReductionResult;
+      //   totalUsage.promptTokens += usage.prompt_tokens;
+      //   totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+      //   totalUsage.completionTokens += usage.completion_tokens;
+      //   for (const merged of mergedInsights) {
+      //     log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+      //   }
+      // }
 
       // Get the final question to return its ID
       const finalQuestion = await this.prisma.question.findFirst({
