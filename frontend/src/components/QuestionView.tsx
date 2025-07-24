@@ -322,7 +322,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const options = questionData.answers;
 
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '20px', padding: '10px', width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '20px', padding: '10px', width: '100%', maxWidth: '100vw', boxSizing: 'border-box', paddingBottom: '50vh' }}>
       {/* Previous Question Button */}
       <button 
         onClick={() => onNavigateQuestion('prev')} 
