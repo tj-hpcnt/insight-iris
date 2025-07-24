@@ -374,7 +374,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {questionData.isImageQuestion ? '🖼️' : '📝'}
+              {questionData.isImageQuestion ? '🖼️' : '💬'}
               Question {currentQuestionIndex + 1} of {totalQuestionsInCategory}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -440,7 +440,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                    <span style={{ marginRight: '4px' }}>{item.isImageQuestion ? '🖼️' : '📝'}</span>
+                    <span style={{ marginRight: '4px' }}>{item.isImageQuestion ? '🖼️' : '💬'}</span>
                     {item.questionText}
                     {item.publishedId && (
                       <PublishedIdChip publishedId={item.publishedId} />
