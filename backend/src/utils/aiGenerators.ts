@@ -2495,7 +2495,8 @@ Make sure your rewritten answers still logically lead to the same insights!`;
           insights: {
             type: "array",
             items: {
-              type: "string"
+              type: "string",
+              enum: question.answers.map(a => a.insight.insightText)
             }
           },
           type: {
@@ -2524,6 +2525,9 @@ Make sure your rewritten answers still logically lead to the same insights!`;
       insights: string[];
       type: QuestionType;
     };
+    console.log(`Renegerated: ${JSON.stringify(question.answers)}`)
+    console.log(`Renegerated: ${JSON.stringify(question.answers.map(a => a.insight.insightText))}`);
+    console.log(`Renegerated: ${JSON.stringify(regenerationData)}`)
 
     if (!regenerationData) {
       throw new Error("Parse error");
@@ -2547,10 +2551,23 @@ Make sure your rewritten answers still logically lead to the same insights!`;
         },
       });
 
-      // Update each answer text (keeping the same insight)
-      for (let i = 0; i < question.answers.length; i++) {
+      // Match regenerated answers to existing answers based on their insights
+      // Create a map of insight text to existing answer for quick lookup
+      const insightToAnswerMap = new Map(
+        question.answers.map(answer => [answer.insight.insightText, answer])
+      );
+
+      // Update each answer by matching the regenerated insight to the existing answer
+      for (let i = 0; i < regenerationData.insights.length; i++) {
+        const regeneratedInsight = regenerationData.insights[i];
+        const existingAnswer = insightToAnswerMap.get(regeneratedInsight);
+        
+        if (!existingAnswer) {
+          throw new Error(`Could not find existing answer for regenerated insight: "${regeneratedInsight}"`);
+        }
+        console.log(`Updating answer ${i} from ${existingAnswer.answerText} to ${regenerationData.answers[i]}`);
         await tx.answer.update({
-          where: { id: question.answers[i].id },
+          where: { id: existingAnswer.id },
           data: {
             answerText: regenerationData.answers[i],
           },
