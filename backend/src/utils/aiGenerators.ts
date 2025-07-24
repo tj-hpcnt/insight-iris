@@ -2452,7 +2452,7 @@ CRITICAL REQUIREMENTS:
 
 Question Type: ${question.questionType} - ${TYPE_DESCRIPTIONS[question.questionType as QuestionType]}
 
-${question.questionType === 'BINARY' ? 'When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Do not change the direction of the statement, e.g. a positive answer should mean the same thing in the new version of the question.' : ''}
+${question.questionType === 'BINARY' ? 'When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  The answer should be a simple True or False.  Do not change the orientation of the statement, the old and new positive answers must both correlate with the same insight' : ''}
 
 Focus on making the question specifically relevant to the target category and following the style of our sample questions.
 
@@ -2489,7 +2489,8 @@ Make sure your rewritten answers still logically lead to the same insights!`;
           answers: {
             type: "array",
             items: {
-              type: "string"
+              type: "string",
+              enum: question.questionType != "BINARY" ? undefined : ["True", "False"]
             }
           },
           insights: {
