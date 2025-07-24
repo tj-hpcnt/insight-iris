@@ -2452,7 +2452,7 @@ CRITICAL REQUIREMENTS:
 
 Question Type: ${question.questionType} - ${TYPE_DESCRIPTIONS[question.questionType as QuestionType]}
 
-${question.questionType === 'BINARY' ? 'When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.' : ''}
+${question.questionType === 'BINARY' ? 'When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Do not change the direction of the statement, e.g. a positive answer should mean the same thing in the new version of the question.' : ''}
 
 Focus on making the question specifically relevant to the target category and following the style of our sample questions.
 
