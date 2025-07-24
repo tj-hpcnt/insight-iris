@@ -162,8 +162,8 @@ ${extraHints}${existingInsightsText}`;
 
 const TYPE_DESCRIPTIONS = {
   [QuestionType.BINARY]: "a statement that the user will either press heart or X on (e.g. allowed answers are only Yes or No)",
-  [QuestionType.SINGLE_CHOICE]: "a multiple-choice question were only one option makes sense to select",
-  [QuestionType.MULTIPLE_CHOICE]: "a multiple-choice question where multiple options can be selected"
+  [QuestionType.SINGLE_CHOICE]: "a multiple-choice question were only one option makes sense to select (maximum 5 answers)",
+  [QuestionType.MULTIPLE_CHOICE]: "a multiple-choice question where multiple options can be selected (maximum 5 answers)"
 };
 
 
