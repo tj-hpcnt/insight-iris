@@ -76,6 +76,8 @@ model Question {
   categoryId      Int
   questionType    QuestionType
   questionText    String
+  originalQuestion String?
+  isImageQuestion Boolean @default(false)
   publishedId     String?
   proposedQuestion String?     @unique // The original proposed question text if this was generated from a proposal
   answers         Answer[]
@@ -89,6 +91,7 @@ model Answer {
   id         Int      @id @default(autoincrement())
   questionId Int
   answerText String
+  originalAnswer String?
   insightId  Int
   question   Question @relation(fields: [questionId], references: [id])
   insight    Insight  @relation(fields: [insightId], references: [id])

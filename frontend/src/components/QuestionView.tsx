@@ -30,6 +30,7 @@ interface AnswerOptionPayload {
   id: number; // Answer model ID
   answerText: string;
   linkedAnswerInsight: PrismaInsight | null; // Detailed insight for this answer option
+  originalAnswer?: string | null;
 }
 
 interface QuestionDetailsPayload {
@@ -37,6 +38,8 @@ interface QuestionDetailsPayload {
   inspirationId: number; // ID of the root Inspiration Insight
   questionType: string; // e.g., SINGLE_CHOICE
   questionText: string; // Specific question text from Question model
+  originalQuestion?: string | null;
+  isImageQuestion?: boolean;
   publishedId: string | null; // Published ID if the question was previously published
   proposedQuestion: string | null; // The original proposed question text if this was generated from a proposal
   answers: AnswerOptionPayload[];
@@ -58,6 +61,8 @@ interface FullQuestionContextPayload {
 interface QuestionData {
   id: number;
   questionText: string;
+  originalQuestion?: string | null;
+  isImageQuestion?: boolean;
   questionType: string;
   publishedId: string | null;
   proposedQuestion: string | null;
@@ -65,6 +70,7 @@ interface QuestionData {
   answers: {
     id: number;
     answerText: string;
+    originalAnswer?: string | null;
     linkedAnswerInsight: PrismaInsight | null;
   }[];
   category: CategoryInfo;
@@ -367,7 +373,10 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           boxSizing: 'border-box'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <span>Question {currentQuestionIndex + 1} of {totalQuestionsInCategory}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {questionData.isImageQuestion ? '🖼️' : '📝'}
+              Question {currentQuestionIndex + 1} of {totalQuestionsInCategory}
+            </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {questionData.publishedId && (
                 <PublishedIdChip publishedId={questionData.publishedId} />
@@ -425,13 +434,32 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                 </span>
               </div>
             )}
+
+            {questionData.originalQuestion && questionData.originalQuestion !== questionData.questionText && (
+              <div style={{ marginTop: '10px' }}>
+                <span style={{
+                  backgroundColor: '#e0e0e0',
+                  color: '#000',
+                  padding: '6px 12px',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  fontWeight: '400',
+                  display: 'inline-block',
+                  maxWidth: '100%',
+                  wordWrap: 'break-word',
+                  lineHeight: '1.3'
+                }}>
+                  {questionData.originalQuestion}
+                </span>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {options.map((option) => {
               const isHovered = hoveredAnswerOptionId === option.id;
               const isDeleting = deleting?.type === 'answer' && deleting?.id === option.id;
               return (
-                <div key={option.id} style={{ position: 'relative' }}>
+                <div key={option.id} style={{ position: 'relative', marginBottom: '6px' }}>
                   <button 
                     onMouseEnter={() => handleAnswerHover(option)}
                     onMouseLeave={() => handleAnswerHover(null)}
@@ -449,7 +477,20 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                       boxSizing: 'border-box'
                     }}
                   >
-                    {option.answerText}
+                    <div>
+                      {option.answerText}
+                      {option.originalAnswer && option.originalAnswer !== option.answerText && (
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#666',
+                          fontStyle: 'italic',
+                          marginTop: '4px',
+                          textAlign: 'left'
+                        }}>
+                          {option.originalAnswer}
+                        </div>
+                      )}
+                    </div>
                   </button>
                   {canDeleteAnswers && (
                     <button

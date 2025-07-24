@@ -96,14 +96,11 @@ async function main() {
     // Create a mapping from question_id + answer_option to insight_tag
     const answerToInsightMap = new Map<string, { tag: string, direction: string }>();
     for (const mapping of mappingData) {
-      console.log(mapping)
       if (mapping.source === 'question' && mapping.mapped_to_insight_tag && mapping.insight_direction) {
         const key = `${mapping.question_id}:::${mapping.raw_value_answer_option}`;
         answerToInsightMap.set(key, { tag: mapping.mapped_to_insight_tag, direction: mapping.insight_direction });
       }
     }
-    console.log(answerToInsightMap)
-
     console.log(`Created ${answerToInsightMap.size} answer-to-insight mappings`);
 
     // Process each question
@@ -127,6 +124,9 @@ async function main() {
       // Extract answers from the row
       const answers = extractAnswersFromRow(questionRow);
 
+      // Determine if the question is an image-based question
+      const isImageQuestion = questionRow.question_type.endsWith('_IMAGE');
+      
       if (answers.length === 0) {
         console.warn(`No answers found for question: ${questionRow.question_stem}`);
         continue;
@@ -158,9 +158,11 @@ async function main() {
           inspirationId: inspirationInsight.id,
           categoryId: matchingCategory.id,
           questionText: questionRow.question_stem,
+          originalQuestion: questionRow.question_stem, // Preserve the exact imported text
           questionType: parseQuestionType(questionRow.question_type, questionRow.multi_select),
           publishedId: questionRow.question_id,
-        },
+          isImageQuestion: isImageQuestion,
+        } as any,
       });
 
       // Create answers and link to insights
@@ -201,8 +203,9 @@ async function main() {
           data: {
             questionId: question.id,
             answerText: answerText,
+            originalAnswer: answerText, // Preserve original imported answer text
             insightId: insight.id,
-          },
+          } as any,
         });
       }
     }

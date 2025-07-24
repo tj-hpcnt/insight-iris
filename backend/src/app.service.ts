@@ -42,10 +42,13 @@ export interface FullQuestionContextPayload {
     inspirationId: number;
     questionType: QuestionType;
     questionText: string;
+    originalQuestion?: string | null;
+    isImageQuestion?: boolean;
     publishedId: string | null;
     answers: {
       id: number;
       answerText: string;
+      originalAnswer?: string | null;
       linkedAnswerInsight: InsightWithCategory | null; // The detailed Answer insight for this option
     }[];
   } | null;
@@ -141,7 +144,7 @@ export class AppService {
   }
 
   async listQuestionsInCategory(categoryId: number) {
-    return this.prisma.question.findMany({
+    const questions = await this.prisma.question.findMany({
       where: {
         categoryId,
       },
@@ -198,6 +201,17 @@ export class AppService {
         id: 'asc',
       },
     });
+
+    // Map the results to include the new fields
+    return questions.map(question => ({
+      ...question,
+      originalQuestion: (question as any).originalQuestion,
+      isImageQuestion: (question as any).isImageQuestion,
+      answers: question.answers.map(answer => ({
+        ...answer,
+        originalAnswer: (answer as any).originalAnswer,
+      })),
+    }));
   }
 
   async getFullQuestionContextByInsightId(anyInsightId: number): Promise<FullQuestionContextPayload> {
@@ -313,10 +327,13 @@ export class AppService {
         inspirationId: fetchedQuestionData.inspirationId,
         questionType: fetchedQuestionData.questionType,
         questionText: fetchedQuestionData.questionText,
+        originalQuestion: (fetchedQuestionData as any).originalQuestion,
+        isImageQuestion: (fetchedQuestionData as any).isImageQuestion,
         publishedId: fetchedQuestionData.publishedId,
         answers: fetchedQuestionData.answers.map(ans => ({
           id: ans.id,
           answerText: ans.answerText,
+          originalAnswer: (ans as any).originalAnswer,
           linkedAnswerInsight: ans.insight, // This is the fully included Insight model for the answer
         })),
       };
@@ -381,6 +398,8 @@ export class AppService {
     return {
       id: question.id,
       questionText: question.questionText,
+      originalQuestion: (question as any).originalQuestion,
+      isImageQuestion: (question as any).isImageQuestion,
       questionType: question.questionType,
       publishedId: question.publishedId,
       proposedQuestion: question.proposedQuestion,
@@ -388,6 +407,7 @@ export class AppService {
       answers: question.answers.map(answer => ({
         id: answer.id,
         answerText: answer.answerText,
+        originalAnswer: (answer as any).originalAnswer ?? null,
         linkedAnswerInsight: answer.insight,
       })),
       category: question.category,

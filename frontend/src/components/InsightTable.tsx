@@ -19,6 +19,7 @@ interface CategoryInfo {
 interface QuestionFromAPI {
   id: number;
   questionText: string;
+  isImageQuestion?: boolean;
   publishedId: string | null;
   proposedQuestion: string | null;
   category: CategoryInfo;
@@ -47,6 +48,7 @@ interface QuestionDisplay {
   id: number; // This will be the insight ID for clicking purposes
   questionId: number; // The question ID for navigation
   questionText: string;
+  isImageQuestion?: boolean;
   publishedId: string | null;
   proposedQuestion: string | null;
   insightText: string;
@@ -81,7 +83,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [insightAnswerCounts, setInsightAnswerCounts] = useState<Map<number, number>>(new Map());
-  const [insightToQuestionsMap, setInsightToQuestionsMap] = useState<Map<number, Array<{ id: number; questionText: string; publishedId: string | null; proposedQuestion: string | null; category: CategoryInfo }>>>(new Map());
+  const [insightToQuestionsMap, setInsightToQuestionsMap] = useState<Map<number, Array<{ id: number; questionText: string; publishedId: string | null; proposedQuestion: string | null; category: CategoryInfo; isImageQuestion?: boolean }>>>(new Map());
   const [answerCounts, setAnswerCounts] = useState<Map<number, number>>(new Map());
   const [deleting, setDeleting] = useState<{ type: 'question' | 'answer'; id: number } | null>(null);
 
@@ -167,6 +169,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
         id: question.inspiration.id, // Use inspiration insight ID for clicking
         questionId: question.id,
         questionText: question.questionText,
+        isImageQuestion: question.isImageQuestion,
         publishedId: question.publishedId,
         proposedQuestion: question.proposedQuestion,
         insightText: question.inspiration.insightText,
@@ -181,7 +184,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
     } else {
       // For answers tab, create one row per answer with its insight
       const answerData: QuestionDisplay[] = [];
-      const insightToQuestionsMap = new Map<number, Array<{ id: number; questionText: string; publishedId: string | null; proposedQuestion: string | null; category: CategoryInfo }>>();
+      const insightToQuestionsMap = new Map<number, Array<{ id: number; questionText: string; publishedId: string | null; proposedQuestion: string | null; category: CategoryInfo; isImageQuestion?: boolean }>>();
       
       questions.forEach(question => {
         question.answers.forEach(answer => {
@@ -197,6 +200,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
             existingQuestions.push({
               id: question.id,
               questionText: question.questionText,
+              isImageQuestion: question.isImageQuestion,
               publishedId: question.publishedId,
               proposedQuestion: question.proposedQuestion,
               category: question.category
@@ -207,6 +211,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
             id: answer.insight.id, // Use answer insight ID for clicking
             questionId: question.id,
             questionText: question.questionText,
+            isImageQuestion: question.isImageQuestion,
             publishedId: question.publishedId,
             proposedQuestion: question.proposedQuestion,
             answerText: answer.answerText,
@@ -435,6 +440,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                    <span style={{ marginRight: '4px' }}>{item.isImageQuestion ? '🖼️' : '📝'}</span>
                     {item.questionText}
                     {item.publishedId && (
                       <PublishedIdChip publishedId={item.publishedId} />
