@@ -1656,10 +1656,12 @@ export async function reduceExactRedundancyForAnswers(): Promise<{oldInsight: In
  * Reduces redundancy in questions for a given category by identifying and removing equivalent questions.
  * This involves cleaning up related answers, orphaned answer insights, inspiration insights, and insight comparisons.
  * @param category The category to reduce question redundancy in
+ * @param keepIdAndBelow Optional ID threshold - questions with ID equal to orbelow this will be prioritized and never deleted
  * @returns Tuple containing array of objects with details about deleted questions and token usage statistics
  */
 export async function reduceRedundancyForQuestions(
-  category: Category
+  category: Category,
+  keepIdAndBelow?: number
 ): Promise<[{oldQuestion: Question, newQuestion: Question}[], OpenAI.Completions.CompletionUsage] | null> {
   // Get all questions for this category via their inspiration insights
   const inspirationInsights = await prisma.insight.findMany({
@@ -1789,8 +1791,10 @@ Output JSON only. Format:
 
         const allInGroup = rawGroup.map(questionText => questionsMap.get(questionText));
         const existing = allInGroup.filter(question => question.publishedId)
-        const generated  = allInGroup.filter(question => !question.publishedId)
-        const group = existing.concat(generated)
+        const allGenerated  = allInGroup.filter(question => !question.publishedId)
+        const generatedBefore  = allGenerated.filter(question => keepIdAndBelow === undefined ? false : question.id <= keepIdAndBelow)
+        const generatedAfter  = allGenerated.filter(question => keepIdAndBelow === undefined ? true : question.id > keepIdAndBelow)
+        const group = existing.concat(generatedBefore).concat(generatedAfter)
 
         const primaryQuestion = group[0];
 
@@ -1810,6 +1814,12 @@ Output JSON only. Format:
 
           if (redundantQuestion.id === primaryQuestion.id) {
             console.warn(`Primary and redundant question are the same for text "${primaryQuestion.questionText}". Skipping deletion for this item.`);
+            continue;
+          }
+
+          // If keepBelowId is provided, never delete questions below the threshold
+          if (keepIdAndBelow !== undefined && redundantQuestion.id <= keepIdAndBelow) {
+            console.warn(`Skipping deletion of question ID ${redundantQuestion.id} (below keepBelowId threshold ${keepIdAndBelow})`);
             continue;
           }
 
@@ -1847,7 +1857,7 @@ Output JSON only. Format:
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
-} 
+}
 
 /**
  * Reduces redundancy in INSPIRATION insights by identifying and merging insights with identical text.

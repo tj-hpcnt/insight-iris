@@ -479,6 +479,11 @@ export class AppService {
 
       log(`Starting question generation for category: ${category.insightSubject}`);
 
+      const lastestQuestion = await this.prisma.question.findFirst({
+        where: { categoryId: category.id },
+        orderBy: { id: 'desc' },
+      });
+
       // Phase 1: Generate inspiration insights
       log('Phase 1: Generating inspiration insights...');
       
@@ -614,7 +619,7 @@ export class AppService {
       }
 
       const stopProgress4 = createProgressIndicator('Reducing redundancy for questions');
-      const questionReductionResult = await reduceRedundancyForQuestions(category);
+      const questionReductionResult = await reduceRedundancyForQuestions(category, lastestQuestion.id);
       stopProgress4();
       if (questionReductionResult) {
         const [mergedQuestions, usage] = questionReductionResult;
