@@ -1061,7 +1061,7 @@ function App() {
                 }
               }}
             >
-              {isGenerating ? '⏳ Generating...' : '🔄 Generate Questions'}
+              {isGenerating ? '⏳ Generating...' : '🔄 Generate'}
             </button>
           )}
           {currentView === 'question' && selectedQuestionId && (
