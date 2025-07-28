@@ -1120,7 +1120,7 @@ function App() {
               }
             }}
           >
-            ➕ Add Category
+            + Category
           </button>
           <button
             onClick={() => setShowProposeModal(true)}

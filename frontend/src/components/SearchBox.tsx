@@ -35,7 +35,7 @@ const SearchBox: React.FC = () => {
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         onKeyPress={handleKeyPress}
-        placeholder="Search questions, answers, and insights..."
+        placeholder="Search..."
         style={{
           flex: 1,
           padding: '6px 10px',
@@ -43,7 +43,7 @@ const SearchBox: React.FC = () => {
           borderRadius: '4px',
           fontSize: '14px',
           outline: 'none',
-          minWidth: '300px'
+          minWidth: '100px'
         }}
         onFocus={(e) => {
           e.target.style.borderColor = '#007bff';
