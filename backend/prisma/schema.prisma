@@ -80,7 +80,9 @@ model Question {
   isImageQuestion Boolean @default(false)
   publishedId     String?
   proposedQuestion String?     @unique // The original proposed question text if this was generated from a proposal
+  approved        Boolean @default(false) // Whether the question has been approved
   answers         Answer[]
+  comments        Comment[]
   inspiration     Insight      @relation("QuestionInspiration", fields: [inspirationId], references: [id])
   category        Category     @relation(fields: [categoryId], references: [id])
 
@@ -143,4 +145,15 @@ model Cache {
   output String
 
   @@index([model, prompt, format])
+}
+
+model Comment {
+  id         Int      @id @default(autoincrement())
+  questionId Int
+  text       String
+  createdAt  DateTime @default(now())
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([createdAt])
 }

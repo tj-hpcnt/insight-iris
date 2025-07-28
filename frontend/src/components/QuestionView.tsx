@@ -66,6 +66,7 @@ interface QuestionData {
   questionType: string;
   publishedId: string | null;
   proposedQuestion: string | null;
+  approved: boolean; // Add approved field
   inspiration: PrismaInsight;
   answers: {
     id: number;
@@ -74,6 +75,14 @@ interface QuestionData {
     linkedAnswerInsight: PrismaInsight | null;
   }[];
   category: CategoryInfo;
+}
+
+// Add interface for comments
+interface Comment {
+  id: number;
+  questionId: number;
+  text: string;
+  createdAt: string;
 }
 
 // --- End Data Interfaces ---
@@ -114,6 +123,14 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [canDeleteAnswers, setCanDeleteAnswers] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<{ type: 'question' | 'answer'; id: number } | null>(null);
   
+  // Add state for approval and comments
+  const [isApproved, setIsApproved] = useState<boolean>(false);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [showCommentModal, setShowCommentModal] = useState<boolean>(false);
+  const [newCommentText, setNewCommentText] = useState<string>('');
+  const [submittingComment, setSubmittingComment] = useState<boolean>(false);
+  const [togglingApproval, setTogglingApproval] = useState<boolean>(false);
+  
   // Add state for insight question counts and mappings
   const [insightAnswerCounts, setInsightAnswerCounts] = useState<Map<number, number>>(new Map());
   const [insightToQuestionsMap, setInsightToQuestionsMap] = useState<Map<number, RelatedQuestion[]>>(new Map());
@@ -137,6 +154,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
         
         const data: QuestionData = await questionResponse.json();
         setQuestionData(data);
+        setIsApproved(data.approved); // Set approval state
         
         if (countResponse.ok) {
           const countData = await countResponse.json();
@@ -153,6 +171,25 @@ const QuestionView: React.FC<QuestionViewProps> = ({
 
     fetchQuestionData();
   }, [questionId]); // Changed from insightId
+
+  // Add effect to load comments
+  useEffect(() => {
+    if (!questionId) return;
+
+    const fetchComments = async () => {
+      try {
+        const response = await fetch(`/api/questions/${questionId}/comments`);
+        if (response.ok) {
+          const commentsData = await response.json();
+          setComments(commentsData);
+        }
+      } catch (e) {
+        console.warn('Failed to load comments:', e);
+      }
+    };
+
+    fetchComments();
+  }, [questionId]);
 
   // Add effect to fetch insight counts when question data is available
   useEffect(() => {
@@ -259,6 +296,60 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       navigate(`/categories/${categoryId}/questions/${questionId}`);
     } catch (error) {
       console.error('Failed to navigate to question:', error);
+    }
+  };
+
+  // Add approval and comment handler functions
+  const handleApprovalToggle = async () => {
+    if (!questionData || togglingApproval) return;
+    
+    try {
+      setTogglingApproval(true);
+      const response = await fetch(`/api/questions/${questionData.id}/approval`, {
+        method: 'PUT'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      setIsApproved(result.approved);
+    } catch (error) {
+      console.error('Failed to toggle approval:', error);
+      alert('Failed to toggle approval: ' + (error as Error).message);
+    } finally {
+      setTogglingApproval(false);
+    }
+  };
+
+  const handleCommentSubmit = async () => {
+    if (!questionData || submittingComment || !newCommentText.trim()) return;
+    
+    try {
+      setSubmittingComment(true);
+      const response = await fetch(`/api/questions/${questionData.id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: newCommentText.trim() })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      const newComment = await response.json();
+      setComments(prev => [newComment, ...prev]); // Add to top since we sort by desc
+      setNewCommentText('');
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+      alert('Failed to add comment: ' + (error as Error).message);
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -384,6 +475,69 @@ const QuestionView: React.FC<QuestionViewProps> = ({
               {questionData.proposedQuestion && !questionData.publishedId && (
                 <ProposedChip />
               )}
+              
+              {/* Thumbs up approval button */}
+              <button
+                onClick={handleApprovalToggle}
+                disabled={togglingApproval}
+                style={{
+                  background: 'none',
+                  border: isApproved ? '2px solid #28a745' : '2px solid #ccc',
+                  color: isApproved ? '#28a745' : '#666',
+                  fontSize: '16px',
+                  cursor: togglingApproval ? 'not-allowed' : 'pointer',
+                  padding: '6px 8px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: isApproved ? '#28a745' : 'transparent',
+                  opacity: togglingApproval ? 0.5 : 1,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!togglingApproval) {
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!togglingApproval) {
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }
+                }}
+                title={isApproved ? 'Remove approval' : 'Approve question'}
+              >
+                {togglingApproval ? '⏳' : isApproved ? '👍' : '👍'}
+              </button>
+
+              {/* Comment button */}
+              <button
+                onClick={() => setShowCommentModal(true)}
+                style={{
+                  background: 'none',
+                  border: comments.length > 0 ? '2px solid #007bff' : '2px solid #ccc',
+                  color: comments.length > 0 ? '#007bff' : '#666',
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  padding: '6px 8px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: comments.length > 0 ? '#007bff' : 'transparent',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+                title={`${comments.length} comment${comments.length !== 1 ? 's' : ''}`}
+              >
+                💬
+              </button>
+              
               <button
                 onClick={handleDeleteQuestion}
                 disabled={deleting?.type === 'question'}
@@ -643,6 +797,111 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           )}
         </div>
       </div>
+      
+      {/* Comment Modal */}
+      {showCommentModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '24px',
+            maxWidth: '600px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflow: 'auto',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0 }}>Comments ({comments.length})</h3>
+              <button
+                onClick={() => setShowCommentModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  color: '#666',
+                  padding: '4px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Add comment form */}
+            <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
+              <textarea
+                value={newCommentText}
+                onChange={(e) => setNewCommentText(e.target.value)}
+                placeholder="Add a comment..."
+                style={{
+                  width: '100%',
+                  minHeight: '80px',
+                  padding: '12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                  fontSize: '14px',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={handleCommentSubmit}
+                  disabled={submittingComment || !newCommentText.trim()}
+                  style={{
+                    backgroundColor: submittingComment || !newCommentText.trim() ? '#ccc' : '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '4px',
+                    cursor: submittingComment || !newCommentText.trim() ? 'not-allowed' : 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  {submittingComment ? 'Adding...' : 'Add Comment'}
+                </button>
+              </div>
+            </div>
+
+            {/* Comments list */}
+            <div style={{ maxHeight: '400px', overflow: 'auto' }}>
+              {comments.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                  No comments yet. Be the first to add one!
+                </p>
+              ) : (
+                comments.map(comment => (
+                  <div key={comment.id} style={{
+                    padding: '16px',
+                    borderBottom: '1px solid #eee',
+                    marginBottom: '12px'
+                  }}>
+                    <p style={{ margin: '0 0 8px 0', lineHeight: '1.4' }}>
+                      {comment.text}
+                    </p>
+                    <small style={{ color: '#666' }}>
+                      {new Date(comment.createdAt).toLocaleString()}
+                    </small>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

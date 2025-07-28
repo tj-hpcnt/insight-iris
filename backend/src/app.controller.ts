@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param, ParseIntPipe, Res } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, ParseIntPipe, Res, Put } from '@nestjs/common';
 import { AppService } from './app.service';
 import { Response } from 'express';
 import { generateTimestampedFilename } from './utils/export';
@@ -95,5 +95,23 @@ export class AppController {
   @Get('questions/:questionId/answer-count')
   async getQuestionAnswerCount(@Param('questionId', ParseIntPipe) questionId: number) {
     return this.appService.getQuestionAnswerCount(questionId);
+  }
+
+  @Put('questions/:questionId/approval')
+  async toggleQuestionApproval(@Param('questionId', ParseIntPipe) questionId: number) {
+    return this.appService.toggleQuestionApproval(questionId);
+  }
+
+  @Get('questions/:questionId/comments')
+  async getQuestionComments(@Param('questionId', ParseIntPipe) questionId: number) {
+    return this.appService.getQuestionComments(questionId);
+  }
+
+  @Post('questions/:questionId/comments')
+  async addQuestionComment(
+    @Param('questionId', ParseIntPipe) questionId: number,
+    @Body() body: { text: string }
+  ) {
+    return this.appService.addQuestionComment(questionId, body.text);
   }
 } 

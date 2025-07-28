@@ -403,6 +403,7 @@ export class AppService {
       questionType: question.questionType,
       publishedId: question.publishedId,
       proposedQuestion: question.proposedQuestion,
+      approved: question.approved, // Add approved field
       inspiration: question.inspiration,
       answers: question.answers.map(answer => ({
         id: answer.id,
@@ -943,6 +944,72 @@ export class AppService {
       await deleteCategory(categoryId);
       return { success: true, message: 'Category deleted successfully' };
     } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async toggleQuestionApproval(questionId: number) {
+    try {
+      const question = await this.prisma.question.findUnique({
+        where: { id: questionId },
+        select: { approved: true }
+      });
+
+      if (!question) {
+        throw new NotFoundException('Question not found');
+      }
+
+      const updatedQuestion = await this.prisma.question.update({
+        where: { id: questionId },
+        data: { approved: !question.approved },
+        select: { id: true, approved: true }
+      });
+
+      return { success: true, approved: updatedQuestion.approved };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async getQuestionComments(questionId: number) {
+    try {
+      const comments = await this.prisma.comment.findMany({
+        where: { questionId },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return comments;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async addQuestionComment(questionId: number, text: string) {
+    try {
+      // Check if question exists
+      const question = await this.prisma.question.findUnique({
+        where: { id: questionId }
+      });
+
+      if (!question) {
+        throw new NotFoundException('Question not found');
+      }
+
+      const comment = await this.prisma.comment.create({
+        data: {
+          questionId,
+          text: text.trim()
+        }
+      });
+
+      return comment;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
       throw new BadRequestException(error.message);
     }
   }
