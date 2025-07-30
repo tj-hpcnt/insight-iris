@@ -6,6 +6,7 @@ export interface BreadcrumbItem {
   onClick: () => void;
   isCurrent?: boolean;
   insightSubject?: string;
+  approvalFilter?: boolean | null; // true = approved only, false = unapproved only, null/undefined = no filter
 }
 
 interface BreadcrumbsProps {
@@ -96,29 +97,49 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
               </>
             )}
 
-            <button
-              onClick={item.onClick}
-              disabled={item.isCurrent}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                cursor: item.isCurrent ? 'default' : 'pointer',
-                textDecoration: 'none',
-                color: 'inherit',
-                font: 'inherit',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-            >
-              {item.label}
-              {item.insightSubject && (
-                <span style={getInsightSubjectStyle(item.insightSubject, 'inherit')}>
-                  {item.insightSubject}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                onClick={item.onClick}
+                disabled={item.isCurrent}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: item.isCurrent ? 'default' : 'pointer',
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  font: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                {item.label}
+                {item.insightSubject && (
+                  <span style={getInsightSubjectStyle(item.insightSubject, 'inherit')}>
+                    {item.insightSubject}
+                  </span>
+                )}
+              </button>
+              
+              {/* Approval Filter Indicator */}
+              {item.approvalFilter !== undefined && item.approvalFilter !== null && (
+                <span style={{
+                  backgroundColor: item.approvalFilter ? '#28a745' : '#dc3545',
+                  color: '#fff',
+                  padding: '2px 6px',
+                  borderRadius: '8px',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  marginLeft: '4px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '2px'
+                }}>
+                  👍 {item.approvalFilter ? 'Approved Only' : 'Unapproved Only'}
                 </span>
               )}
-            </button>
+            </div>
           </li>
         ))}
         </ol>

@@ -62,6 +62,7 @@ interface QuestionDisplay {
 interface InsightTableProps {
   categoryId: number;
   insightType: InsightType; // 'inspiration' or 'answers'
+  approved?: boolean; // Filter for approved/unapproved questions
   onInsightClick: (questionId: number) => void; // Changed to questionId
   onInsightTypeChange: (type: InsightType) => void;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
@@ -71,7 +72,8 @@ interface InsightTableProps {
 
 const InsightTable: React.FC<InsightTableProps> = ({ 
   categoryId, 
-  insightType, 
+  insightType,
+  approved,
   onInsightClick, 
   onInsightTypeChange, 
   onCategoryClick,
@@ -92,7 +94,13 @@ const InsightTable: React.FC<InsightTableProps> = ({
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/categories/${categoryId}/questions`);
+      // Build URL with approved filter if specified
+      let url = `/api/categories/${categoryId}/questions`;
+      if (approved !== undefined) {
+        url += `?approved=${approved}`;
+      }
+      
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -113,7 +121,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
   useEffect(() => {
     if (!categoryId) return;
     fetchQuestions();
-  }, [categoryId]);
+  }, [categoryId, approved]);
 
   // Refresh data when refreshTrigger changes
   useEffect(() => {

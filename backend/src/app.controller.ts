@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param, ParseIntPipe, Res, Put, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, ParseIntPipe, Res, Put, UseGuards, Req } from '@nestjs/common';
 import { AppService } from './app.service';
 import { Request, Response } from 'express';
 import { generateTimestampedFilename } from './utils/export';
@@ -33,8 +33,12 @@ export class AppController {
 
   @Get('categories/:categoryId/questions')
   @UseGuards(AuthGuard)
-  async listQuestionsInCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
-    return this.appService.listQuestionsInCategory(categoryId);
+  async listQuestionsInCategory(
+    @Param('categoryId', ParseIntPipe) categoryId: number,
+    @Query('approved') approved?: string
+  ) {
+    const approvedFilter = approved === 'true' ? true : approved === 'false' ? false : undefined;
+    return this.appService.listQuestionsInCategory(categoryId, approvedFilter);
   }
 
   @Post('categories/:categoryId/generate')

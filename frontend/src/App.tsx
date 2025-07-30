@@ -27,15 +27,17 @@ interface Category {
 
 // Component for Categories view
 const CategoriesView = ({ 
-  onCategoryClick, 
+  onCategoryClick,
+  onApprovalChipClick,
   onRefresh,
   refreshTrigger
 }: { 
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  onApprovalChipClick?: (categoryId: number, insightSubject: string) => void;
   onRefresh?: () => void;
   refreshTrigger?: number;
 }) => {
-  return <CategoryTable onCategoryClick={onCategoryClick} onRefresh={onRefresh} refreshTrigger={refreshTrigger} />;
+  return <CategoryTable onCategoryClick={onCategoryClick} onApprovalChipClick={onApprovalChipClick} onRefresh={onRefresh} refreshTrigger={refreshTrigger} />;
 };
 
 // Component for Insights view
@@ -56,6 +58,15 @@ const InsightsView = ({
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const insightType = (searchParams.get('type') as InsightType) || 'answers';
+  
+  // Get approved filter from URL
+  const approvedParam = searchParams.get('approved');
+  let approved: boolean | undefined = undefined;
+  if (approvedParam === 'true') {
+    approved = true;
+  } else if (approvedParam === 'false') {
+    approved = false;
+  }
 
   if (!categoryId) {
     return <p>Category not found</p>;
@@ -65,6 +76,7 @@ const InsightsView = ({
     <InsightTable 
       categoryId={parseInt(categoryId)} 
       insightType={insightType} 
+      approved={approved}
       onInsightClick={onInsightClick}
       onInsightTypeChange={onInsightTypeChange}
       onCategoryClick={onCategoryClick}
@@ -133,6 +145,7 @@ function App() {
     let categoryId: number | null = null;
     let questionId: number | null = null;
     let insightType: InsightType | null = null;
+    let approved: boolean | null = null;
     
     // Extract categoryId from path like /categories/123 or /categories/123/questions/456
     const categoryMatch = path.match(/\/categories\/(\d+)/);
@@ -152,16 +165,25 @@ function App() {
       insightType = typeParam;
     }
     
-    return { categoryId, questionId, insightType };
+    // Get approved filter from search params
+    const approvedParam = searchParams.get('approved');
+    if (approvedParam === 'true') {
+      approved = true;
+    } else if (approvedParam === 'false') {
+      approved = false;
+    }
+    
+    return { categoryId, questionId, insightType, approved };
   };
 
   const [currentView, setCurrentView] = useState<string>(getViewFromURL());
-  const { categoryId: urlCategoryId, questionId: urlQuestionId, insightType: urlInsightType } = getParamsFromURL();
+  const { categoryId: urlCategoryId, questionId: urlQuestionId, insightType: urlInsightType, approved: urlApproved } = getParamsFromURL();
   
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(urlCategoryId);
   const [selectedInsightSubject, setSelectedInsightSubject] = useState<string | null>(null);
   const [selectedInsightType, setSelectedInsightType] = useState<InsightType | null>(urlInsightType || 'answers');
   const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(urlQuestionId);
+  const [selectedApproved, setSelectedApproved] = useState<boolean | null>(urlApproved);
 
   // For Question View navigation - now tracks questions instead of inspiration insights
   const [currentQuestions, setCurrentQuestions] = useState<{ id: number; questionText: string }[]>([]);
@@ -423,10 +445,22 @@ function App() {
     setSelectedCategoryId(categoryId);
     setSelectedInsightSubject(insightSubject);
     setSelectedInsightType('answers'); 
+    setSelectedApproved(null); // Clear approval filter for normal navigation
     setCurrentQuestionIndex(0); // Reset index when category changes
     
     // Navigate to insights view with URL
     navigate(`/categories/${categoryId}?type=answers`);
+  };
+
+  const handleApprovalChipClick = async (categoryId: number, insightSubject: string) => {
+    setSelectedCategoryId(categoryId);
+    setSelectedInsightSubject(insightSubject);
+    setSelectedInsightType('answers'); 
+    setSelectedApproved(false); // Filter for unapproved questions
+    setCurrentQuestionIndex(0); // Reset index when category changes
+    
+    // Navigate to insights view with URL and approved=false filter for unapproved questions
+    navigate(`/categories/${categoryId}?type=answers&approved=false`);
   };
 
   const handleInsightTypeSelect = (type: InsightType) => {
@@ -434,8 +468,12 @@ function App() {
     setSelectedInsightType(type);
     setCurrentQuestionIndex(0); // Reset index when type changes
     
-    // Update URL with new insight type
-    navigate(`/categories/${selectedCategoryId}?type=${type}`);
+    // Update URL with new insight type, preserving approved filter if present
+    let url = `/categories/${selectedCategoryId}?type=${type}`;
+    if (selectedApproved !== null) {
+      url += `&approved=${selectedApproved}`;
+    }
+    navigate(url);
   };
 
   const handleQuestionClick = (questionId: number) => {
@@ -507,6 +545,7 @@ function App() {
     setSelectedCategoryId(null);
     setSelectedInsightSubject(null);
     setSelectedInsightType(null);
+    setSelectedApproved(null); // Clear approval filter
     setSelectedQuestionId(null);
     setCurrentQuestions([]);
     setCurrentQuestionIndex(0);
@@ -521,8 +560,12 @@ function App() {
     setSelectedInsightType(insightType);
     setSelectedQuestionId(null);
     
-    // Navigate to insights view with URL
-    navigate(`/categories/${selectedCategoryId}?type=${insightType}`);
+    // Navigate to insights view with URL, preserving approved filter if present
+    let url = `/categories/${selectedCategoryId}?type=${insightType}`;
+    if (selectedApproved !== null) {
+      url += `&approved=${selectedApproved}`;
+    }
+    navigate(url);
   };
   
   const handleQuestionNavigation = (direction: 'next' | 'prev') => {
@@ -572,8 +615,12 @@ function App() {
       setSelectedInsightType('answers');
       setCurrentQuestionIndex(0);
       
-      // Navigate to the new category
-      navigate(`/categories/${newCategory.id}?type=answers`);
+      // Navigate to the new category, preserving approval filter if present
+      let url = `/categories/${newCategory.id}?type=answers`;
+      if (selectedApproved !== null) {
+        url += `&approved=${selectedApproved}`;
+      }
+      navigate(url);
     }
   };
 
@@ -960,7 +1007,8 @@ function App() {
       label: '',
       onClick: () => navigateToInsightsView(), // Defaults to current or inspiration type
       isCurrent: currentView === 'insights',
-      insightSubject: selectedInsightSubject || undefined
+      insightSubject: selectedInsightSubject || undefined,
+      approvalFilter: selectedApproved
     });
   }
 
@@ -1204,12 +1252,12 @@ function App() {
           <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
           <Route path="/" element={
             <AuthGuard user={user} onSetUser={setUser}>
-              <CategoriesView onCategoryClick={handleCategoryClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
+              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
             </AuthGuard>
           } />
           <Route path="/categories" element={
             <AuthGuard user={user} onSetUser={setUser}>
-              <CategoriesView onCategoryClick={handleCategoryClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
+              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
             </AuthGuard>
           } />
           <Route path="/search" element={

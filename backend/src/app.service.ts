@@ -148,11 +148,18 @@ export class AppService {
     };
   }
 
-  async listQuestionsInCategory(categoryId: number) {
+  async listQuestionsInCategory(categoryId: number, approved?: boolean) {
+    const whereClause: any = {
+      categoryId,
+    };
+    
+    // Add approved filter if specified
+    if (approved !== undefined) {
+      whereClause.approved = approved;
+    }
+    
     const questions = await this.prisma.question.findMany({
-      where: {
-        categoryId,
-      },
+      where: whereClause,
       include: {
         inspiration: {
           select: {

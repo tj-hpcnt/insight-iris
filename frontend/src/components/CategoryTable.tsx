@@ -37,6 +37,7 @@ interface CategoryDisplay {
 
 interface CategoryTableProps {
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  onApprovalChipClick?: (categoryId: number, insightSubject: string) => void;
   onRefresh?: () => void;
   refreshTrigger?: number;
 }
@@ -51,7 +52,7 @@ interface Totals {
   newQuestions: number;
 }
 
-const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onRefresh, refreshTrigger }) => {
+const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprovalChipClick, onRefresh, refreshTrigger }) => {
   const [categories, setCategories] = useState<CategoryDisplay[]>([]);
   const [totals, setTotals] = useState<Totals>({
     published: 0,
@@ -235,7 +236,11 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onRefres
                     <QuestionCountChip count={category.questionCounts.published} type="published" />
                     <QuestionCountChip count={category.questionCounts.proposed} type="proposed" />
                     <QuestionCountChip count={category.questionCounts.generated} type="generated" />
-                    <ApprovedCountChip approved={category.questionCounts.approved} total={category.questionCounts.total} />
+                    <ApprovedCountChip 
+                      approved={category.questionCounts.approved} 
+                      total={category.questionCounts.total}
+                      onClick={onApprovalChipClick ? () => onApprovalChipClick(category.id, category.insightSubject || '') : undefined}
+                    />
                   </>
                 )}
               </td>
