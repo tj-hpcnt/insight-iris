@@ -151,9 +151,11 @@ model Comment {
   id         Int      @id @default(autoincrement())
   questionId Int
   text       String
+  username   String
   createdAt  DateTime @default(now())
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@index([questionId])
   @@index([createdAt])
+  @@index([username])
 }

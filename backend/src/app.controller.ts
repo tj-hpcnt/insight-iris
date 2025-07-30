@@ -125,12 +125,31 @@ export class AppController {
   }
 
   @Post('questions/:questionId/comments')
-  @UseGuards(WriteGuard)
+  @UseGuards(AuthGuard)
   async addQuestionComment(
     @Param('questionId', ParseIntPipe) questionId: number,
     @Body() body: { text: string },
     @Req() req: Request
   ) {
     return this.appService.addQuestionComment(questionId, body.text, req.user!.username);
+  }
+
+  @Put('comments/:commentId')
+  @UseGuards(AuthGuard)
+  async updateComment(
+    @Param('commentId', ParseIntPipe) commentId: number,
+    @Body() body: { text: string },
+    @Req() req: Request
+  ) {
+    return this.appService.updateComment(commentId, body.text, req.user!.username);
+  }
+
+  @Delete('comments/:commentId')
+  @UseGuards(AuthGuard)
+  async deleteComment(
+    @Param('commentId', ParseIntPipe) commentId: number,
+    @Req() req: Request
+  ) {
+    return this.appService.deleteComment(commentId, req.user!.username);
   }
 } 

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaClient, InsightSource, OverlapType, PolarityType, Insight, Category, CategoryOverlap, InsightComparison, InsightComparisonPresentation, Question, Answer, QuestionType } from '@prisma/client';
 import { searchQuestionsAnswersInsights, SearchResult } from './utils/search';
 import { generateExportData } from './utils/export';
@@ -1001,13 +1001,75 @@ export class AppService {
       const comment = await this.prisma.comment.create({
         data: {
           questionId,
-          text: `${username}: ${text.trim()}`
+          text: text.trim(),
+          username
         }
       });
 
       return comment;
     } catch (error) {
       if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async updateComment(commentId: number, text: string, username: string) {
+    try {
+      // Check if comment exists
+      const existingComment = await this.prisma.comment.findUnique({
+        where: { id: commentId }
+      });
+
+      if (!existingComment) {
+        throw new NotFoundException('Comment not found');
+      }
+
+      // Check if user owns the comment
+      if (existingComment.username !== username) {
+        throw new ForbiddenException('You can only edit your own comments');
+      }
+
+      const updatedComment = await this.prisma.comment.update({
+        where: { id: commentId },
+        data: {
+          text: text.trim()
+        }
+      });
+
+      return updatedComment;
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+        throw error;
+      }
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async deleteComment(commentId: number, username: string) {
+    try {
+      // Check if comment exists
+      const existingComment = await this.prisma.comment.findUnique({
+        where: { id: commentId }
+      });
+
+      if (!existingComment) {
+        throw new NotFoundException('Comment not found');
+      }
+
+      // Check if user owns the comment
+      if (existingComment.username !== username) {
+        throw new ForbiddenException('You can only delete your own comments');
+      }
+
+      await this.prisma.comment.delete({
+        where: { id: commentId }
+      });
+
+      return { success: true, message: 'Comment deleted successfully' };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
         throw error;
       }
       throw new BadRequestException(error.message);

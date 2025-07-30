@@ -82,6 +82,7 @@ interface Comment {
   id: number;
   questionId: number;
   text: string;
+  username: string;
   createdAt: string;
 }
 
@@ -94,6 +95,7 @@ interface QuestionViewProps {
   onNavigateQuestion: (direction: 'next' | 'prev') => void;
   onSkipQuestion: () => void;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  user: { username: string; role: string } | null;
 }
 
 // Add interface for related questions (similar to InsightTable)
@@ -112,6 +114,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   onNavigateQuestion,
   onSkipQuestion,
   onCategoryClick,
+  user,
 }) => {
   const navigate = useNavigate();
   const [questionData, setQuestionData] = useState<QuestionData | null>(null); // Changed from fullContext
@@ -131,9 +134,39 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [submittingComment, setSubmittingComment] = useState<boolean>(false);
   const [togglingApproval, setTogglingApproval] = useState<boolean>(false);
   
+  // Add state for comment editing and deleting
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editCommentText, setEditCommentText] = useState<string>('');
+  const [updatingComment, setUpdatingComment] = useState<boolean>(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<number | null>(null);
+  
   // Add state for insight question counts and mappings
   const [insightAnswerCounts, setInsightAnswerCounts] = useState<Map<number, number>>(new Map());
   const [insightToQuestionsMap, setInsightToQuestionsMap] = useState<Map<number, RelatedQuestion[]>>(new Map());
+
+  // Add helper function for relative time formatting
+  const formatRelativeTime = (dateString: string): string => {
+    const now = new Date();
+    const past = new Date(dateString);
+    const diffInSeconds = Math.floor((now.getTime() - past.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
+    
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 30) return `${diffInDays} day${diffInDays !== 1 ? 's' : ''} ago`;
+    
+    const diffInMonths = Math.floor(diffInDays / 30);
+    if (diffInMonths < 12) return `${diffInMonths} month${diffInMonths !== 1 ? 's' : ''} ago`;
+    
+    const diffInYears = Math.floor(diffInMonths / 12);
+    return `${diffInYears} year${diffInYears !== 1 ? 's' : ''} ago`;
+  };
 
   useEffect(() => {
     if (!questionId) return;
@@ -350,6 +383,73 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       alert('Failed to add comment: ' + (error as Error).message);
     } finally {
       setSubmittingComment(false);
+    }
+  };
+
+  // Add comment edit and delete handlers
+  const handleEditComment = (comment: Comment) => {
+    setEditingCommentId(comment.id);
+    setEditCommentText(comment.text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditCommentText('');
+  };
+
+  const handleUpdateComment = async (commentId: number) => {
+    if (!questionData || updatingComment || !editCommentText.trim()) return;
+    
+    try {
+      setUpdatingComment(true);
+      const response = await fetch(`/api/comments/${commentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: editCommentText.trim() })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      const updatedComment = await response.json();
+      setComments(prev => prev.map(c => c.id === commentId ? updatedComment : c));
+      setEditingCommentId(null);
+      setEditCommentText('');
+    } catch (error) {
+      console.error('Failed to update comment:', error);
+      alert('Failed to update comment: ' + (error as Error).message);
+    } finally {
+      setUpdatingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!questionData || deletingCommentId === commentId) return;
+    
+    const confirmed = window.confirm('Are you sure you want to delete this comment?');
+    if (!confirmed) return;
+    
+    try {
+      setDeletingCommentId(commentId);
+      const response = await fetch(`/api/comments/${commentId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      setComments(prev => prev.filter(c => c.id !== commentId));
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+      alert('Failed to delete comment: ' + (error as Error).message);
+    } finally {
+      setDeletingCommentId(null);
     }
   };
 
@@ -879,22 +979,139 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             {/* Comments list */}
             <div style={{ maxHeight: '400px', overflow: 'auto' }}>
               {comments.length === 0 ? (
-                <p style={{ textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                <p style={{ textAlign: 'center', color: '#666', fontStyle: 'italic', margin: '20px 0' }}>
                   No comments yet. Be the first to add one!
                 </p>
               ) : (
                 comments.map(comment => (
                   <div key={comment.id} style={{
-                    padding: '16px',
-                    borderBottom: '1px solid #eee',
-                    marginBottom: '12px'
+                    padding: '8px 0',
+                    borderBottom: '1px solid #f0f0f0',
+                    marginBottom: '4px'
                   }}>
-                    <p style={{ margin: '0 0 8px 0', lineHeight: '1.4' }}>
-                      {comment.text}
-                    </p>
-                    <small style={{ color: '#666' }}>
-                      {new Date(comment.createdAt).toLocaleString()}
-                    </small>
+                    {editingCommentId === comment.id ? (
+                      /* Edit mode */
+                      <div>
+                        <textarea
+                          value={editCommentText}
+                          onChange={(e) => setEditCommentText(e.target.value)}
+                          style={{
+                            width: '100%',
+                            minHeight: '60px',
+                            padding: '8px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            resize: 'vertical',
+                            fontFamily: 'inherit',
+                            fontSize: '14px',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                        <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                          <button
+                            onClick={handleCancelEdit}
+                            style={{
+                              backgroundColor: '#6c757d',
+                              color: 'white',
+                              border: 'none',
+                              padding: '4px 12px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleUpdateComment(comment.id)}
+                            disabled={updatingComment || !editCommentText.trim()}
+                            style={{
+                              backgroundColor: updatingComment || !editCommentText.trim() ? '#ccc' : '#28a745',
+                              color: 'white',
+                              border: 'none',
+                              padding: '4px 12px',
+                              borderRadius: '4px',
+                              cursor: updatingComment || !editCommentText.trim() ? 'not-allowed' : 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            {updatingComment ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Display mode */
+                      <p style={{ margin: 0, lineHeight: '1.4', fontSize: '14px', textAlign: 'left' }}>
+                        <strong>{comment.username}:</strong> {comment.text}{' '}
+                        <span style={{ 
+                          color: '#999', 
+                          fontSize: '12px', 
+                          fontWeight: 'normal',
+                          float: 'right',
+                          marginTop: '0.3em',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          {user && user.username === comment.username && (
+                            <>
+                              <button
+                                onClick={() => handleEditComment(comment)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#000',
+                                  fontSize: '12px',
+                                  cursor: 'pointer',
+                                  padding: '2px',
+                                  borderRadius: '2px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  opacity: 0.7,
+                                  transition: 'opacity 0.2s ease'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                                title="Edit comment"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => handleDeleteComment(comment.id)}
+                                disabled={deletingCommentId === comment.id}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#dc3545',
+                                  fontSize: '12px',
+                                  cursor: deletingCommentId === comment.id ? 'not-allowed' : 'pointer',
+                                  padding: '2px',
+                                  borderRadius: '2px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  opacity: deletingCommentId === comment.id ? 0.5 : 0.7,
+                                  transition: 'opacity 0.2s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (deletingCommentId !== comment.id) {
+                                    e.currentTarget.style.opacity = '1';
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (deletingCommentId !== comment.id) {
+                                    e.currentTarget.style.opacity = '0.7';
+                                  }
+                                }}
+                                title="Delete comment"
+                              >
+                                {deletingCommentId === comment.id ? '⏳' : '✕'}
+                              </button>
+                            </>
+                          )}
+                          <span>{formatRelativeTime(comment.createdAt)}</span>
+                        </span>
+                      </p>
+                    )}
                   </div>
                 ))
               )}
