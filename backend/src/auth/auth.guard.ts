@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Request } from 'express';
 
 @Injectable()
@@ -26,7 +26,7 @@ export class WriteGuard implements CanActivate {
     }
 
     if (request.session.user.role !== 'write') {
-      throw new UnauthorizedException('Write access required');
+      throw new ForbiddenException('Write access required');
     }
 
     // Add user to request object for easy access in controllers

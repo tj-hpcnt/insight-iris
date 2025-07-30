@@ -9,6 +9,7 @@ import SearchResultsView from './components/SearchResultsView';
 import LoginPage from './components/LoginPage';
 import AuthGuard from './components/AuthGuard';
 import LogoutButton from './components/LogoutButton';
+import { apiFetch, downloadFile, ApiError } from './utils/apiUtils';
 import './App.css'; // For global styles if any
 
 interface User {
@@ -211,16 +212,18 @@ function App() {
   // Add refresh function for categories
   const handleRefreshCategories = async () => {
     try {
-      const response = await fetch('/api/categories');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await apiFetch('/api/categories');
       const categories: Category[] = await response.json();
       setAllCategories(categories);
       
       // Trigger CategoryTable refresh
       setCategoryRefreshTrigger(prev => prev + 1);
     } catch (error) {
+      if (error instanceof ApiError) {
+        alert(`Failed to refresh categories: ${error.message}`);
+      } else {
+        alert('Failed to refresh categories: An unexpected error occurred.');
+      }
       console.error('Failed to refresh categories:', error);
     }
   };
@@ -229,14 +232,16 @@ function App() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch('/api/categories');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        const response = await apiFetch('/api/categories');
         const categories: Category[] = await response.json();
         setAllCategories(categories);
       } catch (error) {
-        console.error('Failed to fetch categories:', error);
+        if (error instanceof ApiError && error.status !== 401) {
+          // Don't show alert for 401 errors as AuthGuard will handle redirect
+          console.error('Failed to fetch categories:', error.message);
+        } else {
+          console.error('Failed to fetch categories:', error);
+        }
         setAllCategories([]);
       }
     };
@@ -281,10 +286,7 @@ function App() {
     if (currentView === 'question' && selectedQuestionId && !selectedInsightSubject) {
       const fetchQuestionCategory = async () => {
         try {
-          const response = await fetch(`/api/questions/${selectedQuestionId}`);
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
+          const response = await apiFetch(`/api/questions/${selectedQuestionId}`);
           const questionData = await response.json();
           
           // Set the category context if it's missing
@@ -297,7 +299,12 @@ function App() {
             }
           }
         } catch (error) {
-          console.error('Failed to fetch question category context:', error);
+          if (error instanceof ApiError && error.status !== 401) {
+            // Don't show alert for 401 errors as AuthGuard will handle redirect
+            console.error('Failed to fetch question category context:', error.message);
+          } else {
+            console.error('Failed to fetch question category context:', error);
+          }
         }
       };
       fetchQuestionCategory();
@@ -321,10 +328,7 @@ function App() {
     if (selectedCategoryId) {
       const fetchQuestionsForNavigation = async () => {
         try {
-          const response = await fetch(`/api/categories/${selectedCategoryId}/questions`);
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
+          const response = await apiFetch(`/api/categories/${selectedCategoryId}/questions`);
           const questions = await response.json();
           // Extract questions for navigation
           const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
@@ -333,7 +337,12 @@ function App() {
           }));
           setCurrentQuestions(questionList);
         } catch (error) {
-          console.error('Failed to fetch questions for navigation:', error);
+          if (error instanceof ApiError && error.status !== 401) {
+            // Don't show alert for 401 errors as AuthGuard will handle redirect
+            console.error('Failed to fetch questions for navigation:', error.message);
+          } else {
+            console.error('Failed to fetch questions for navigation:', error);
+          }
           setCurrentQuestions([]); // Reset on error
         }
       };
@@ -446,10 +455,7 @@ function App() {
   const handleSearchQuestionClick = async (questionId: number) => {
     try {
       // First, get the question to find its category
-      const response = await fetch(`/api/questions/${questionId}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await apiFetch(`/api/questions/${questionId}`);
       const questionData = await response.json();
       
       // Set the category context
@@ -468,25 +474,28 @@ function App() {
       }
       
       // Refresh the questions list for this category to get correct index
-      const questionsResponse = await fetch(`/api/categories/${categoryId}/questions`);
-      if (questionsResponse.ok) {
-        const questions = await questionsResponse.json();
-        const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
-          id: question.id,
-          questionText: question.questionText,
-        }));
-        setCurrentQuestions(questionList);
-        
-        // Find the index of the question
-        const questionIndex = questionList.findIndex(q => q.id === questionId);
-        if (questionIndex !== -1) {
-          setCurrentQuestionIndex(questionIndex);
-        }
+      const questionsResponse = await apiFetch(`/api/categories/${categoryId}/questions`);
+      const questions = await questionsResponse.json();
+      const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
+        id: question.id,
+        questionText: question.questionText,
+      }));
+      setCurrentQuestions(questionList);
+      
+      // Find the index of the question
+      const questionIndex = questionList.findIndex(q => q.id === questionId);
+      if (questionIndex !== -1) {
+        setCurrentQuestionIndex(questionIndex);
       }
       
       // Navigate to the question
       navigate(`/categories/${categoryId}/questions/${questionId}`);
     } catch (error) {
+      if (error instanceof ApiError) {
+        alert(`Failed to navigate to question: ${error.message}`);
+      } else {
+        alert('Failed to navigate to question: An unexpected error occurred.');
+      }
       console.error('Failed to navigate to search question:', error);
     }
   };
@@ -570,10 +579,7 @@ function App() {
     
     try {
       // Refetch questions for the current category
-      const response = await fetch(`/api/categories/${selectedCategoryId}/questions`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await apiFetch(`/api/categories/${selectedCategoryId}/questions`);
       const questions = await response.json();
       
       // Update the questions list for navigation
@@ -586,6 +592,11 @@ function App() {
       // Trigger InsightTable refresh
       setRefreshTrigger(prev => prev + 1);
     } catch (error) {
+      if (error instanceof ApiError) {
+        alert(`Failed to refresh insights: ${error.message}`);
+      } else {
+        alert('Failed to refresh insights: An unexpected error occurred.');
+      }
       console.error('Failed to refresh insights:', error);
     }
   };
@@ -600,13 +611,9 @@ function App() {
     setIsTransitioning(false);
     
     try {
-      const response = await fetch(`/api/categories/${selectedCategoryId}/generate`, {
+      const response = await apiFetch(`/api/categories/${selectedCategoryId}/generate`, {
         method: 'POST',
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
       // Handle streaming response
       const reader = response.body?.getReader();
@@ -638,7 +645,14 @@ function App() {
       }
     } catch (error) {
       console.error('Generation failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      let errorMessage: string;
+      if (error instanceof ApiError) {
+        errorMessage = error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = 'Unknown error occurred';
+      }
       setGenerationStatus(prev => [...prev, `Error: ${errorMessage}`]);
       setIsGenerating(false);
     }
@@ -656,7 +670,7 @@ function App() {
     setIsAddingCategory(true);
     
     try {
-      const response = await fetch('/api/categories', {
+      const response = await apiFetch('/api/categories', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -667,10 +681,6 @@ function App() {
           insightSubject: newCategoryData.insightSubject.trim(),
         }),
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
       const createdCategory = await response.json();
       
@@ -686,7 +696,14 @@ function App() {
       
     } catch (error) {
       console.error('Failed to add category:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      let errorMessage: string;
+      if (error instanceof ApiError) {
+        errorMessage = error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = 'Unknown error occurred';
+      }
       alert(`Failed to add category: ${errorMessage}`);
     } finally {
       setIsAddingCategory(false);
@@ -715,7 +732,7 @@ function App() {
     setShowProposeModal(false);
     
     try {
-      const response = await fetch('/api/propose', {
+      const response = await apiFetch('/api/propose', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -724,10 +741,6 @@ function App() {
           proposedQuestionText: proposedQuestionText.trim(),
         }),
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
       // Handle streaming response
       const reader = response.body?.getReader();
@@ -759,20 +772,18 @@ function App() {
                 
                 // Refresh the questions list to include the new question
                 try {
-                  const response = await fetch(`/api/categories/${categoryId}/questions`);
-                  if (response.ok) {
-                    const questions = await response.json();
-                    const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
-                      id: question.id,
-                      questionText: question.questionText,
-                    }));
-                    setCurrentQuestions(questionList);
-                    
-                    // Find the index of the new question
-                    const newQuestionIndex = questionList.findIndex(q => q.id === questionId);
-                    if (newQuestionIndex !== -1) {
-                      setCurrentQuestionIndex(newQuestionIndex);
-                    }
+                  const response = await apiFetch(`/api/categories/${categoryId}/questions`);
+                  const questions = await response.json();
+                  const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
+                    id: question.id,
+                    questionText: question.questionText,
+                  }));
+                  setCurrentQuestions(questionList);
+                  
+                  // Find the index of the new question
+                  const newQuestionIndex = questionList.findIndex(q => q.id === questionId);
+                  if (newQuestionIndex !== -1) {
+                    setCurrentQuestionIndex(newQuestionIndex);
                   }
                 } catch (error) {
                   console.error('Failed to refresh questions after proposal:', error);
@@ -794,36 +805,29 @@ function App() {
                 
                 // Get the question details to find its category
                 try {
-                  const questionResponse = await fetch(`/api/questions/${questionId}`);
-                  if (questionResponse.ok) {
-                    const questionData = await questionResponse.json();
-                    const categoryId = questionData.category.id;
-                    
-                    // Update the category context
-                    setSelectedCategoryId(categoryId);
-                    
-                    // Refresh the questions list for this category
-                    const response = await fetch(`/api/categories/${categoryId}/questions`);
-                    if (response.ok) {
-                      const questions = await response.json();
-                      const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
-                        id: question.id,
-                        questionText: question.questionText,
-                      }));
-                      setCurrentQuestions(questionList);
-                      
-                      // Find the index of the existing question
-                      const existingQuestionIndex = questionList.findIndex(q => q.id === questionId);
-                      if (existingQuestionIndex !== -1) {
-                        setCurrentQuestionIndex(existingQuestionIndex);
-                      }
-                    }
-                    
-                    navigate(`/categories/${categoryId}/questions/${questionId}`);
-                  } else {
-                    // Fallback - just show an alert
-                    alert(`Question already exists with ID ${questionId}`);
+                  const questionResponse = await apiFetch(`/api/questions/${questionId}`);
+                  const questionData = await questionResponse.json();
+                  const categoryId = questionData.category.id;
+                  
+                  // Update the category context
+                  setSelectedCategoryId(categoryId);
+                  
+                  // Refresh the questions list for this category
+                  const response = await apiFetch(`/api/categories/${categoryId}/questions`);
+                  const questions = await response.json();
+                  const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
+                    id: question.id,
+                    questionText: question.questionText,
+                  }));
+                  setCurrentQuestions(questionList);
+                  
+                  // Find the index of the existing question
+                  const existingQuestionIndex = questionList.findIndex(q => q.id === questionId);
+                  if (existingQuestionIndex !== -1) {
+                    setCurrentQuestionIndex(existingQuestionIndex);
                   }
+                  
+                  navigate(`/categories/${categoryId}/questions/${questionId}`);
                 } catch (error) {
                   console.error('Failed to get question details:', error);
                   alert(`Question already exists with ID ${questionId}`);
@@ -838,7 +842,14 @@ function App() {
       }
     } catch (error) {
       console.error('Proposal failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      let errorMessage: string;
+      if (error instanceof ApiError) {
+        errorMessage = error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = 'Unknown error occurred';
+      }
       setProposalStatus(prev => [...prev, `Error: ${errorMessage}`]);
       setIsProposing(false);
     }
@@ -866,7 +877,7 @@ function App() {
     setShowRegenerateModal(false);
     
     try {
-      const response = await fetch(`/api/questions/${regeneratingQuestionId}/regenerate`, {
+      const response = await apiFetch(`/api/questions/${regeneratingQuestionId}/regenerate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -875,10 +886,6 @@ function App() {
           feedback: regenerationFeedback,
         }),
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
       // Handle streaming response
       const reader = response.body?.getReader();
@@ -916,7 +923,14 @@ function App() {
       }
     } catch (error) {
       console.error('Regeneration failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      let errorMessage: string;
+      if (error instanceof ApiError) {
+        errorMessage = error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = 'Unknown error occurred';
+      }
       setRegenerationStatus(prev => [...prev, `Error: ${errorMessage}`]);
       setIsRegenerating(false);
     }
@@ -947,13 +961,17 @@ function App() {
     });
   }
 
-  const handleExport = () => {
-    const link = document.createElement('a');
-    link.href = '/api/export';
-    link.download = '';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExport = async () => {
+    try {
+      await downloadFile('/api/export', 'insights-export.json');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        alert(`Export failed: ${error.message}`);
+      } else {
+        alert('Export failed: An unexpected error occurred. Please try again.');
+      }
+      console.error('Export failed:', error);
+    }
   };
 
   const handleLogin = (userData: User) => {
