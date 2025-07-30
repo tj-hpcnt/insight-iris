@@ -163,6 +163,7 @@ async function main() {
             originalQuestion: questionRow.question_stem, // Preserve the exact imported text
             questionType: parseQuestionType(questionRow.question_type, questionRow.multi_select),
             publishedId: questionRow.question_id,
+            persistentId: questionRow.question_id, // Use original question ID as persistent ID for imported questions
             isImageQuestion: isImageQuestion,
           } as any,
         });

@@ -79,6 +79,7 @@ model Question {
   originalQuestion String?
   isImageQuestion Boolean @default(false)
   publishedId     String?
+  persistentId    String       @unique // Unique persistent ID: GQXXXXXX for generated, PQXXXXXX for proposed, original ID for imported
   proposedQuestion String?     @unique // The original proposed question text if this was generated from a proposal
   approved        Boolean @default(false) // Whether the question has been approved
   firstDays       Boolean @default(false) // Whether the question is designated as an initial launch question
@@ -88,6 +89,7 @@ model Question {
   category        Category     @relation(fields: [categoryId], references: [id])
 
   @@index([categoryId])
+  @@index([persistentId])
 }
 
 model Answer {

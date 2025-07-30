@@ -22,6 +22,34 @@ export function fixIllegalEnumCharacters(str: string): string {
   str = str.replaceAll('…', '...')
   return str
 }
+
+/**
+ * Generates a unique persistent ID for questions with collision detection
+ * @param prefix Either 'GQ' for generated questions or 'PQ' for proposed questions
+ * @param tx Optional Prisma transaction client
+ * @returns A unique persistent ID in format GQXXXXXX or PQXXXXXX
+ */
+export async function generateUniquePersistentId(prefix: 'GQ' | 'PQ', tx?: any): Promise<string> {
+  const client = tx || prisma;
+  const maxRetries = 100; // Prevent infinite loops
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    // Generate random 6-digit number
+    const randomNumber = Math.floor(100000 + Math.random() * 900000);
+    const persistentId = `${prefix}${randomNumber}`;
+    
+    // Check if this ID already exists
+    const existingQuestion = await client.question.findUnique({
+      where: { persistentId }
+    });
+    
+    if (!existingQuestion) {
+      return persistentId;
+    }
+  }
+  
+  throw new Error(`Failed to generate unique persistent ID after ${maxRetries} attempts`);
+}
 /**
  * Generates a specified number of insights for a given category
  * @param category The category to generate insights for
@@ -1170,6 +1198,10 @@ async function processQuestionCompletion(
         });
       }
 
+      // Generate persistent ID based on question type
+      const persistentIdPrefix = proposedQuestionText ? 'PQ' : 'GQ';
+      const persistentId = await generateUniquePersistentId(persistentIdPrefix, tx);
+
       // Create the question
       const question = await tx.question.create({
         data: {
@@ -1177,6 +1209,7 @@ async function processQuestionCompletion(
           questionType: questionData.type as QuestionType,
           inspirationId: actualInspirationId!,
           categoryId: category.id,
+          persistentId: persistentId,
           proposedQuestion: proposedQuestionText || null, // Store the original proposed question text
         },
       });
