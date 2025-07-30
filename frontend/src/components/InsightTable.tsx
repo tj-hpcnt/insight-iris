@@ -465,7 +465,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
                     <div
                       style={{
                         background: 'none',
-                        border: '2px solid #007bff',
+                        border: '2px solid #28a745',
                         color: '#007bff',
                         fontSize: '14px',
                         padding: '4px 6px',
@@ -473,7 +473,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: '#007bff',
+                        backgroundColor: '#28a745',
                         transition: 'all 0.2s ease'
                       }}
                       title="Question is approved"
