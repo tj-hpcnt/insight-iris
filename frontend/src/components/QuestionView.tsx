@@ -684,19 +684,19 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                   disabled={deleting?.type === 'question'}
                   style={{
                     background: 'none',
-                    border: '2px solid #dc3545',
+                    border: 'none',
                     color: '#dc3545',
-                    fontSize: '14px',
+                    fontSize: '12px',
                     cursor: deleting?.type === 'question' ? 'not-allowed' : 'pointer',
-                    padding: '6px 8px',
+                    padding: '6px 6px',
                     borderRadius: '4px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     opacity: deleting?.type === 'question' ? 0.5 : 1,
                     transition: 'all 0.2s ease',
-                    minWidth: '36px',
-                    height: '36px'
+                    minWidth: '24px',
+                    height: '24px'
                   }}
                   onMouseEnter={(e) => {
                     if (deleting?.type !== 'question') {
