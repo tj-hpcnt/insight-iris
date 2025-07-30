@@ -79,12 +79,15 @@ export class AppService {
           select: {
             publishedId: true,
             proposedQuestion: true,
+            approved: true,
           },
         });
 
         const publishedCount = questions.filter(q => q.publishedId !== null).length;
         const proposedCount = questions.filter(q => q.proposedQuestion !== null).length;
         const generatedCount = questions.filter(q => q.publishedId === null && q.proposedQuestion === null).length;
+        const approvedCount = questions.filter(q => q.approved === true).length;
+        const totalCount = questions.length;
 
         return {
           ...category,
@@ -92,6 +95,8 @@ export class AppService {
             published: publishedCount,
             proposed: proposedCount,
             generated: generatedCount,
+            approved: approvedCount,
+            total: totalCount,
           },
         };
       })

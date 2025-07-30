@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getInsightSubjectStyle } from '../utils/colorUtils';
 import QuestionCountChip from './QuestionCountChip';
+import ApprovedCountChip from './ApprovedCountChip';
 
 interface CategoryFromAPI { // Reflects Prisma model
   id: number;
@@ -12,6 +13,8 @@ interface CategoryFromAPI { // Reflects Prisma model
     published: number;
     proposed: number;
     generated: number;
+    approved: number;
+    total: number;
   };
   // insights: any[]; // Not fetching insights here
   // categoryOverlapA: any[];
@@ -27,6 +30,8 @@ interface CategoryDisplay {
       published: number;
       proposed: number;
       generated: number;
+      approved: number;
+      total: number;
     };
 }
 
@@ -40,6 +45,8 @@ interface Totals {
   published: number;
   proposed: number;
   generated: number;
+  approved: number;
+  total: number;
   absoluteTotal: number;
   newQuestions: number;
 }
@@ -50,6 +57,8 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onRefres
     published: 0,
     proposed: 0,
     generated: 0,
+    approved: 0,
+    total: 0,
     absoluteTotal: 0,
     newQuestions: 0
   });
@@ -82,12 +91,16 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onRefres
           acc.published += category.questionCounts.published;
           acc.proposed += category.questionCounts.proposed;
           acc.generated += category.questionCounts.generated;
+          acc.approved += category.questionCounts.approved;
+          acc.total += category.questionCounts.total;
         }
         return acc;
       }, {
         published: 0,
         proposed: 0,
         generated: 0,
+        approved: 0,
+        total: 0,
         absoluteTotal: 0,
         newQuestions: 0
       });
@@ -222,6 +235,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onRefres
                     <QuestionCountChip count={category.questionCounts.published} type="published" />
                     <QuestionCountChip count={category.questionCounts.proposed} type="proposed" />
                     <QuestionCountChip count={category.questionCounts.generated} type="generated" />
+                    <ApprovedCountChip approved={category.questionCounts.approved} total={category.questionCounts.total} />
                   </>
                 )}
               </td>
@@ -259,6 +273,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onRefres
               <QuestionCountChip count={totals.published} type="published" />
               <QuestionCountChip count={totals.proposed} type="proposed" />
               <QuestionCountChip count={totals.generated} type="generated" />
+              <ApprovedCountChip approved={totals.approved} total={totals.total} />
             </td>
           </tr>
         </tfoot>
