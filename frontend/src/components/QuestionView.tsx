@@ -575,13 +575,6 @@ const QuestionView: React.FC<QuestionViewProps> = ({
               &nbsp;{currentQuestionIndex + 1} of {totalQuestionsInCategory}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {questionData.publishedId && (
-                <PublishedIdChip publishedId={questionData.publishedId} />
-              )}
-              {questionData.proposedQuestion && !questionData.publishedId && (
-                <ProposedChip />
-              )}
-              
               {/* First Days (d0) toggle button */}
               <button
                 onClick={handleFirstDaysToggle}
@@ -724,43 +717,6 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           </div>
           <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
             <h3 style={{ margin: 0, marginBottom: '10px' }}>{displayQuestionText}</h3>
-            {questionData.proposedQuestion && (
-              <div style={{ marginTop: '10px' }}>
-                <span style={{
-                  backgroundColor: '#ffc0cb',
-                  color: '#000',
-                  padding: '6px 12px',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                  fontWeight: '400',
-                  display: 'inline-block',
-                  maxWidth: '100%',
-                  wordWrap: 'break-word',
-                  lineHeight: '1.3'
-                }}>
-                  {questionData.proposedQuestion}
-                </span>
-              </div>
-            )}
-
-            {questionData.originalQuestion && questionData.originalQuestion !== questionData.questionText && (
-              <div style={{ marginTop: '10px' }}>
-                <span style={{
-                  backgroundColor: '#e0e0e0',
-                  color: '#000',
-                  padding: '6px 12px',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                  fontWeight: '400',
-                  display: 'inline-block',
-                  maxWidth: '100%',
-                  wordWrap: 'break-word',
-                  lineHeight: '1.3'
-                }}>
-                  {questionData.originalQuestion}
-                </span>
-              </div>
-            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {options.map((option) => {
@@ -875,7 +831,53 @@ const QuestionView: React.FC<QuestionViewProps> = ({
 
         {/* Related Answer Insights (Now to the very right, takes remaining space) */}
         <div style={{ flex: 1, minWidth: 0 }}> 
-          <h4>Details</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h4 style={{ margin: 0 }}>Details</h4>
+              {questionData.publishedId && (
+                <PublishedIdChip publishedId={questionData.publishedId} />
+              )}
+              {questionData.proposedQuestion && !questionData.publishedId && (
+                <ProposedChip />
+              )}
+            </div>
+            {(questionData.proposedQuestion || (questionData.originalQuestion && questionData.originalQuestion !== questionData.questionText)) && (
+              <div style={{ maxWidth: '300px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {questionData.proposedQuestion && (
+                  <span style={{
+                    backgroundColor: '#ffc0cb',
+                    color: '#000',
+                    padding: '6px 12px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: '400',
+                    display: 'inline-block',
+                    maxWidth: '100%',
+                    wordWrap: 'break-word',
+                    lineHeight: '1.3'
+                  }}>
+                    {questionData.proposedQuestion}
+                  </span>
+                )}
+                {questionData.originalQuestion && questionData.originalQuestion !== questionData.questionText && (
+                  <span style={{
+                    backgroundColor: '#e0e0e0',
+                    color: '#000',
+                    padding: '6px 12px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: '400',
+                    display: 'inline-block',
+                    maxWidth: '100%',
+                    wordWrap: 'break-word',
+                    lineHeight: '1.3'
+                  }}>
+                    {questionData.originalQuestion}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
           {questionData.inspiration && (
             <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0' }}>
               <h5 style={{ marginTop: 0, marginBottom: '5px' }}>Original Inspiration:</h5>
