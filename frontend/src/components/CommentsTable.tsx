@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch, ApiError } from '../utils/apiUtils';
 import CategoryChip from './CategoryChip';
+import QuestionIdChip from './QuestionIdChip';
 
 interface Comment {
   id: number;
@@ -11,6 +13,9 @@ interface Comment {
   question: {
     id: number;
     questionText: string;
+    persistentId: string;
+    publishedId?: string | null;
+    proposedQuestion?: string | null;
     answers: {
       id: number;
       answerText: string;
@@ -27,6 +32,9 @@ interface Comment {
 interface CommentGroup {
   questionId: number;
   questionText: string;
+  persistentId: string;
+  publishedId?: string | null;
+  proposedQuestion?: string | null;
   answers: { id: number; answerText: string }[];
   category: { id: number; category: string; subcategory: string; insightSubject: string };
   comments: Comment[];
@@ -38,6 +46,7 @@ interface CommentsTableProps {
 }
 
 const CommentsTable: React.FC<CommentsTableProps> = ({ onClose, onCategoryClick }) => {
+  const navigate = useNavigate();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -77,6 +86,9 @@ const CommentsTable: React.FC<CommentsTableProps> = ({ onClose, onCategoryClick 
         groups.push({
           questionId: comment.questionId,
           questionText: comment.question.questionText,
+          persistentId: comment.question.persistentId,
+          publishedId: comment.question.publishedId,
+          proposedQuestion: comment.question.proposedQuestion,
           answers: comment.question.answers,
           category: comment.question.category,
           comments: questionComments,
@@ -111,6 +123,15 @@ const CommentsTable: React.FC<CommentsTableProps> = ({ onClose, onCategoryClick 
     
     const diffInYears = Math.floor(diffInMonths / 12);
     return `${diffInYears} year${diffInYears !== 1 ? 's' : ''} ago`;
+  };
+
+  // Add navigation handler
+  const handleQuestionNavigation = (questionId: number, categoryId: number) => {
+    // Close the modal before navigating
+    if (onClose) {
+      onClose();
+    }
+    navigate(`/categories/${categoryId}/questions/${questionId}`);
   };
 
   const formatQuestionAndAnswers = (questionText: string, answers: { answerText: string }[]) => {
@@ -178,17 +199,30 @@ const CommentsTable: React.FC<CommentsTableProps> = ({ onClose, onCategoryClick 
           {groupedComments.map((group) => (
             <div key={group.questionId} style={{ marginBottom: '30px', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
               {/* Question header */}
-              <div style={{ backgroundColor: '#f8f9fa', padding: '15px', borderBottom: '1px solid #ddd', position: 'relative' }}>
-                <div style={{ paddingRight: '120px' }}>
+              <div 
+                style={{ backgroundColor: '#f8f9fa', padding: '15px', borderBottom: '1px solid #ddd', position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s ease' }}
+                onClick={() => handleQuestionNavigation(group.questionId, group.category.id)}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e9ecef'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+              >
+                <div style={{ paddingRight: '140px' }}>
                   <div style={{ fontSize: '14px', lineHeight: '1.4', color: '#666', fontWeight: 'normal', textAlign: 'left' }}>
                     {formatQuestionAndAnswers(group.questionText, group.answers)}
                   </div>
                 </div>
-                <div style={{ position: 'absolute', top: '15px', right: '15px' }}>
+                <div 
+                  style={{ position: 'absolute', top: '15px', right: '15px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <CategoryChip 
                     insightSubject={group.category.insightSubject}
                     categoryId={group.category.id}
                     onClick={onCategoryClick}
+                  />
+                  <QuestionIdChip 
+                    persistentId={group.persistentId}
+                    publishedId={group.publishedId}
+                    isProposed={!!group.proposedQuestion}
                   />
                 </div>
               </div>
@@ -201,8 +235,13 @@ const CommentsTable: React.FC<CommentsTableProps> = ({ onClose, onCategoryClick 
                     style={{ 
                       padding: '8px 15px', 
                       borderBottom: index < group.comments.length - 1 ? '1px solid #eee' : 'none',
-                      backgroundColor: index % 2 === 0 ? '#fff' : '#f8f9fa'
+                      backgroundColor: index % 2 === 0 ? '#fff' : '#f8f9fa',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s ease'
                     }}
+                    onClick={() => handleQuestionNavigation(group.questionId, group.category.id)}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e3f2fd'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#fff' : '#f8f9fa'}
                   >
                     <div style={{ lineHeight: '1.4', fontSize: '14px', textAlign: 'left' }}>
                       <strong style={{ color: '#007bff' }}>{comment.username}:</strong> {comment.text}{' '}

@@ -1061,9 +1061,17 @@ export class AppService {
       const comments = await this.prisma.comment.findMany({
         include: {
           question: {
-            include: {
+            select: {
+              id: true,
+              questionText: true,
+              persistentId: true,
+              publishedId: true,
+              proposedQuestion: true,
               answers: {
-                orderBy: { id: 'asc' }
+                select: {
+                  id: true,
+                  answerText: true
+                }
               },
               category: {
                 select: {
