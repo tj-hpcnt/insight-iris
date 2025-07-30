@@ -34,6 +34,11 @@ export class AuthService {
       username: 'sura',
       password: bcrypt.hashSync('oliver123', 10),
       role: 'write'
+    },
+    {
+      username: 'jaegar',
+      password: bcrypt.hashSync('meister123', 10),
+      role: 'write'
     }
   ];
 
