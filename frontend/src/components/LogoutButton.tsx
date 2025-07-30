@@ -18,7 +18,7 @@ const LogoutButton: React.FC<LogoutButtonProps> = ({ user, onLogout }) => {
     // Start hover timer for tooltip
     hoverTimeoutRef.current = setTimeout(() => {
       setShowTooltip(true);
-    }, 1000); // Show tooltip after 1 second
+    }, 500); // Show tooltip after 0.5 second (reduced from 1 second)
 
     // Button hover effect
     e.currentTarget.style.backgroundColor = '#c82333';
@@ -39,7 +39,7 @@ const LogoutButton: React.FC<LogoutButtonProps> = ({ user, onLogout }) => {
   };
 
   return (
-    <div style={{ position: 'relative', marginLeft: '12px' }}>
+    <div style={{ position: 'relative' }}>
       <button
         onClick={onLogout}
         onMouseEnter={handleMouseEnter}
@@ -48,18 +48,20 @@ const LogoutButton: React.FC<LogoutButtonProps> = ({ user, onLogout }) => {
           background: '#dc3545',
           border: '1px solid #dc3545',
           borderRadius: '4px',
-          padding: '4px 8px',
+          padding: '4px',
           cursor: 'pointer',
           color: 'white',
-          fontSize: '12px',
+          fontSize: '14px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          width: '24px',
           height: '24px',
           transition: 'all 0.2s ease',
         }}
+        title="Logout"
       >
-        Logout
+        ⏻
       </button>
       
       {showTooltip && (
