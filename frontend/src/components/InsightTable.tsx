@@ -23,6 +23,7 @@ interface QuestionFromAPI {
   publishedId: string | null;
   proposedQuestion: string | null;
   approved: boolean;
+  firstDays: boolean;
   category: CategoryInfo;
   inspiration: {
     id: number;
@@ -53,6 +54,7 @@ interface QuestionDisplay {
   publishedId: string | null;
   proposedQuestion: string | null;
   approved: boolean;
+  firstDays: boolean;
   insightText: string;
   publishedTag: string | null;
   source: string;
@@ -183,6 +185,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
         publishedId: question.publishedId,
         proposedQuestion: question.proposedQuestion,
         approved: question.approved,
+        firstDays: question.firstDays,
         insightText: question.inspiration.insightText,
         publishedTag: question.inspiration.publishedTag,
         source: question.inspiration.source,
@@ -226,6 +229,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
             publishedId: question.publishedId,
             proposedQuestion: question.proposedQuestion,
             approved: question.approved,
+            firstDays: question.firstDays,
             answerText: answer.answerText,
             insightText: answer.insight.insightText,
             publishedTag: answer.insight.publishedTag,
@@ -461,20 +465,39 @@ const InsightTable: React.FC<InsightTableProps> = ({
                       <ProposedChip />
                     )}
                   </div>
-                  {item.approved ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {item.firstDays && (
+                      <div
+                        style={{
+                          backgroundColor: '#495057',
+                          color: 'white',
+                          fontSize: '12px',
+                          padding: '4px 6px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: '600'
+                        }}
+                        title="First days question"
+                      >
+                        d0
+                      </div>
+                    )}
+                    {item.approved ? (
                     <div
                       style={{
                         background: 'none',
                         border: '2px solid #28a745',
                         color: '#007bff',
-                        fontSize: '14px',
+                        fontSize: '10px',
                         padding: '4px 6px',
                         borderRadius: '4px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         backgroundColor: '#28a745',
-                        transition: 'all 0.2s ease'
+                        fontWeight: '600'
                       }}
                       title="Question is approved"
                     >
@@ -510,6 +533,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
                       {deleting?.type === 'question' && deleting?.id === item.questionId ? '⏳' : '✕'}
                     </button>
                   )}
+                  </div>
                 </div>
               </td>
 

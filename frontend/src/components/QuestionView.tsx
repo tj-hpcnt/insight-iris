@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getInsightSubjectStyle } from '../utils/colorUtils';
 import PublishedIdChip from './PublishedIdChip';
 import ProposedChip from './ProposedChip';
 import PublishedTagChip from './PublishedTagChip';
@@ -26,32 +25,11 @@ interface PrismaInsight {
   // ... other fields from Prisma Insight model if needed
 }
 
-interface AnswerOptionPayload {
-  id: number; // Answer model ID
-  answerText: string;
-  linkedAnswerInsight: PrismaInsight | null; // Detailed insight for this answer option
-  originalAnswer?: string | null;
-}
 
-interface QuestionDetailsPayload {
-  id: number; // Question model ID
-  inspirationId: number; // ID of the root Inspiration Insight
-  questionType: string; // e.g., SINGLE_CHOICE
-  questionText: string; // Specific question text from Question model
-  originalQuestion?: string | null;
-  isImageQuestion?: boolean;
-  publishedId: string | null; // Published ID if the question was previously published
-  proposedQuestion: string | null; // The original proposed question text if this was generated from a proposal
-  answers: AnswerOptionPayload[];
-}
 
-// This is the main structure returned by /api/insights/:insightId
-interface FullQuestionContextPayload {
-  retrievedById: number;
-  initialInsightDetails: PrismaInsight; // Details of the insight ID that was fetched
-  inspirationInsightDetails: PrismaInsight | null; // The root INSPIRATION insight for the question
-  questionDetails: QuestionDetailsPayload | null; // The full question structure
-}
+
+
+
 
 // Interface for related answer insights (for the right panel)
 // This remains the same as before, an array of PrismaInsight where source is ANSWER
@@ -67,6 +45,7 @@ interface QuestionData {
   publishedId: string | null;
   proposedQuestion: string | null;
   approved: boolean; // Add approved field
+  firstDays: boolean; // Add firstDays field
   inspiration: PrismaInsight;
   answers: {
     id: number;
@@ -126,13 +105,15 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [canDeleteAnswers, setCanDeleteAnswers] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<{ type: 'question' | 'answer'; id: number } | null>(null);
   
-  // Add state for approval and comments
+  // Add state for approval, firstDays, and comments
   const [isApproved, setIsApproved] = useState<boolean>(false);
+  const [isFirstDays, setIsFirstDays] = useState<boolean>(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [showCommentModal, setShowCommentModal] = useState<boolean>(false);
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [submittingComment, setSubmittingComment] = useState<boolean>(false);
   const [togglingApproval, setTogglingApproval] = useState<boolean>(false);
+  const [togglingFirstDays, setTogglingFirstDays] = useState<boolean>(false);
   
   // Add state for comment editing and deleting
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
@@ -188,6 +169,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
         const data: QuestionData = await questionResponse.json();
         setQuestionData(data);
         setIsApproved(data.approved); // Set approval state
+        setIsFirstDays(data.firstDays); // Set firstDays state
         
         if (countResponse.ok) {
           const countData = await countResponse.json();
@@ -354,6 +336,30 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       alert('Failed to toggle approval: ' + (error as Error).message);
     } finally {
       setTogglingApproval(false);
+    }
+  };
+
+  const handleFirstDaysToggle = async () => {
+    if (!questionData || togglingFirstDays) return;
+    
+    try {
+      setTogglingFirstDays(true);
+      const response = await fetch(`/api/questions/${questionData.id}/first-days`, {
+        method: 'PUT'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      setIsFirstDays(result.firstDays);
+    } catch (error) {
+      console.error('Failed to toggle first days:', error);
+      alert('Failed to toggle first days: ' + (error as Error).message);
+    } finally {
+      setTogglingFirstDays(false);
     }
   };
 
@@ -566,9 +572,9 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {questionData.isImageQuestion ? '🖼️' : '💬'}
-              Question {currentQuestionIndex + 1} of {totalQuestionsInCategory}
+              &nbsp;{currentQuestionIndex + 1} of {totalQuestionsInCategory}
             </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {questionData.publishedId && (
                 <PublishedIdChip publishedId={questionData.publishedId} />
               )}
@@ -576,6 +582,43 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                 <ProposedChip />
               )}
               
+              {/* First Days (d0) toggle button */}
+              <button
+                onClick={handleFirstDaysToggle}
+                disabled={togglingFirstDays}
+                style={{
+                  background: 'none',
+                  border: isFirstDays ? '2px solid #6c757d' : '2px solid #ccc',
+                  color: isFirstDays ? 'white' : '#666',
+                  fontSize: '12px',
+                  cursor: togglingFirstDays ? 'not-allowed' : 'pointer',
+                  padding: '6px 6px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: isFirstDays ? '#6c757d' : 'transparent',
+                  opacity: togglingFirstDays ? 0.5 : 1,
+                  transition: 'all 0.2s ease',
+                  fontWeight: isFirstDays ? 'bold' : 'normal',
+                  minWidth: '24px',
+                  height: '24px'
+                }}
+                onMouseEnter={(e) => {
+                  if (!togglingFirstDays) {
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!togglingFirstDays) {
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }
+                }}
+                title={isFirstDays ? 'Remove from first days' : 'Mark as first days question'}
+              >
+                {togglingFirstDays ? '⏳' : 'd0'}
+              </button>
+
               {/* Thumbs up approval button */}
               <button
                 onClick={handleApprovalToggle}
@@ -584,16 +627,18 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                   background: 'none',
                   border: isApproved ? '2px solid #28a745' : '2px solid #ccc',
                   color: isApproved ? '#28a745' : '#666',
-                  fontSize: '16px',
+                  fontSize: '10px',
                   cursor: togglingApproval ? 'not-allowed' : 'pointer',
-                  padding: '6px 8px',
+                  padding: '6px 6px',
                   borderRadius: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor: isApproved ? '#28a745' : 'transparent',
                   opacity: togglingApproval ? 0.5 : 1,
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  minWidth: '24px',
+                  height: '24px'
                 }}
                 onMouseEnter={(e) => {
                   if (!togglingApproval) {
@@ -617,15 +662,17 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                   background: 'none',
                   border: comments.length > 0 ? '2px solid #007bff' : '2px solid #ccc',
                   color: comments.length > 0 ? '#007bff' : '#666',
-                  fontSize: '16px',
+                  fontSize: '10px',
                   cursor: 'pointer',
-                  padding: '6px 8px',
+                  padding: '6px 6px',
                   borderRadius: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor: comments.length > 0 ? '#007bff' : 'transparent',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  minWidth: '24px',
+                  height: '24px'
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'scale(1.05)';
@@ -644,23 +691,28 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                   disabled={deleting?.type === 'question'}
                   style={{
                     background: 'none',
-                    border: 'none',
+                    border: '2px solid #dc3545',
                     color: '#dc3545',
-                    fontSize: '16px',
+                    fontSize: '14px',
                     cursor: deleting?.type === 'question' ? 'not-allowed' : 'pointer',
-                    padding: '4px',
-                    borderRadius: '3px',
-                    opacity: deleting?.type === 'question' ? 0.5 : 0.7,
-                    transition: 'opacity 0.2s ease'
+                    padding: '6px 8px',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: deleting?.type === 'question' ? 0.5 : 1,
+                    transition: 'all 0.2s ease',
+                    minWidth: '36px',
+                    height: '36px'
                   }}
                   onMouseEnter={(e) => {
                     if (deleting?.type !== 'question') {
-                      e.currentTarget.style.opacity = '1';
+                      e.currentTarget.style.transform = 'scale(1.05)';
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (deleting?.type !== 'question') {
-                      e.currentTarget.style.opacity = '0.7';
+                      e.currentTarget.style.transform = 'scale(1)';
                     }
                   }}
                   title="Delete question"

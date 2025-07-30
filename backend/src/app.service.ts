@@ -80,6 +80,7 @@ export class AppService {
             publishedId: true,
             proposedQuestion: true,
             approved: true,
+            firstDays: true,
           },
         });
 
@@ -87,6 +88,7 @@ export class AppService {
         const proposedCount = questions.filter(q => q.proposedQuestion !== null).length;
         const generatedCount = questions.filter(q => q.publishedId === null && q.proposedQuestion === null).length;
         const approvedCount = questions.filter(q => q.approved === true).length;
+        const firstDaysCount = questions.filter(q => q.firstDays === true).length;
         const totalCount = questions.length;
 
         return {
@@ -96,6 +98,7 @@ export class AppService {
             proposed: proposedCount,
             generated: generatedCount,
             approved: approvedCount,
+            firstDays: firstDaysCount,
             total: totalCount,
           },
         };
@@ -144,6 +147,9 @@ export class AppService {
         published: 0,
         proposed: 0,
         generated: 0,
+        approved: 0,
+        firstDays: 0,
+        total: 0,
       },
     };
   }
@@ -416,6 +422,7 @@ export class AppService {
       publishedId: question.publishedId,
       proposedQuestion: question.proposedQuestion,
       approved: question.approved, // Add approved field
+      firstDays: question.firstDays, // Add firstDays field
       inspiration: question.inspiration,
       answers: question.answers.map(answer => ({
         id: answer.id,
@@ -978,6 +985,32 @@ export class AppService {
       });
 
       return { success: true, approved: updatedQuestion.approved };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async toggleQuestionFirstDays(questionId: number) {
+    try {
+      const question = await this.prisma.question.findUnique({
+        where: { id: questionId },
+        select: { firstDays: true }
+      });
+
+      if (!question) {
+        throw new NotFoundException('Question not found');
+      }
+
+      const updatedQuestion = await this.prisma.question.update({
+        where: { id: questionId },
+        data: { firstDays: !question.firstDays },
+        select: { id: true, firstDays: true }
+      });
+
+      return { success: true, firstDays: updatedQuestion.firstDays };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;

@@ -122,6 +122,12 @@ export class AppController {
     return this.appService.toggleQuestionApproval(questionId);
   }
 
+  @Put('questions/:questionId/first-days')
+  @UseGuards(WriteGuard)
+  async toggleQuestionFirstDays(@Param('questionId', ParseIntPipe) questionId: number) {
+    return this.appService.toggleQuestionFirstDays(questionId);
+  }
+
   @Get('questions/:questionId/comments')
   @UseGuards(AuthGuard)
   async getQuestionComments(@Param('questionId', ParseIntPipe) questionId: number) {

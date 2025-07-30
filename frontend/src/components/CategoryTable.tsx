@@ -3,6 +3,28 @@ import { getInsightSubjectStyle } from '../utils/colorUtils';
 import QuestionCountChip from './QuestionCountChip';
 import ApprovedCountChip from './ApprovedCountChip';
 
+// FirstDays count chip component (similar to QuestionCountChip)
+const FirstDaysCountChip: React.FC<{ count: number }> = ({ count }) => {
+  if (count === 0) return null;
+  
+  return (
+    <span style={{
+      backgroundColor: '#495057', // Dark grey background
+      color: 'white',
+      padding: '4px 8px',
+      borderRadius: '12px',
+      fontSize: '12px',
+      fontWeight: '600',
+      display: 'inline-block',
+      marginLeft: '8px',
+      minWidth: '20px',
+      textAlign: 'center'
+    }}>
+      {count} d0
+    </span>
+  );
+};
+
 interface CategoryFromAPI { // Reflects Prisma model
   id: number;
   category: string; // Main display name
@@ -14,6 +36,7 @@ interface CategoryFromAPI { // Reflects Prisma model
     proposed: number;
     generated: number;
     approved: number;
+    firstDays: number;
     total: number;
   };
   // insights: any[]; // Not fetching insights here
@@ -31,6 +54,7 @@ interface CategoryDisplay {
       proposed: number;
       generated: number;
       approved: number;
+      firstDays: number;
       total: number;
     };
 }
@@ -47,6 +71,7 @@ interface Totals {
   proposed: number;
   generated: number;
   approved: number;
+  firstDays: number;
   total: number;
   absoluteTotal: number;
   newQuestions: number;
@@ -59,6 +84,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
     proposed: 0,
     generated: 0,
     approved: 0,
+    firstDays: 0,
     total: 0,
     absoluteTotal: 0,
     newQuestions: 0
@@ -93,6 +119,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
           acc.proposed += category.questionCounts.proposed;
           acc.generated += category.questionCounts.generated;
           acc.approved += category.questionCounts.approved;
+          acc.firstDays += category.questionCounts.firstDays;
           acc.total += category.questionCounts.total;
         }
         return acc;
@@ -101,6 +128,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
         proposed: 0,
         generated: 0,
         approved: 0,
+        firstDays: 0,
         total: 0,
         absoluteTotal: 0,
         newQuestions: 0
@@ -236,6 +264,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
                     <QuestionCountChip count={category.questionCounts.published} type="published" />
                     <QuestionCountChip count={category.questionCounts.proposed} type="proposed" />
                     <QuestionCountChip count={category.questionCounts.generated} type="generated" />
+                    <FirstDaysCountChip count={category.questionCounts.firstDays} />
                     <ApprovedCountChip 
                       approved={category.questionCounts.approved} 
                       total={category.questionCounts.total}
@@ -278,6 +307,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
               <QuestionCountChip count={totals.published} type="published" />
               <QuestionCountChip count={totals.proposed} type="proposed" />
               <QuestionCountChip count={totals.generated} type="generated" />
+              <FirstDaysCountChip count={totals.firstDays} />
               <ApprovedCountChip approved={totals.approved} total={totals.total} />
             </td>
           </tr>
