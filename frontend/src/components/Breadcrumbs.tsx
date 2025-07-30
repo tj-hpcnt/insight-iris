@@ -7,6 +7,7 @@ export interface BreadcrumbItem {
   isCurrent?: boolean;
   insightSubject?: string;
   approvalFilter?: boolean | null; // true = approved only, false = unapproved only, null/undefined = no filter
+  onClearApprovalFilter?: () => void; // Callback to cycle through approval filter states
 }
 
 interface BreadcrumbsProps {
@@ -123,21 +124,51 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
               </button>
               
               {/* Approval Filter Indicator */}
-              {item.approvalFilter !== undefined && item.approvalFilter !== null && (
-                <span style={{
-                  backgroundColor: item.approvalFilter ? '#28a745' : '#dc3545',
-                  color: '#fff',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  fontSize: '10px',
-                  fontWeight: 'bold',
-                  marginLeft: '4px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '2px'
-                }}>
-                  👍 {item.approvalFilter ? 'Approved Only' : 'Unapproved Only'}
-                </span>
+              {item.onClearApprovalFilter && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent triggering the main breadcrumb click
+                    item.onClearApprovalFilter?.();
+                  }}
+                  style={{
+                    backgroundColor: item.approvalFilter === true 
+                      ? '#28a745' 
+                      : item.approvalFilter === false 
+                        ? '#dc3545' 
+                        : '#6c757d',
+                    color: '#fff',
+                    padding: '2px 6px',
+                    borderRadius: '8px',
+                    fontSize: '10px',
+                    fontWeight: 'bold',
+                    marginLeft: '4px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'opacity 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.opacity = '0.8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.opacity = '1';
+                  }}
+                  title={`Click to switch to ${
+                    item.approvalFilter === false 
+                      ? 'approved only' 
+                      : item.approvalFilter === true 
+                        ? 'no filter' 
+                        : 'unapproved only'
+                  }`}
+                >
+                  👍 {item.approvalFilter === true 
+                    ? 'Approved Only' 
+                    : item.approvalFilter === false 
+                      ? 'Unapproved Only' 
+                      : 'All Questions'} ↻
+                </button>
               )}
             </div>
           </li>

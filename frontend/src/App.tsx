@@ -365,7 +365,13 @@ function App() {
     if (selectedCategoryId) {
       const fetchQuestionsForNavigation = async () => {
         try {
-          const response = await apiFetch(`/api/categories/${selectedCategoryId}/questions`);
+          // Build URL with approved filter if specified
+          let url = `/api/categories/${selectedCategoryId}/questions`;
+          if (selectedApproved !== null) {
+            url += `?approved=${selectedApproved}`;
+          }
+          
+          const response = await apiFetch(url);
           const questions = await response.json();
           // Extract questions for navigation
           const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
@@ -385,7 +391,7 @@ function App() {
       };
       fetchQuestionsForNavigation();
     }
-  }, [selectedCategoryId]); // Only depend on selectedCategoryId, not selectedInsightType
+  }, [selectedCategoryId, selectedApproved]); // Now also depend on selectedApproved
 
   // Effect to handle message queue and transitions
   useEffect(() => {
@@ -475,6 +481,35 @@ function App() {
     navigate(`/categories/${categoryId}?type=answers&approved=false`);
   };
 
+  const handleCycleApprovalFilter = () => {
+    if (!selectedCategoryId) return;
+    
+    let newApprovalFilter: boolean | null;
+    let urlSuffix = '';
+    
+    // Cycle through the states: unapproved (false) → approved (true) → no filter (null) → unapproved (false)
+    if (selectedApproved === false) {
+      // Currently unapproved only, switch to approved only
+      newApprovalFilter = true;
+      urlSuffix = '&approved=true';
+    } else if (selectedApproved === true) {
+      // Currently approved only, switch to no filter
+      newApprovalFilter = null;
+      urlSuffix = '';
+    } else {
+      // Currently no filter, switch to unapproved only
+      newApprovalFilter = false;
+      urlSuffix = '&approved=false';
+    }
+    
+    setSelectedApproved(newApprovalFilter);
+    setCurrentQuestionIndex(0); // Reset index when filter changes
+    
+    // Navigate to insights view with new filter state, preserving insight type
+    const currentType = selectedInsightType || 'answers';
+    navigate(`/categories/${selectedCategoryId}?type=${currentType}${urlSuffix}`);
+  };
+
   const handleInsightTypeSelect = (type: InsightType) => {
     if (!selectedCategoryId) return;
     setSelectedInsightType(type);
@@ -527,7 +562,13 @@ function App() {
       }
       
       // Refresh the questions list for this category to get correct index
-      const questionsResponse = await apiFetch(`/api/categories/${categoryId}/questions`);
+      // Build URL with approved filter if specified
+      let questionsUrl = `/api/categories/${categoryId}/questions`;
+      if (selectedApproved !== null) {
+        questionsUrl += `?approved=${selectedApproved}`;
+      }
+      
+      const questionsResponse = await apiFetch(questionsUrl);
       const questions = await questionsResponse.json();
       const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
         id: question.id,
@@ -640,8 +681,14 @@ function App() {
     if (!selectedCategoryId) return;
     
     try {
+      // Build URL with approved filter if specified
+      let url = `/api/categories/${selectedCategoryId}/questions`;
+      if (selectedApproved !== null) {
+        url += `?approved=${selectedApproved}`;
+      }
+      
       // Refetch questions for the current category
-      const response = await apiFetch(`/api/categories/${selectedCategoryId}/questions`);
+      const response = await apiFetch(url);
       const questions = await response.json();
       
       // Update the questions list for navigation
@@ -834,7 +881,13 @@ function App() {
                 
                 // Refresh the questions list to include the new question
                 try {
-                  const response = await apiFetch(`/api/categories/${categoryId}/questions`);
+                  // Build URL with approved filter if specified
+                  let url = `/api/categories/${categoryId}/questions`;
+                  if (selectedApproved !== null) {
+                    url += `?approved=${selectedApproved}`;
+                  }
+                  
+                  const response = await apiFetch(url);
                   const questions = await response.json();
                   const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
                     id: question.id,
@@ -875,7 +928,13 @@ function App() {
                   setSelectedCategoryId(categoryId);
                   
                   // Refresh the questions list for this category
-                  const response = await apiFetch(`/api/categories/${categoryId}/questions`);
+                  // Build URL with approved filter if specified
+                  let url = `/api/categories/${categoryId}/questions`;
+                  if (selectedApproved !== null) {
+                    url += `?approved=${selectedApproved}`;
+                  }
+                  
+                  const response = await apiFetch(url);
                   const questions = await response.json();
                   const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
                     id: question.id,
@@ -1020,7 +1079,8 @@ function App() {
       onClick: () => navigateToInsightsView(), // Defaults to current or inspiration type
       isCurrent: currentView === 'insights',
       insightSubject: selectedInsightSubject || undefined,
-      approvalFilter: selectedApproved
+      approvalFilter: selectedApproved,
+      onClearApprovalFilter: handleCycleApprovalFilter
     });
   }
 
