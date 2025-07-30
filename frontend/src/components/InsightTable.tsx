@@ -22,6 +22,7 @@ interface QuestionFromAPI {
   isImageQuestion?: boolean;
   publishedId: string | null;
   proposedQuestion: string | null;
+  approved: boolean;
   category: CategoryInfo;
   inspiration: {
     id: number;
@@ -51,6 +52,7 @@ interface QuestionDisplay {
   isImageQuestion?: boolean;
   publishedId: string | null;
   proposedQuestion: string | null;
+  approved: boolean;
   insightText: string;
   publishedTag: string | null;
   source: string;
@@ -180,6 +182,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
         isImageQuestion: question.isImageQuestion,
         publishedId: question.publishedId,
         proposedQuestion: question.proposedQuestion,
+        approved: question.approved,
         insightText: question.inspiration.insightText,
         publishedTag: question.inspiration.publishedTag,
         source: question.inspiration.source,
@@ -222,6 +225,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
             isImageQuestion: question.isImageQuestion,
             publishedId: question.publishedId,
             proposedQuestion: question.proposedQuestion,
+            approved: question.approved,
             answerText: answer.answerText,
             insightText: answer.insight.insightText,
             publishedTag: answer.insight.publishedTag,
@@ -457,34 +461,55 @@ const InsightTable: React.FC<InsightTableProps> = ({
                       <ProposedChip />
                     )}
                   </div>
-                  <button
-                    onClick={(e) => handleDeleteQuestion(item.questionId, e)}
-                    disabled={deleting?.type === 'question' && deleting?.id === item.questionId}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#dc3545',
-                      fontSize: '14px',
-                      cursor: deleting?.type === 'question' && deleting?.id === item.questionId ? 'not-allowed' : 'pointer',
-                      padding: '4px',
-                      borderRadius: '3px',
-                      opacity: deleting?.type === 'question' && deleting?.id === item.questionId ? 0.5 : 0.7,
-                      transition: 'opacity 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!(deleting?.type === 'question' && deleting?.id === item.questionId)) {
-                        e.currentTarget.style.opacity = '1';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!(deleting?.type === 'question' && deleting?.id === item.questionId)) {
-                        e.currentTarget.style.opacity = '0.7';
-                      }
-                    }}
-                    title="Delete question"
-                  >
-                    {deleting?.type === 'question' && deleting?.id === item.questionId ? '⏳' : '✕'}
-                  </button>
+                  {item.approved ? (
+                    <div
+                      style={{
+                        background: 'none',
+                        border: '2px solid #007bff',
+                        color: '#007bff',
+                        fontSize: '14px',
+                        padding: '4px 6px',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#007bff',
+                        transition: 'all 0.2s ease'
+                      }}
+                      title="Question is approved"
+                    >
+                      👍
+                    </div>
+                  ) : (
+                    <button
+                      onClick={(e) => handleDeleteQuestion(item.questionId, e)}
+                      disabled={deleting?.type === 'question' && deleting?.id === item.questionId}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#dc3545',
+                        fontSize: '14px',
+                        cursor: deleting?.type === 'question' && deleting?.id === item.questionId ? 'not-allowed' : 'pointer',
+                        padding: '4px',
+                        borderRadius: '3px',
+                        opacity: deleting?.type === 'question' && deleting?.id === item.questionId ? 0.5 : 0.7,
+                        transition: 'opacity 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!(deleting?.type === 'question' && deleting?.id === item.questionId)) {
+                          e.currentTarget.style.opacity = '1';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!(deleting?.type === 'question' && deleting?.id === item.questionId)) {
+                          e.currentTarget.style.opacity = '0.7';
+                        }
+                      }}
+                      title="Delete question"
+                    >
+                      {deleting?.type === 'question' && deleting?.id === item.questionId ? '⏳' : '✕'}
+                    </button>
+                  )}
                 </div>
               </td>
 
@@ -498,8 +523,8 @@ const InsightTable: React.FC<InsightTableProps> = ({
                     <span style={{ flex: 1 }}>{item.answerText}</span>
                     {(() => {
                       const count = answerCounts.get(item.questionId) ?? 0;
-                      const shouldShow = count > 2;
-                      console.log(`Answer for question ${item.questionId}: count=${count}, shouldShowDeleteAnswer=${shouldShow}`);
+                      const shouldShow = count > 2 && !item.approved;
+                      console.log(`Answer for question ${item.questionId}: count=${count}, approved=${item.approved}, shouldShowDeleteAnswer=${shouldShow}`);
                       return shouldShow;
                     })() && (
                       <button

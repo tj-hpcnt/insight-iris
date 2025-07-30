@@ -9,6 +9,7 @@ import SearchResultsView from './components/SearchResultsView';
 import LoginPage from './components/LoginPage';
 import AuthGuard from './components/AuthGuard';
 import LogoutButton from './components/LogoutButton';
+import CommentsTable from './components/CommentsTable';
 import { apiFetch, downloadFile, ApiError } from './utils/apiUtils';
 import './App.css'; // For global styles if any
 
@@ -223,6 +224,9 @@ function App() {
 
   // Add refresh trigger for CategoryTable
   const [categoryRefreshTrigger, setCategoryRefreshTrigger] = useState<number>(0);
+
+  // Comments modal state
+  const [showCommentsModal, setShowCommentsModal] = useState<boolean>(false);
 
   // Regenerate Question modal state
   const [showRegenerateModal, setShowRegenerateModal] = useState<boolean>(false);
@@ -1114,6 +1118,23 @@ function App() {
     opacity: isProposing ? 0.6 : 1,
   };
 
+  const commentsButtonStyle = {
+    background: '#fd7e14',
+    border: '1px solid #fd7e14',
+    borderRadius: '4px',
+    padding: '4px 8px',
+    cursor: 'pointer',
+    color: 'white',
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '24px',
+    transition: 'all 0.2s ease',
+    textDecoration: 'none',
+    marginRight: '12px',
+  };
+
   const showHeader = location.pathname !== '/login';
 
   return (
@@ -1200,6 +1221,23 @@ function App() {
               }}
             >
               {isRegenerating ? '⏳ Regenerating...' : '🔄 Regenerate'}
+            </button>
+          )}
+          {currentView === 'categories' && (
+            <button
+              onClick={() => setShowCommentsModal(true)}
+              style={commentsButtonStyle}
+              title="View all comments"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#e8660c';
+                e.currentTarget.style.borderColor = '#e8660c';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#fd7e14';
+                e.currentTarget.style.borderColor = '#fd7e14';
+              }}
+            >
+              💬 Comments
             </button>
           )}
           <button
@@ -1896,6 +1934,34 @@ function App() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Comments Modal */}
+      {showCommentsModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            width: '90vw',
+            height: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}>
+            <CommentsTable onClose={() => setShowCommentsModal(false)} onCategoryClick={handleCategoryClick} />
           </div>
         </div>
       )}

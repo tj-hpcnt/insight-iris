@@ -999,6 +999,35 @@ export class AppService {
     }
   }
 
+  async getAllComments() {
+    try {
+      const comments = await this.prisma.comment.findMany({
+        include: {
+          question: {
+            include: {
+              answers: {
+                orderBy: { id: 'asc' }
+              },
+              category: {
+                select: {
+                  id: true,
+                  category: true,
+                  subcategory: true,
+                  insightSubject: true,
+                }
+              }
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return comments;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
   async addQuestionComment(questionId: number, text: string, username: string) {
     try {
       // Check if question exists

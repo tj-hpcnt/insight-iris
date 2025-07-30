@@ -128,6 +128,12 @@ export class AppController {
     return this.appService.getQuestionComments(questionId);
   }
 
+  @Get('comments')
+  @UseGuards(AuthGuard)
+  async getAllComments() {
+    return this.appService.getAllComments();
+  }
+
   @Post('questions/:questionId/comments')
   @UseGuards(AuthGuard)
   async addQuestionComment(
