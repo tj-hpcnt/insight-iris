@@ -1148,21 +1148,23 @@ function App() {
           canNavigateNext={currentCategoryIndex < allCategories.length - 1}
         />
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <button
-            onClick={handleExport}
-            style={exportButtonStyle}
-            title="Export all data as JSON"
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#0056b3';
-              e.currentTarget.style.borderColor = '#0056b3';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#007bff';
-              e.currentTarget.style.borderColor = '#007bff';
-            }}
-          >
-            📥 Export
-          </button>
+          {currentView === 'categories' && (
+            <button
+              onClick={handleExport}
+              style={exportButtonStyle}
+              title="Export all data as JSON"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#0056b3';
+                e.currentTarget.style.borderColor = '#0056b3';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#007bff';
+                e.currentTarget.style.borderColor = '#007bff';
+              }}
+            >
+              📥 Export
+            </button>
+          )}
           {currentView === 'insights' && (
             <button
               onClick={handleGenerate}
@@ -1240,46 +1242,50 @@ function App() {
               💬 Comments
             </button>
           )}
-          <button
-            onClick={() => setShowAddCategoryModal(true)}
-            style={addCategoryButtonStyle}
-            title="Add a new category"
-            disabled={isAddingCategory}
-            onMouseEnter={(e) => {
-              if (!isAddingCategory) {
-                e.currentTarget.style.backgroundColor = '#5a32a3';
-                e.currentTarget.style.borderColor = '#5a32a3';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isAddingCategory) {
-                e.currentTarget.style.backgroundColor = '#6f42c1';
-                e.currentTarget.style.borderColor = '#6f42c1';
-              }
-            }}
-          >
+          {currentView === 'categories' && (
+            <button
+              onClick={() => setShowAddCategoryModal(true)}
+              style={addCategoryButtonStyle}
+              title="Add a new category"
+              disabled={isAddingCategory}
+              onMouseEnter={(e) => {
+                if (!isAddingCategory) {
+                  e.currentTarget.style.backgroundColor = '#5a32a3';
+                  e.currentTarget.style.borderColor = '#5a32a3';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isAddingCategory) {
+                  e.currentTarget.style.backgroundColor = '#6f42c1';
+                  e.currentTarget.style.borderColor = '#6f42c1';
+                }
+              }}
+            >
             + Category
           </button>
-          <button
-            onClick={() => setShowProposeModal(true)}
-            style={proposeButtonStyle}
-            title="Propose a new question"
-            disabled={isProposing}
-            onMouseEnter={(e) => {
-              if (!isProposing) {
-                e.currentTarget.style.backgroundColor = '#138496';
-                e.currentTarget.style.borderColor = '#117a8b';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isProposing) {
-                e.currentTarget.style.backgroundColor = '#17a2b8';
-                e.currentTarget.style.borderColor = '#17a2b8';
-              }
-            }}
-          >
-            💡 Propose
-          </button>
+          )}
+          {currentView === 'categories' && (
+            <button
+              onClick={() => setShowProposeModal(true)}
+              style={proposeButtonStyle}
+              title="Propose a new question"
+              disabled={isProposing}
+              onMouseEnter={(e) => {
+                if (!isProposing) {
+                  e.currentTarget.style.backgroundColor = '#138496';
+                  e.currentTarget.style.borderColor = '#117a8b';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isProposing) {
+                  e.currentTarget.style.backgroundColor = '#17a2b8';
+                  e.currentTarget.style.borderColor = '#17a2b8';
+                }
+              }}
+            >
+              💡 Propose
+            </button>
+          )}
           <SearchBox />
           {user && <LogoutButton user={user} onLogout={handleLogout} />}
         </div>

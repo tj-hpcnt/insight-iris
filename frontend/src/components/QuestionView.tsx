@@ -638,34 +638,36 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                 💬
               </button>
               
-              <button
-                onClick={handleDeleteQuestion}
-                disabled={deleting?.type === 'question'}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#dc3545',
-                  fontSize: '16px',
-                  cursor: deleting?.type === 'question' ? 'not-allowed' : 'pointer',
-                  padding: '4px',
-                  borderRadius: '3px',
-                  opacity: deleting?.type === 'question' ? 0.5 : 0.7,
-                  transition: 'opacity 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  if (deleting?.type !== 'question') {
-                    e.currentTarget.style.opacity = '1';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (deleting?.type !== 'question') {
-                    e.currentTarget.style.opacity = '0.7';
-                  }
-                }}
-                title="Delete question"
-              >
-                {deleting?.type === 'question' ? '⏳' : '✕'}
-              </button>
+              {!isApproved && (
+                <button
+                  onClick={handleDeleteQuestion}
+                  disabled={deleting?.type === 'question'}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#dc3545',
+                    fontSize: '16px',
+                    cursor: deleting?.type === 'question' ? 'not-allowed' : 'pointer',
+                    padding: '4px',
+                    borderRadius: '3px',
+                    opacity: deleting?.type === 'question' ? 0.5 : 0.7,
+                    transition: 'opacity 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (deleting?.type !== 'question') {
+                      e.currentTarget.style.opacity = '1';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (deleting?.type !== 'question') {
+                      e.currentTarget.style.opacity = '0.7';
+                    }
+                  }}
+                  title="Delete question"
+                >
+                  {deleting?.type === 'question' ? '⏳' : '✕'}
+                </button>
+              )}
             </div>
           </div>
           <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
