@@ -264,6 +264,14 @@ function App() {
         const response = await apiFetch('/api/categories');
         const categories: Category[] = await response.json();
         setAllCategories(categories);
+        
+        // If a category is already selected, update the current index immediately
+        if (selectedCategoryId && categories.length > 0) {
+          const categoryIndex = categories.findIndex(cat => cat.id === selectedCategoryId);
+          if (categoryIndex !== -1) {
+            setCurrentCategoryIndex(categoryIndex);
+          }
+        }
       } catch (error) {
         if (error instanceof ApiError && error.status !== 401) {
           // Don't show alert for 401 errors as AuthGuard will handle redirect
@@ -275,7 +283,7 @@ function App() {
       }
     };
     fetchCategories();
-  }, []);
+  }, [selectedCategoryId]);
 
   // Update current category index when selected category changes
   useEffect(() => {
