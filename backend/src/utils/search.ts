@@ -8,6 +8,7 @@ export interface SearchResult {
   questionText: string;
   publishedId: string | null;
   proposedQuestion: string | null;
+  persistentId: string; // Add persistentId field
   category: {
     id: number;
     category: string;
@@ -55,9 +56,15 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
   
   // Get all questions with their answers and insights
   const allQuestions = await prisma.question.findMany({
-    include: {
+    select: {
+      id: true,
+      questionText: true,
+      publishedId: true,
+      proposedQuestion: true,
+      persistentId: true as any, // Add persistentId field
       inspiration: {
-        include: {
+        select: {
+          insightText: true,
           category: {
             select: {
               id: true,
@@ -69,9 +76,12 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
         },
       },
       answers: {
-        include: {
+        select: {
+          answerText: true,
           insight: {
-            include: {
+            select: {
+              insightText: true,
+              publishedTag: true,
               category: {
                 select: {
                   id: true,
@@ -116,6 +126,7 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
         questionText: question.questionText,
         publishedId: question.publishedId,
         proposedQuestion: question.proposedQuestion,
+        persistentId: (question as any).persistentId, // Add persistentId field
         category: question.category,
         inspirationInsight: question.inspiration.insightText,
         explanation: useRegex ? 'Regex match' : 'Text match',
@@ -135,6 +146,7 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
           questionText: question.questionText,
           publishedId: question.publishedId,
           proposedQuestion: question.proposedQuestion,
+          persistentId: (question as any).persistentId, // Add persistentId field
           category: question.category,
           answerText: answer.answerText,
           answerInsight: answer.insight.insightText,

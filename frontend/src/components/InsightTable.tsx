@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import PublishedIdChip from './PublishedIdChip';
-import ProposedChip from './ProposedChip';
+import QuestionIdChip from './QuestionIdChip';
 import PublishedTagChip from './PublishedTagChip';
 import CategoryChip from './CategoryChip';
 import AnswerCountChip from './AnswerCountChip';
@@ -22,6 +21,7 @@ interface QuestionFromAPI {
   isImageQuestion?: boolean;
   publishedId: string | null;
   proposedQuestion: string | null;
+  persistentId: string; // Add persistentId field
   approved: boolean;
   firstDays: boolean;
   category: CategoryInfo;
@@ -53,6 +53,7 @@ interface QuestionDisplay {
   isImageQuestion?: boolean;
   publishedId: string | null;
   proposedQuestion: string | null;
+  persistentId: string; // Add persistentId field
   approved: boolean;
   firstDays: boolean;
   insightText: string;
@@ -184,6 +185,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
         isImageQuestion: question.isImageQuestion,
         publishedId: question.publishedId,
         proposedQuestion: question.proposedQuestion,
+        persistentId: question.persistentId, // Add persistentId field
         approved: question.approved,
         firstDays: question.firstDays,
         insightText: question.inspiration.insightText,
@@ -228,6 +230,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
             isImageQuestion: question.isImageQuestion,
             publishedId: question.publishedId,
             proposedQuestion: question.proposedQuestion,
+            persistentId: question.persistentId, // Add persistentId field
             approved: question.approved,
             firstDays: question.firstDays,
             answerText: answer.answerText,
@@ -458,12 +461,11 @@ const InsightTable: React.FC<InsightTableProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                     <span style={{ marginRight: '4px' }}>{item.isImageQuestion ? '🖼️' : '💬'}</span>
                     {item.questionText}
-                    {item.publishedId && (
-                      <PublishedIdChip publishedId={item.publishedId} />
-                    )}
-                    {item.proposedQuestion && !item.publishedId && (
-                      <ProposedChip />
-                    )}
+                    <QuestionIdChip 
+                      persistentId={item.persistentId}
+                      publishedId={item.publishedId}
+                      isProposed={!!item.proposedQuestion}
+                    />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     {item.firstDays && (

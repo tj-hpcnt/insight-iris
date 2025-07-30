@@ -1,6 +1,4 @@
 import React, { useState, useRef, useCallback } from 'react';
-import PublishedIdChip from './PublishedIdChip';
-import ProposedChip from './ProposedChip';
 
 interface CategoryInfo {
   id: number;

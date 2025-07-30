@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import PublishedIdChip from './PublishedIdChip';
-import ProposedChip from './ProposedChip';
+import QuestionIdChip from './QuestionIdChip';
 import PublishedTagChip from './PublishedTagChip';
 import CategoryChip from './CategoryChip';
 
@@ -11,6 +10,7 @@ export interface SearchResult {
   questionText: string;
   publishedId: string | null;
   proposedQuestion: string | null;
+  persistentId: string; // Add persistentId field
   category: {
     id: number;
     category: string;
@@ -200,12 +200,11 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick, 
                   <span style={{ marginRight: '8px' }}>
                     {highlightText(result.questionText, searchQuery)}
                   </span>
-                  {result.publishedId && (
-                    <PublishedIdChip publishedId={result.publishedId} />
-                  )}
-                  {result.proposedQuestion && !result.publishedId && (
-                    <ProposedChip />
-                  )}
+                  <QuestionIdChip 
+                    persistentId={result.persistentId}
+                    publishedId={result.publishedId}
+                    isProposed={!!result.proposedQuestion}
+                  />
                   <CategoryChip 
                     insightSubject={result.category.insightSubject} 
                     categoryId={result.category.id}

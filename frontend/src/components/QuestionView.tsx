@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import PublishedIdChip from './PublishedIdChip';
-import ProposedChip from './ProposedChip';
+import QuestionIdChip from './QuestionIdChip';
 import PublishedTagChip from './PublishedTagChip';
 import CategoryChip from './CategoryChip';
 import AnswerCountChip from './AnswerCountChip';
@@ -44,6 +43,7 @@ interface QuestionData {
   questionType: string;
   publishedId: string | null;
   proposedQuestion: string | null;
+  persistentId: string; // Add persistentId field
   approved: boolean; // Add approved field
   firstDays: boolean; // Add firstDays field
   inspiration: PrismaInsight;
@@ -834,12 +834,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h4 style={{ margin: 0 }}>Details</h4>
-              {questionData.publishedId && (
-                <PublishedIdChip publishedId={questionData.publishedId} />
-              )}
-              {questionData.proposedQuestion && !questionData.publishedId && (
-                <ProposedChip />
-              )}
+              <QuestionIdChip 
+                persistentId={questionData.persistentId}
+                publishedId={questionData.publishedId}
+                isProposed={!!questionData.proposedQuestion}
+              />
             </div>
             {(questionData.proposedQuestion || (questionData.originalQuestion && questionData.originalQuestion !== questionData.questionText)) && (
               <div style={{ maxWidth: '300px', display: 'flex', flexDirection: 'column', gap: '8px' }}>

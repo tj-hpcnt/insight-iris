@@ -80,7 +80,7 @@ export class AppService {
             publishedId: true,
             proposedQuestion: true,
             approved: true,
-            firstDays: true,
+            firstDays: true as any,
           },
         });
 
@@ -166,7 +166,19 @@ export class AppService {
     
     const questions = await this.prisma.question.findMany({
       where: whereClause,
-      include: {
+      select: {
+        id: true,
+        categoryId: true,
+        inspirationId: true,
+        questionType: true,
+        questionText: true,
+        originalQuestion: true,
+        isImageQuestion: true,
+        publishedId: true,
+        proposedQuestion: true,
+        persistentId: true as any,
+        approved: true,
+        firstDays: true as any,
         inspiration: {
           select: {
             id: true,
@@ -184,7 +196,10 @@ export class AppService {
           },
         },
         answers: {
-          include: {
+          select: {
+            id: true,
+            answerText: true,
+            originalAnswer: true,
             insight: {
               select: {
                 id: true,
@@ -220,16 +235,8 @@ export class AppService {
       },
     });
 
-    // Map the results to include the new fields
-    return questions.map(question => ({
-      ...question,
-      originalQuestion: (question as any).originalQuestion,
-      isImageQuestion: (question as any).isImageQuestion,
-      answers: question.answers.map(answer => ({
-        ...answer,
-        originalAnswer: (answer as any).originalAnswer,
-      })),
-    }));
+    // Return the results directly since we explicitly selected all needed fields
+    return questions;
   }
 
   async getFullQuestionContextByInsightId(anyInsightId: number): Promise<FullQuestionContextPayload> {
@@ -368,9 +375,27 @@ export class AppService {
   async getQuestionById(questionId: number) {
     const question = await this.prisma.question.findUnique({
       where: { id: questionId },
-      include: {
+      select: {
+        id: true,
+        categoryId: true,
+        inspirationId: true,
+        questionType: true,
+        questionText: true,
+        originalQuestion: true,
+        isImageQuestion: true,
+        publishedId: true,
+        proposedQuestion: true,
+        persistentId: true as any,
+        approved: true,
+        firstDays: true as any,
         inspiration: {
-          include: {
+          select: {
+            id: true,
+            categoryId: true,
+            insightText: true,
+            source: true,
+            generationOrder: true,
+            publishedTag: true,
             category: {
               select: {
                 id: true,
@@ -383,9 +408,18 @@ export class AppService {
         },
         answers: {
           orderBy: { id: 'asc' },
-          include: { 
+          select: {
+            id: true,
+            answerText: true,
+            originalAnswer: true,
             insight: {
-              include: {
+              select: {
+                id: true,
+                categoryId: true,
+                insightText: true,
+                source: true,
+                generationOrder: true,
+                publishedTag: true,
                 category: {
                   select: {
                     id: true,
@@ -414,23 +448,13 @@ export class AppService {
     }
 
     return {
-      id: question.id,
-      questionText: question.questionText,
-      originalQuestion: (question as any).originalQuestion,
-      isImageQuestion: (question as any).isImageQuestion,
-      questionType: question.questionType,
-      publishedId: question.publishedId,
-      proposedQuestion: question.proposedQuestion,
-      approved: question.approved, // Add approved field
-      firstDays: question.firstDays, // Add firstDays field
-      inspiration: question.inspiration,
-      answers: question.answers.map(answer => ({
+      ...question,
+      answers: (question as any).answers.map((answer: any) => ({
         id: answer.id,
         answerText: answer.answerText,
-        originalAnswer: (answer as any).originalAnswer ?? null,
+        originalAnswer: answer.originalAnswer ?? null,
         linkedAnswerInsight: answer.insight,
       })),
-      category: question.category,
     };
   }
 
