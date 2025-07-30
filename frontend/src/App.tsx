@@ -6,7 +6,15 @@ import InsightTable, { InsightType } from './components/InsightTable';
 import QuestionView from './components/QuestionView';
 import SearchBox from './components/SearchBox';
 import SearchResultsView from './components/SearchResultsView';
+import LoginPage from './components/LoginPage';
+import AuthGuard from './components/AuthGuard';
+import LogoutButton from './components/LogoutButton';
 import './App.css'; // For global styles if any
+
+interface User {
+  username: string;
+  role: string;
+}
 
 // Interface for categories
 interface Category {
@@ -100,6 +108,9 @@ const QuestionViewWrapper = ({
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Authentication state
+  const [user, setUser] = useState<User | null>(null);
   
   // Parse URL to determine current view and parameters
   const getViewFromURL = () => {
@@ -945,6 +956,23 @@ function App() {
     document.body.removeChild(link);
   };
 
+  const handleLogin = (userData: User) => {
+    setUser(userData);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      setUser(null);
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
   const exportButtonStyle = {
     background: '#007bff',
     border: '1px solid #007bff',
@@ -1017,9 +1045,12 @@ function App() {
     opacity: isProposing ? 0.6 : 1,
   };
 
+  const showHeader = location.pathname !== '/login';
+
   return (
     <div className="App">
-      <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {showHeader && (
+        <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Breadcrumbs 
           items={breadcrumbItems} 
           onCategoryNavigation={handleCategoryNavigation}
@@ -1143,35 +1174,54 @@ function App() {
             💡 Propose
           </button>
           <SearchBox />
+          {user && <LogoutButton user={user} onLogout={handleLogout} />}
         </div>
       </header>
+      )}
       <main>
         <Routes>
-          <Route path="/" element={<CategoriesView onCategoryClick={handleCategoryClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />} />
-          <Route path="/categories" element={<CategoriesView onCategoryClick={handleCategoryClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />} />
-          <Route path="/search" element={<SearchResultsView onQuestionClick={handleSearchQuestionClick} onCategoryClick={handleCategoryClick} />} />
+          <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+          <Route path="/" element={
+            <AuthGuard user={user} onSetUser={setUser}>
+              <CategoriesView onCategoryClick={handleCategoryClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
+            </AuthGuard>
+          } />
+          <Route path="/categories" element={
+            <AuthGuard user={user} onSetUser={setUser}>
+              <CategoriesView onCategoryClick={handleCategoryClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
+            </AuthGuard>
+          } />
+          <Route path="/search" element={
+            <AuthGuard user={user} onSetUser={setUser}>
+              <SearchResultsView onQuestionClick={handleSearchQuestionClick} onCategoryClick={handleCategoryClick} />
+            </AuthGuard>
+          } />
           <Route 
             path="/categories/:categoryId" 
             element={
-              <InsightsView 
-                onInsightClick={handleQuestionClick}
-                onInsightTypeChange={handleInsightTypeSelect}
-                onCategoryClick={handleCategoryClick}
-                onRefresh={handleRefreshInsights}
-                refreshTrigger={refreshTrigger}
-              />
+              <AuthGuard user={user} onSetUser={setUser}>
+                <InsightsView 
+                  onInsightClick={handleQuestionClick}
+                  onInsightTypeChange={handleInsightTypeSelect}
+                  onCategoryClick={handleCategoryClick}
+                  onRefresh={handleRefreshInsights}
+                  refreshTrigger={refreshTrigger}
+                />
+              </AuthGuard>
             } 
           />
           <Route 
             path="/categories/:categoryId/questions/:questionId" 
             element={
-              <QuestionViewWrapper 
-                onNavigateQuestion={handleQuestionNavigation}
-                onSkipQuestion={handleSkipQuestion}
-                currentQuestions={currentQuestions}
-                currentQuestionIndex={currentQuestionIndex}
-                onCategoryClick={handleCategoryClick}
-              />
+              <AuthGuard user={user} onSetUser={setUser}>
+                <QuestionViewWrapper 
+                  onNavigateQuestion={handleQuestionNavigation}
+                  onSkipQuestion={handleSkipQuestion}
+                  currentQuestions={currentQuestions}
+                  currentQuestionIndex={currentQuestionIndex}
+                  onCategoryClick={handleCategoryClick}
+                />
+              </AuthGuard>
             } 
           />
         </Routes>

@@ -987,7 +987,7 @@ export class AppService {
     }
   }
 
-  async addQuestionComment(questionId: number, text: string) {
+  async addQuestionComment(questionId: number, text: string, username: string) {
     try {
       // Check if question exists
       const question = await this.prisma.question.findUnique({
@@ -1001,7 +1001,7 @@ export class AppService {
       const comment = await this.prisma.comment.create({
         data: {
           questionId,
-          text: text.trim()
+          text: `${username}: ${text.trim()}`
         }
       });
 

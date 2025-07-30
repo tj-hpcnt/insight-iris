@@ -2,49 +2,10 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import fs from 'fs';
 
-// Basic auth plugin
-function basicAuthPlugin() {
-  return {
-    name: 'basic-auth',
-    configureServer(server: any) {
-      server.middlewares.use((req: any, res: any, next: any) => {
-        const auth = req.headers.authorization;
-        
-        if (!auth || !auth.startsWith('Basic ')) {
-          res.statusCode = 401;
-          res.setHeader('WWW-Authenticate', 'Basic realm="Secure Area"');
-          res.setHeader('Content-Type', 'text/plain');
-          res.end('Authentication required');
-          return;
-        }
-        
-        try {
-          const credentials = Buffer.from(auth.slice(6), 'base64').toString().split(':');
-          const username = credentials[0];
-          const password = credentials[1];
-          
-          // Static credentials - change these to your desired username/password
-          if (username === 'tailor' && password === 'speaks') {
-            next();
-          } else {
-            res.statusCode = 401;
-            res.setHeader('WWW-Authenticate', 'Basic realm="Secure Area"');
-            res.setHeader('Content-Type', 'text/plain');
-            res.end('Invalid credentials');
-          }
-        } catch (e) {
-          res.statusCode = 401;
-          res.setHeader('WWW-Authenticate', 'Basic realm="Secure Area"');
-          res.setHeader('Content-Type', 'text/plain');
-          res.end('Invalid credentials');
-        }
-      });
-    }
-  };
-}
+// Basic auth is now handled by cookie-based authentication in the app
 
 export default defineConfig({
-  plugins: [react(), basicAuthPlugin()],
+  plugins: [react()],
   server: {
     port: 17007,
     host: '0.0.0.0',
