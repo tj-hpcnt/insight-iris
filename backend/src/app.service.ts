@@ -8,7 +8,8 @@ import {
   generateInspirationInsights, generateBaseQuestion,
   reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
   reduceExactRedundancyForQuestions, reduceExactRedundancyForAnswers,
-  predictQuestionCandidateCategory, generateQuestionFromProposal, generateSelfInsightComparisons
+  predictQuestionCandidateCategory, generateQuestionFromProposal, generateSelfInsightComparisons,
+  generateShortInsightText
 } from './utils/aiGenerators';
 import { deleteQuestion, deleteAnswer, getAnswerCount, deleteCategory } from './utils/delete';
 import { processInParallel } from './utils/parallelProcessor';
@@ -728,7 +729,7 @@ export class AppService {
       }
 
       const stopProgress4 = createProgressIndicator('Reducing redundancy for questions');
-      const questionReductionResult = await reduceRedundancyForQuestions(category, lastestQuestion.id);
+      const questionReductionResult = await reduceRedundancyForQuestions(category, lastestQuestion ? lastestQuestion.id : null);
       stopProgress4();
       if (questionReductionResult) {
         const [mergedQuestions, usage] = questionReductionResult;
@@ -782,6 +783,53 @@ export class AppService {
         log(`Generated ${totalStrongComparisons} total strong self-insight comparisons across all questions`);
       } else {
         log('No questions with multiple answers found, skipping self-comparisons');
+      }
+
+      // Phase 6: Generate short insight text for answer insights
+      log('Phase 6: Generating short insight text for answer insights...');
+      const allAnswerInsights = await this.prisma.insight.findMany({
+        where: {
+          source: InsightSource.ANSWER,
+          shortInsightText: null,
+          categoryId: category.id // Only process insights from the current category
+        },
+      });
+      
+      if (allAnswerInsights.length > 0) {
+        log(`Generating short text for ${allAnswerInsights.length} answer insights`);
+        
+        const stopProgress7 = createProgressIndicator('Generating short insight text');
+        await processInParallel<Insight, void>(
+          allAnswerInsights,
+          async (insight) => {
+            try {
+              const result = await generateShortInsightText(insight);
+              if (result) {
+                const [shortText, usage] = result;
+                totalUsage.promptTokens += usage.prompt_tokens;
+                totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
+                totalUsage.completionTokens += usage.completion_tokens;
+
+                // Update the insight with the generated short text
+                await this.prisma.insight.update({
+                  where: { id: insight.id },
+                  data: { shortInsightText: shortText },
+                });
+
+                console.log(`Generated short text for insight ${insight.id}: "${shortText}" (from "${insight.insightText}")`);
+              } else {
+                console.error(`Failed to generate short text for insight ${insight.id}: "${insight.insightText}"`);
+              }
+            } catch (error) {
+              console.error(`Error processing insight ${insight.id}:`, error);
+            }
+          },
+          BATCH_COUNT
+        );
+        stopProgress7();
+        log(`Generated short text for ${allAnswerInsights.length} answer insights`);
+      } else {
+        log('No answer insights need short text generation, skipping short text generation phase');
       }
 
       // Final stats
@@ -952,6 +1000,53 @@ export class AppService {
         }
       }
 
+      // Phase 4.5: Generate short insight text for new answer insights
+      log('Phase 4.5: Generating short insight text for answer insights...');
+      const newAnswerInsights = await this.prisma.insight.findMany({
+        where: {
+          source: InsightSource.ANSWER,
+          shortInsightText: null,
+          // Only process insights from answers in the category we're working with
+          categoryId: category.id
+        },
+      });
+      
+      if (newAnswerInsights.length > 0) {
+        log(`Generating short text for ${newAnswerInsights.length} answer insights`);
+        
+        const stopProgress4_5 = createProgressIndicator('Generating short insight text');
+        await processInParallel<Insight, void>(
+          newAnswerInsights,
+          async (insight) => {
+            try {
+              const result = await generateShortInsightText(insight);
+              if (result) {
+                const [shortText, usage] = result;
+                totalUsage.promptTokens += usage.prompt_tokens;
+                totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
+                totalUsage.completionTokens += usage.completion_tokens;
+
+                // Update the insight with the generated short text
+                await this.prisma.insight.update({
+                  where: { id: insight.id },
+                  data: { shortInsightText: shortText },
+                });
+
+                log(`Generated short text for insight ${insight.id}: "${shortText}"`);
+              } else {
+                log(`Failed to generate short text for insight ${insight.id}: "${insight.insightText}"`);
+              }
+            } catch (error) {
+              log(`Error processing insight ${insight.id}: ${error.message}`);
+            }
+          },
+          10 // Use batch count of 10 like in generateInitialData.ts
+        );
+        stopProgress4_5();
+      } else {
+        log('No answer insights need short text generation');
+      }
+
       // Get the final question to return its ID
       const finalQuestion = await this.prisma.question.findFirst({
         where: { 
@@ -1068,6 +1163,56 @@ export class AppService {
         log(`Merged ${redundancyResult.length} redundant answer insights`);
       } else {
         log('No redundant answer insights found');
+      }
+
+      // Generate short insight text for new answer insights
+      log('Generating short insight text for answer insights...');
+      const answerInsights = await this.prisma.insight.findMany({
+        where: {
+          source: InsightSource.ANSWER,
+          shortInsightText: null,
+          categoryId: updatedQuestion.categoryId // Only process insights from the same category as the regenerated question
+        },
+      });
+      
+      if (answerInsights.length > 0) {
+        log(`Generating short text for ${answerInsights.length} answer insights`);
+        const shortTextProgressIndicator = createProgressIndicator('Generating short insight text');
+        
+        let totalUsageForShortText = { prompt_tokens: 0, completion_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } };
+        await processInParallel<Insight, void>(
+          answerInsights,
+          async (insight) => {
+            try {
+              const result = await generateShortInsightText(insight);
+              if (result) {
+                const [shortText, usage] = result;
+                totalUsageForShortText.prompt_tokens += usage.prompt_tokens;
+                totalUsageForShortText.prompt_tokens_details.cached_tokens += usage.prompt_tokens_details?.cached_tokens || 0;
+                totalUsageForShortText.completion_tokens += usage.completion_tokens;
+
+                // Update the insight with the generated short text
+                await this.prisma.insight.update({
+                  where: { id: insight.id },
+                  data: { shortInsightText: shortText },
+                });
+
+                console.log(`Generated short text for insight ${insight.id}: "${shortText}"`);
+              } else {
+                console.error(`Failed to generate short text for insight ${insight.id}: "${insight.insightText}"`);
+              }
+            } catch (error) {
+              console.error(`Error processing insight ${insight.id}:`, error);
+            }
+          },
+          10 // Use batch count of 10 like in generateInitialData.ts
+        );
+        
+        clearInterval(shortTextProgressIndicator);
+        log(`Generated short text for ${answerInsights.length} insights`);
+        log(`Short text token usage: ${totalUsageForShortText.prompt_tokens} prompt + ${totalUsageForShortText.completion_tokens} completion`);
+      } else {
+        log('No answer insights need short text generation');
       }
 
       // Generate self-insight comparisons
