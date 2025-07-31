@@ -565,7 +565,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
                           color: 'white',
                           fontSize: '12px',
                           padding: '4px 6px',
-                          borderRadius: '12px',
+                          borderRadius: '4px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',

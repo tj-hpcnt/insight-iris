@@ -1,4 +1,4 @@
-import { PrismaClient, InsightSource } from '@prisma/client';
+import { PrismaClient, InsightSource, PolarityType } from '@prisma/client';
 
 interface ExportCategory {
   category: string;
@@ -16,6 +16,15 @@ interface ExportAnswerInsight {
   generationOrder: number | null;
 }
 
+interface ExportCompatibilityInsight {
+  insightPairId: number;
+  presentationTitle: string;
+  conciseAText: string;
+  conciseBText: string;
+  insightAText: string;
+  insightBText: string;
+}
+
 interface ExportQuestion {
   category: string;
   subcategory: string;
@@ -24,17 +33,29 @@ interface ExportQuestion {
   questionType: string;
   publishedId: string | null;
   proposedQuestion: string | null;
+  approved: boolean;
+  conversationStarter: boolean;
   inspirationInsight: {
     insightText: string;
+    shortInsightText: string | null;
     publishedTag: string | null;
   };
   answers: {
     answerText: string;
     answerInsight: {
       insightText: string;
+      shortInsightText: string | null;
       publishedTag: string | null;
     } | null;
   }[];
+  compatibility: {
+    positiveCompatibilityInsights: ExportCompatibilityInsight[];
+    negativeCompatibilityInsights: {
+      insightPairId: number;
+      insightAText: string;
+      insightBText: string;
+    }[];
+  };
 }
 
 export interface ExportData {
@@ -93,6 +114,15 @@ export async function generateExportData(prisma: PrismaClient): Promise<ExportDa
     ]
   });
 
+  // Get all insight comparisons with presentations
+  const insightComparisons = await prisma.insightComparison.findMany({
+    include: {
+      insightA: true,
+      insightB: true,
+      presentation: true
+    }
+  });
+
   // Transform data to export format
   const exportCategories: ExportCategory[] = categories.map(cat => ({
     category: cat.category,
@@ -110,26 +140,76 @@ export async function generateExportData(prisma: PrismaClient): Promise<ExportDa
     generationOrder: insight.generationOrder
   }));
 
-  const exportQuestions: ExportQuestion[] = questions.map(question => ({
-    category: question.category.category,
-    subcategory: question.category.subcategory,
-    insightSubject: question.category.insightSubject,
-    questionText: question.questionText,
-    questionType: question.questionType,
-    publishedId: question.publishedId,
-    proposedQuestion: question.proposedQuestion,
-    inspirationInsight: {
-      insightText: question.inspiration.insightText,
-      publishedTag: question.inspiration.publishedTag
-    },
-    answers: question.answers.map(answer => ({
-      answerText: answer.answerText,
-      answerInsight: answer.insight ? {
-        insightText: answer.insight.insightText,
-        publishedTag: answer.insight.publishedTag
-      } : null
-    }))
-  }));
+  // Helper function to get compatibility insights for a question
+  const getCompatibilityInsights = (questionInsightIds: number[]) => {
+    const positiveCompatibilityInsights: ExportCompatibilityInsight[] = [];
+    const negativeCompatibilityInsights: { insightPairId: number; insightAText: string; insightBText: string; }[] = [];
+
+    insightComparisons.forEach(comparison => {
+      const isRelevant = questionInsightIds.includes(comparison.insightAId) || 
+                        questionInsightIds.includes(comparison.insightBId);
+      
+      if (isRelevant) {
+        if (comparison.polarity === PolarityType.POSITIVE && comparison.presentation) {
+          positiveCompatibilityInsights.push({
+            insightPairId: comparison.id,
+            presentationTitle: comparison.presentation.presentationTitle,
+            conciseAText: comparison.presentation.conciseAText,
+            conciseBText: comparison.presentation.conciseBText,
+            insightAText: comparison.insightA.insightText,
+            insightBText: comparison.insightB.insightText
+          });
+        } else if (comparison.polarity === PolarityType.NEGATIVE) {
+          negativeCompatibilityInsights.push({
+            insightPairId: comparison.id,
+            insightAText: comparison.insightA.insightText,
+            insightBText: comparison.insightB.insightText
+          });
+        }
+      }
+    });
+
+    return {
+      positiveCompatibilityInsights,
+      negativeCompatibilityInsights
+    };
+  };
+
+  const exportQuestions: ExportQuestion[] = questions.map(question => {
+    // Collect all insight IDs related to this question
+    const questionInsightIds = [
+      question.inspirationId,
+      ...question.answers.map(answer => answer.insightId).filter(id => id !== null)
+    ];
+
+    const compatibility = getCompatibilityInsights(questionInsightIds);
+
+    return {
+      category: question.category.category,
+      subcategory: question.category.subcategory,
+      insightSubject: question.category.insightSubject,
+      questionText: question.questionText,
+      questionType: question.questionType,
+      publishedId: question.publishedId,
+      proposedQuestion: question.proposedQuestion,
+      approved: question.approved,
+      conversationStarter: question.conversationStarter,
+      inspirationInsight: {
+        insightText: question.inspiration.insightText,
+        shortInsightText: question.inspiration.shortInsightText,
+        publishedTag: question.inspiration.publishedTag
+      },
+      answers: question.answers.map(answer => ({
+        answerText: answer.answerText,
+        answerInsight: answer.insight ? {
+          insightText: answer.insight.insightText,
+          shortInsightText: answer.insight.shortInsightText,
+          publishedTag: answer.insight.publishedTag
+        } : null
+      })),
+      compatibility
+    };
+  });
 
   return {
     exportedAt: new Date().toISOString(),
