@@ -470,13 +470,13 @@ const InsightTable: React.FC<InsightTableProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                     <span style={{ marginRight: '4px' }}>{item.isImageQuestion ? '🖼️' : '💬'}</span>
                     {item.questionText}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <QuestionIdChip 
                       persistentId={item.persistentId}
                       publishedId={item.publishedId}
                       isProposed={!!item.proposedQuestion}
                     />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     {item.firstDays && (
                       <div
                         style={{
