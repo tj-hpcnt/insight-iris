@@ -116,7 +116,7 @@ async function main() {
 
         const existingQuestion = await prisma.question.findFirst({
           where: { 
-            questionText: questionRow.question_stem
+            originalQuestion: questionRow.question_stem
           },
         });
 
