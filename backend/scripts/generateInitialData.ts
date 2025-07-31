@@ -7,7 +7,7 @@ import {
   reduceExactRedundancyForQuestions, reduceExactRedundancyForInspirations, reduceExactRedundancyForAnswers, 
   reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
   predictQuestionCandidateCategory, generateQuestionFromProposal, regenerateImportedQuestion,
-  generateShortInsightText,
+  generateShortInsightText, generateSelfInsightComparisons,
   } from '../src/utils/aiGenerators';
 import { EXTRA_CATEGORIES, parseCategoriesFromCSV } from './categories';
 import { FIXED_STYLES } from './styles';
@@ -38,6 +38,7 @@ async function main() {
     const usageLogger = setInterval(() => {
       console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);
     }, 5000);
+
     let categories = await prisma.category.findMany();
     
     // Combine categories from CSV and extra categories
@@ -651,7 +652,6 @@ async function main() {
     } else {
       console.log('No insights need short text generation, skipping short text generation phase');
     }
-
     if (GENERATE_SELF_COMPARISONS) {
       console.log('Generating insight comparisons within each question\'s answers...');
       
@@ -666,60 +666,18 @@ async function main() {
         },
       });
 
-      console.log(`Processing ${questionsToProcess.length} questions with for self-comparisons`);
+      console.log(`Processing ${questionsToProcess.length} questions for self-comparisons`);
 
       await processInParallel<typeof questionsToProcess[0], void>(
         questionsToProcess,
         async (question) => {
           try {
-            const answerInsights = question.answers.map(a => a.insight);
-            
-            // Check if comparisons already exist between all pairs of answer insights
-            const allInsightIds = answerInsights.map(i => i.id);
-            const existingComparisons = await prisma.insightComparison.findMany({
-              where: {
-                AND: [
-                  { insightAId: { in: allInsightIds } },
-                  { insightBId: { in: allInsightIds } },
-                ],
-              },
-              select: { insightAId: true, insightBId: true },
-            });
-
-            // Use the first answer insight as the target and compare against all insights in the question
-            for (const targetInsight of answerInsights) {
-              const result = await generateInsightQuestionComparisonByRanking(targetInsight, question);
-              
-              if (result) {
-                const [comparisons, usage] = result;
-                totalUsage.promptTokens += usage.prompt_tokens;
-                totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
-                totalUsage.completionTokens += usage.completion_tokens;
-
-                const strongComparisons = comparisons.filter(c => c.overlap === "STRONG");
-                if (strongComparisons.length > 0) {
-                  console.log(`Generated ${comparisons.length} self-comparisons for question "${question.questionText}" (${strongComparisons.length} strong)`);
-                  
-                  // Generate presentations for strong comparisons
-                  for (const comparison of strongComparisons) {
-                    try {
-                      const presentationResult = await generateInsightComparisonPresentation(comparison);
-                      if (presentationResult) {
-                        const [presentation, presentationUsage] = presentationResult;
-                        totalUsage.promptTokens += presentationUsage.prompt_tokens;
-                        totalUsage.cachedPromptTokens += presentationUsage.prompt_tokens_details?.cached_tokens || 0;
-                        totalUsage.completionTokens += presentationUsage.completion_tokens;
-                        
-                        if (presentation) {
-                          console.log(`  Self-comparison presentation: ${presentation.presentationTitle} (${comparison.polarity})`);
-                        }
-                      }
-                    } catch (err) {
-                      console.error(`Error generating presentation for self-comparison ${comparison.id}:`, err);
-                    }
-                  }
-                }
-              }
+            const result = await generateSelfInsightComparisons(question.id, (msg: string) => console.log(msg));
+            if (result) {
+              const [usage, strongComparisonCount] = result;
+              totalUsage.promptTokens += usage.prompt_tokens;
+              totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
+              totalUsage.completionTokens += usage.completion_tokens;
             }
           } catch (err) {
             console.error(`Error processing question ${question.id} for self-comparisons:`, err);

@@ -8,7 +8,7 @@ import {
   generateInspirationInsights, generateBaseQuestion,
   reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
   reduceExactRedundancyForQuestions, reduceExactRedundancyForAnswers,
-  predictQuestionCandidateCategory, generateQuestionFromProposal
+  predictQuestionCandidateCategory, generateQuestionFromProposal, generateSelfInsightComparisons
 } from './utils/aiGenerators';
 import { deleteQuestion, deleteAnswer, getAnswerCount, deleteCategory } from './utils/delete';
 import { processInParallel } from './utils/parallelProcessor';
@@ -740,6 +740,50 @@ export class AppService {
         }
       }
 
+      // Phase 5: Generate self-insight comparisons for all questions in category
+      log('Phase 5: Generating self-insight comparisons for all questions in category...');
+      const questionsForComparisons = await this.prisma.question.findMany({
+        where: { categoryId: category.id },
+        include: {
+          answers: {
+            include: {
+              insight: true,
+            },
+          },
+        },
+      });
+
+      log(`Found ${questionsForComparisons.length} questions with multiple answers for self-comparisons`);
+
+      if (questionsForComparisons.length > 0) {
+        const stopProgress6 = createProgressIndicator('Generating self-insight comparisons');
+        
+        let totalStrongComparisons = 0;
+        await processInParallel<typeof questionsForComparisons[0], void>(
+          questionsForComparisons,
+          async (question) => {
+            try {
+              const comparisonResult = await generateSelfInsightComparisons(question.id);
+              if (comparisonResult) {
+                const [comparisonUsage, strongComparisonCount] = comparisonResult;
+                totalUsage.promptTokens += comparisonUsage.prompt_tokens;
+                totalUsage.cachedPromptTokens += comparisonUsage.prompt_tokens_details?.cached_tokens || 0;
+                totalUsage.completionTokens += comparisonUsage.completion_tokens;
+                totalStrongComparisons += strongComparisonCount;
+              }
+            } catch (err) {
+              console.error(`Error generating self-comparisons for question ${question.id}:`, err);
+            }
+          },
+          BATCH_COUNT
+        );
+        
+        stopProgress6();
+        log(`Generated ${totalStrongComparisons} total strong self-insight comparisons across all questions`);
+      } else {
+        log('No questions with multiple answers found, skipping self-comparisons');
+      }
+
       // Final stats
       const finalQuestionCount = await this.prisma.question.count({
         where: { categoryId: category.id }
@@ -915,12 +959,29 @@ export class AppService {
         },
       });
 
+      // Phase 5: Generate self-insight comparisons
+      const questionIdForComparisons = finalQuestion?.id || question.id;
+      log('Phase 5: Generating self-insight comparisons...');
+      const stopProgress5 = createProgressIndicator('Generating self-insight comparisons');
+      const comparisonResult = await generateSelfInsightComparisons(questionIdForComparisons, log);
+      stopProgress5();
+      
+      if (comparisonResult) {
+        const [comparisonUsage, strongComparisonCount] = comparisonResult;
+        totalUsage.promptTokens += comparisonUsage.prompt_tokens;
+        totalUsage.cachedPromptTokens += comparisonUsage.prompt_tokens_details?.cached_tokens || 0;
+        totalUsage.completionTokens += comparisonUsage.completion_tokens;
+        log(`Generated ${strongComparisonCount} strong self-insight comparisons`);
+      } else {
+        log('No self-insight comparisons generated');
+      }
+
       log(`\nProposal processing completed successfully!`);
-      log(`Generated question ID: ${finalQuestion?.id || question.id}`);
+      log(`Generated question ID: ${questionIdForComparisons}`);
       log(`Category: ${category.insightSubject}`);
       log(`Token usage - Input: ${totalUsage.promptTokens}, Cached: ${totalUsage.cachedPromptTokens}, Output: ${totalUsage.completionTokens}`);
       
-      res.write(`PROPOSAL_COMPLETE:${finalQuestion?.id || question.id}:${category.id}\n`);
+      res.write(`PROPOSAL_COMPLETE:${questionIdForComparisons}:${category.id}\n`);
       res.end();
 
     } catch (error) {
@@ -931,7 +992,7 @@ export class AppService {
   }
 
   async regenerateQuestion(questionId: number, feedback: string, res: Response) {
-    const { regenerateQuestionWithFeedback, reduceExactRedundancyForAnswers } = await import('./utils/aiGenerators');
+    const { regenerateQuestionWithFeedback, reduceExactRedundancyForAnswers, generateSelfInsightComparisons } = await import('./utils/aiGenerators');
 
     const log = (message: string) => {
       res.write(`${message}\n`);
@@ -1007,6 +1068,22 @@ export class AppService {
         log(`Merged ${redundancyResult.length} redundant answer insights`);
       } else {
         log('No redundant answer insights found');
+      }
+
+      // Generate self-insight comparisons
+      log('Generating self-insight comparisons...');
+      const comparisonProgressIndicator = createProgressIndicator('Generating self-insight comparisons');
+      
+      const comparisonResult = await generateSelfInsightComparisons(updatedQuestion.id, log);
+      
+      clearInterval(comparisonProgressIndicator);
+
+      if (comparisonResult) {
+        const [comparisonUsage, strongComparisonCount] = comparisonResult;
+        log(`Generated ${strongComparisonCount} strong self-insight comparisons`);
+        log(`Comparison token usage: ${comparisonUsage.prompt_tokens} prompt + ${comparisonUsage.completion_tokens} completion`);
+      } else {
+        log('No self-insight comparisons generated');
       }
 
       log('Question regeneration complete!');
