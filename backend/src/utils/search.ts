@@ -9,6 +9,8 @@ export interface SearchResult {
   publishedId: string | null;
   proposedQuestion: string | null;
   persistentId: string; // Add persistentId field
+  approved: boolean; // Add approved field
+  firstDays: boolean; // Add firstDays field
   category: {
     id: number;
     category: string;
@@ -62,6 +64,8 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
       publishedId: true,
       proposedQuestion: true,
       persistentId: true as any, // Add persistentId field
+      approved: true, // Add approved field
+      firstDays: true, // Add firstDays field
       inspiration: {
         select: {
           insightText: true,
@@ -114,10 +118,11 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
   const searchResults: SearchResult[] = [];
 
   for (const question of allQuestions) {
-    // Check if question text or inspiration insight matches using regex
+    // Check if question text, inspiration insight, or persistentId matches using regex
     const questionMatches = 
       searchRegex.test(question.questionText) ||
-      searchRegex.test(question.inspiration.insightText);
+      searchRegex.test(question.inspiration.insightText) ||
+      ((question as any).persistentId && searchRegex.test((question as any).persistentId));
 
     if (questionMatches) {
       searchResults.push({
@@ -127,6 +132,8 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
         publishedId: question.publishedId,
         proposedQuestion: question.proposedQuestion,
         persistentId: (question as any).persistentId, // Add persistentId field
+        approved: question.approved, // Add approved field
+        firstDays: question.firstDays, // Add firstDays field
         category: question.category,
         inspirationInsight: question.inspiration.insightText,
         explanation: useRegex ? 'Regex match' : 'Text match',
@@ -137,7 +144,8 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
     for (const answer of question.answers) {
       const answerMatches = 
         searchRegex.test(answer.answerText) ||
-        searchRegex.test(answer.insight.insightText);
+        searchRegex.test(answer.insight.insightText) ||
+        ((question as any).persistentId && searchRegex.test((question as any).persistentId));
 
       if (answerMatches) {
         searchResults.push({
@@ -147,6 +155,8 @@ export async function searchQuestionsAnswersInsights(searchQuery: string): Promi
           publishedId: question.publishedId,
           proposedQuestion: question.proposedQuestion,
           persistentId: (question as any).persistentId, // Add persistentId field
+          approved: question.approved, // Add approved field
+          firstDays: question.firstDays, // Add firstDays field
           category: question.category,
           answerText: answer.answerText,
           answerInsight: answer.insight.insightText,

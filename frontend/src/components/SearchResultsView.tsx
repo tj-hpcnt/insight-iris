@@ -11,6 +11,8 @@ export interface SearchResult {
   publishedId: string | null;
   proposedQuestion: string | null;
   persistentId: string; // Add persistentId field
+  approved: boolean; // Add approved field
+  firstDays: boolean; // Add firstDays field
   category: {
     id: number;
     category: string;
@@ -196,20 +198,56 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick, 
                 borderBottom: '1px solid #dee2e6',
                 color: '#495057'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                  <span style={{ marginRight: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                    <span style={{ marginRight: '4px' }}>💬</span>
                     {highlightText(result.questionText, searchQuery)}
-                  </span>
-                  <QuestionIdChip 
-                    persistentId={result.persistentId}
-                    publishedId={result.publishedId}
-                    isProposed={!!result.proposedQuestion}
-                  />
-                  <CategoryChip 
-                    insightSubject={result.category.insightSubject} 
-                    categoryId={result.category.id}
-                    onClick={onCategoryClick} 
-                  />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <QuestionIdChip 
+                      persistentId={result.persistentId}
+                      publishedId={result.publishedId}
+                      isProposed={!!result.proposedQuestion}
+                    />
+                    {result.firstDays && (
+                      <div
+                        style={{
+                          backgroundColor: '#495057',
+                          color: 'white',
+                          fontSize: '12px',
+                          padding: '4px 6px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: '600'
+                        }}
+                        title="First days question"
+                      >
+                        d0
+                      </div>
+                    )}
+                    {result.approved && (
+                      <div
+                        style={{
+                          background: 'none',
+                          border: '2px solid #28a745',
+                          color: '#007bff',
+                          fontSize: '10px',
+                          padding: '4px 6px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: '#28a745',
+                          fontWeight: '600'
+                        }}
+                        title="Question is approved"
+                      >
+                        👍
+                      </div>
+                    )}
+                  </div>
                 </div>
               </td>
               <td style={{ 
@@ -231,26 +269,33 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({ onQuestionClick, 
                 borderBottom: '1px solid #dee2e6',
                 color: '#495057'
               }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  <div style={{ flex: 1, marginRight: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <CategoryChip 
+                      insightSubject={result.category.insightSubject} 
+                      categoryId={result.category.id}
+                      onClick={onCategoryClick} 
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                      {result.type === 'answer' && result.answerInsightCategory && 
+                         result.answerInsightCategory.id !== result.category.id && (
+                          <CategoryChip 
+                            insightSubject={result.answerInsightCategory.insightSubject} 
+                            categoryId={result.answerInsightCategory.id}
+                            onClick={onCategoryClick} 
+                          />
+                        )}
+                      {result.type === 'answer' && result.answerInsightPublishedTag && (
+                        <PublishedTagChip publishedTag={result.answerInsightPublishedTag} />
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
                     {result.type === 'answer' && result.answerInsight && (
                       <span>{highlightText(result.answerInsight, searchQuery)}</span>
                     )}
                     {result.type === 'question' && result.inspirationInsight && (
                       <span>{highlightText(result.inspirationInsight, searchQuery)}</span>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                                          {result.type === 'answer' && result.answerInsightCategory && 
-                       result.answerInsightCategory.id !== result.category.id && (
-                        <CategoryChip 
-                          insightSubject={result.answerInsightCategory.insightSubject} 
-                          categoryId={result.answerInsightCategory.id}
-                          onClick={onCategoryClick} 
-                        />
-                      )}
-                    {result.type === 'answer' && result.answerInsightPublishedTag && (
-                      <PublishedTagChip publishedTag={result.answerInsightPublishedTag} />
                     )}
                   </div>
                 </div>
