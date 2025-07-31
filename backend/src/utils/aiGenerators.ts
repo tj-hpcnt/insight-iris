@@ -2860,21 +2860,36 @@ export async function regenerateQuestionWithFeedback(
 /**
  * Generates a short summarized version of an insight text with emojis
  * Targets 30 character limit to provide a quick preview of the insight
- * @param insight The insight to generate a short text for (must include answers with questions and category)
+ * @param insight The insight to generate a short text for
  * @returns Tuple containing the short insight text and token usage statistics
  */
 export async function generateShortInsightText(
-  insight: Insight & {
-    answers: (Answer & {
-      question: Question;
-    })[];
-    category: Category;
-  }
+  insight: Insight
 ): Promise<[string, OpenAI.Completions.CompletionUsage] | null> {
+  // Fetch related data: answers with questions and category
+  const insightWithRelations = await prisma.insight.findUnique({
+    where: { id: insight.id },
+    include: {
+      answers: {
+        include: {
+          question: true
+        }
+      },
+      category: true
+    }
+  });
+
+  if (!insightWithRelations) {
+    console.error(`Could not find insight with id ${insight.id}`);
+    return null;
+  }
+
   // Build context from questions and answers that led to this insight
-  const questionAnswerContext = insight.answers.map(answer => 
-    `Question: "${answer.question.questionText}"\nAnswer: "${answer.answerText}"`
-  ).join('\n\n');
+  const questionAnswerContext = insightWithRelations.answers.length > 0 
+    ? insightWithRelations.answers.map(answer => 
+        `Question: "${answer.question.questionText}"\nAnswer: "${answer.answerText}"`
+      ).join('\n\n')
+    : null;
 
   const prompt = `Create an ultra-short summary of this insight that captures both the topic and emotional sentiment. Use emojis to pack more meaning into fewer characters.
 
@@ -2899,14 +2914,14 @@ Output JSON only. Format:
 {"shortText":"🎵 Music lover"}
 
 Category Classification:
-Category: ${insight.category.category}
-Subcategory: ${insight.category.subcategory}
-Subject: ${insight.category.insightSubject}
-
+Category: ${insightWithRelations.category.category}
+Subcategory: ${insightWithRelations.category.subcategory}
+Subject: ${insightWithRelations.category.insightSubject}
+${questionAnswerContext ? `
 Questions and answers that led to this insight:
 ${questionAnswerContext}
-
-Insight to summarize: "${insight.insightText}"`;
+` : ''}
+Insight to summarize: "${insightWithRelations.insightText}"`;
 
   const model = ULTRA_LOW_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
