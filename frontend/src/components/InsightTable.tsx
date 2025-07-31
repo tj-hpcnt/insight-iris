@@ -3,6 +3,7 @@ import QuestionIdChip from './QuestionIdChip';
 import PublishedTagChip from './PublishedTagChip';
 import CategoryChip from './CategoryChip';
 import AnswerCountChip from './AnswerCountChip';
+import ShortInsightChip from './ShortInsightChip';
 
 export type InsightType = 'inspiration' | 'answers'; // This matches the frontend logic
 
@@ -28,6 +29,7 @@ interface QuestionFromAPI {
   inspiration: {
     id: number;
     insightText: string;
+    shortInsightText: string | null | undefined;
     publishedTag: string | null;
     source: string;
     category: CategoryInfo;
@@ -38,6 +40,7 @@ interface QuestionFromAPI {
     insight: {
       id: number;
       insightText: string;
+      shortInsightText: string | null | undefined;
       publishedTag: string | null;
       source: string;
       category: CategoryInfo;
@@ -57,6 +60,7 @@ interface QuestionDisplay {
   approved: boolean;
   firstDays: boolean;
   insightText: string;
+  shortInsightText: string | null | undefined;
   publishedTag: string | null;
   source: string;
   answerText?: string; // Only used for answer insights tab
@@ -198,6 +202,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
         approved: question.approved,
         firstDays: question.firstDays,
         insightText: question.inspiration.insightText,
+        shortInsightText: question.inspiration.shortInsightText,
         publishedTag: question.inspiration.publishedTag,
         source: question.inspiration.source,
         questionCategory: question.category,
@@ -244,6 +249,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
             firstDays: question.firstDays,
             answerText: answer.answerText,
             insightText: answer.insight.insightText,
+            shortInsightText: answer.insight.shortInsightText,
             publishedTag: answer.insight.publishedTag,
             source: answer.insight.source,
             questionCategory: question.category,
@@ -626,6 +632,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
                       {item.publishedTag && (
                         <PublishedTagChip publishedTag={item.publishedTag} />
                       )}
+                      <ShortInsightChip shortInsightText={item.shortInsightText} />
                     </div>
                 </div>
               </td>

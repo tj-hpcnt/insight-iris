@@ -4,6 +4,7 @@ import QuestionIdChip from './QuestionIdChip';
 import PublishedTagChip from './PublishedTagChip';
 import CategoryChip from './CategoryChip';
 import AnswerCountChip from './AnswerCountChip';
+import ShortInsightChip from './ShortInsightChip';
 
 // --- Data Interfaces based on backend schema and new API payload ---
 interface CategoryInfo {
@@ -17,6 +18,7 @@ interface PrismaInsight {
   id: number;
   categoryId: number;
   insightText: string;
+  shortInsightText?: string | null | undefined;
   source: string; // 'INSPIRATION', 'ANSWER', 'DESCRIPTOR'
   generationOrder?: number | null;
   publishedTag?: string | null;
@@ -887,11 +889,14 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                   onClick={onCategoryClick}
                 />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <p style={{ margin: 0 }}>{questionData.inspiration.insightText}</p>
-                {questionData.inspiration.publishedTag && (
-                  <PublishedTagChip publishedTag={questionData.inspiration.publishedTag} />
-                )}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                  {questionData.inspiration.publishedTag && (
+                    <PublishedTagChip publishedTag={questionData.inspiration.publishedTag} />
+                  )}
+                  <ShortInsightChip shortInsightText={questionData.inspiration.shortInsightText} />
+                </div>
               </div>
             </div>
           )}
@@ -926,7 +931,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                             onClick={onCategoryClick}
                           />
                         </div>
-                        <div style={{ marginLeft: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ marginLeft: '20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                           <p style={{ fontStyle: 'italic', color: '#555', margin: 0, display: 'flex', alignItems: 'center' }}>
                             <AnswerCountChip 
                               count={insightAnswerCounts.get(answer.linkedAnswerInsight.id) || 0}
@@ -935,9 +940,12 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                             />
                             ↪ {answer.linkedAnswerInsight.insightText}
                           </p>
-                          {answer.linkedAnswerInsight.publishedTag && (
-                            <PublishedTagChip publishedTag={answer.linkedAnswerInsight.publishedTag} />
-                          )}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                            {answer.linkedAnswerInsight.publishedTag && (
+                              <PublishedTagChip publishedTag={answer.linkedAnswerInsight.publishedTag} />
+                            )}
+                            <ShortInsightChip shortInsightText={answer.linkedAnswerInsight.shortInsightText} />
+                          </div>
                         </div>
                       </div>
                     ) : (

@@ -188,6 +188,7 @@ export class AppService {
           select: {
             id: true,
             insightText: true,
+            shortInsightText: true,
             publishedTag: true,
             source: true,
             category: {
@@ -209,6 +210,7 @@ export class AppService {
               select: {
                 id: true,
                 insightText: true,
+                shortInsightText: true,
                 publishedTag: true,
                 source: true,
                 category: {
@@ -398,6 +400,7 @@ export class AppService {
             id: true,
             categoryId: true,
             insightText: true,
+            shortInsightText: true,
             source: true,
             generationOrder: true,
             publishedTag: true,
@@ -422,6 +425,7 @@ export class AppService {
                 id: true,
                 categoryId: true,
                 insightText: true,
+                shortInsightText: true,
                 source: true,
                 generationOrder: true,
                 publishedTag: true,
