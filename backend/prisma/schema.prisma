@@ -51,6 +51,7 @@ model Insight {
   id                Int       @id @default(autoincrement())
   categoryId        Int
   insightText       String
+  shortInsightText  String?
   source            InsightSource
   generationOrder   Int?
   publishedTag      String?

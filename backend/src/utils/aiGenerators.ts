@@ -2816,3 +2816,92 @@ export async function regenerateQuestionWithFeedback(
     return null;
   }
 }
+
+/**
+ * Generates a short summarized version of an insight text with emojis
+ * Targets 30 character limit to provide a quick preview of the insight
+ * @param insight The insight to generate a short text for
+ * @returns Tuple containing the short insight text and token usage statistics
+ */
+export async function generateShortInsightText(
+  insight: Insight
+): Promise<[string, OpenAI.Completions.CompletionUsage] | null> {
+  const prompt = `Create an ultra-short summary of this insight that captures both the topic and emotional sentiment. Use emojis to pack more meaning into fewer characters.
+
+Target: 30 characters maximum (including emojis)
+Purpose: Quick preview that gives a sense of the topic and how the user felt when answering
+Style: Use 1-2 relevant emojis + very concise keywords
+
+Examples:
+"I love hiking and outdoor adventures" → "🥾 Outdoor adventures"
+"I prefer a partner who is financially stable" → "💰 Financial stability"
+"I enjoy cooking Italian food" → "🍝 Italian cooking"
+"I want someone who shares my faith" → "🙏 Shared faith values"
+"I don't like crowded places" → "🤫 Peace & quiet"
+"I value deep meaningful conversations" → "💭 Deep conversations"
+
+Output JSON only. Format:
+{"shortText":"🎵 Music lover"}
+
+Insight to summarize: "${insight.insightText}"`;
+
+  const model = ULTRA_LOW_MODEL;
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
+  
+  const format = {
+    type: "json_schema" as const,
+    json_schema: {
+      strict: true,
+      name: "short_insight_generation",
+      schema: {
+        type: "object",
+        properties: {
+          shortText: {
+            type: "string"
+          }
+        },
+        required: ["shortText"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  // Try to fetch from cache first
+  const cachedCompletion = await fetchCachedExecution(model, messages, format);
+  const completion = cachedCompletion || await openai.beta.chat.completions.parse({
+    messages,
+    model,
+    response_format: format,
+  });
+
+  try {
+    const shortTextData = (completion.choices[0].message as any).parsed as {
+      shortText: string;
+    };
+    
+    if (!shortTextData || !shortTextData.shortText) {
+      throw new Error("Parse error or empty short text");
+    }
+
+    // Ensure the short text doesn't exceed 30 characters
+    let shortText = shortTextData.shortText;
+    if (shortText.length > 30) {
+      shortText = shortText.substring(0, 30).trim();
+      // If we cut off mid-word, try to find a space to break at
+      const lastSpace = shortText.lastIndexOf(' ');
+      if (lastSpace > 15) { // Only break at space if it's not too early
+        shortText = shortText.substring(0, lastSpace);
+      }
+    }
+
+    if (!cachedCompletion) {
+      await cachePromptExecution(model, messages, format, completion);
+    }
+
+    return [shortText, completion.usage];
+  } catch (error) {
+    console.error('Error generating short insight text:', error);
+    console.error('Raw response:', completion.choices[0].message);
+    return null;
+  }
+}

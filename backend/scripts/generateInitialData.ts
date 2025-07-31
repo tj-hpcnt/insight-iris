@@ -7,6 +7,7 @@ import {
   reduceExactRedundancyForQuestions, reduceExactRedundancyForInspirations, reduceExactRedundancyForAnswers, 
   reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
   predictQuestionCandidateCategory, generateQuestionFromProposal, regenerateImportedQuestion,
+  generateShortInsightText,
   } from '../src/utils/aiGenerators';
 import { EXTRA_CATEGORIES, parseCategoriesFromCSV } from './categories';
 import { FIXED_STYLES } from './styles';
@@ -350,6 +351,9 @@ async function main() {
           publishedQuestions,
           async (question) => {
             try {
+              if (question.questionText !== question.originalQuestion) {
+                return
+              }
               const result = await regenerateImportedQuestion(question);
               if (result) {
                 const [updatedQuestion, usage] = result;
@@ -606,16 +610,47 @@ async function main() {
       BATCH_COUNT
     );
 
-    console.log('Moving question categories to match most common answer insight categories...');
-    const allQuestions = await prisma.question.findMany({
-      include: {
-        answers: {
-          include: {
-            insight: true
-          }
-        }
-      }
+    console.log('Generating short insight text for all insights...');
+    const allInsights = await prisma.insight.findMany({
+      where: {
+        source: InsightSource.ANSWER,
+        shortInsightText: null, // Only process insights that don't have short text yet
+      },
     });
+    
+    if (allInsights.length > 0) {
+      console.log(`Generating short text for ${allInsights.length} insights`);
+      
+      await processInParallel<Insight, void>(
+        allInsights,
+        async (insight) => {
+          try {
+            const result = await generateShortInsightText(insight);
+            if (result) {
+              const [shortText, usage] = result;
+              totalUsage.promptTokens += usage.prompt_tokens;
+              totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
+              totalUsage.completionTokens += usage.completion_tokens;
+
+              // Update the insight with the generated short text
+              await prisma.insight.update({
+                where: { id: insight.id },
+                data: { shortInsightText: shortText },
+              });
+
+              console.log(`Generated short text for insight ${insight.id}: "${shortText}" (from "${insight.insightText}")`);
+            } else {
+              console.error(`Failed to generate short text for insight ${insight.id}: "${insight.insightText}"`);
+            }
+          } catch (error) {
+            console.error(`Error processing insight ${insight.id}:`, error);
+          }
+        },
+        BATCH_COUNT
+      );
+    } else {
+      console.log('No insights need short text generation, skipping short text generation phase');
+    }
 
     if (GENERATE_COMPARISONS) {
       console.log('Generating insight comparisons for strong category overlaps (by relevant categories)...');
