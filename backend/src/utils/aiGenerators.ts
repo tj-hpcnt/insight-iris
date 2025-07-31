@@ -2126,7 +2126,7 @@ Based on the question and answer provided, generate a proper insight statement t
 - "I don't [negative preference]"
 - "I seek [what they're looking for]"
 
-Make it sound natural and concise. Focus on the underlying preference, value, or characteristic that the answer reveals about them.  Don't extend the insight to say things that are not in the answer.
+Make it sound natural and concise. Focus on the underlying preference, value, or characteristic that the answer reveals about them.  Don't extend the insight to say things that are not in the answer.  Try to use simple language that is suitable for a high school graduate.  It should express the preferences or attributes of the person from the first person. 
 
 Output JSON only. Format:
 {"insight":"I enjoy outdoor activities and hiking"}
@@ -2377,7 +2377,7 @@ Make sure any question does not actually contain a chain of dependent questions.
 
 Focus on generating a question that is specifically relevant to the target category and won't overlap with questions that would be better suited for other categories in the taxonomy.
 
-When you create the insights, try to use simple language that is suitable for a high school graduate.  It should express the preferences or attributed of the person from the first person. 
+When you create the insights, try to use simple language that is suitable for a high school graduate.  It should express the preferences or attributes of the person from the first person. 
 
 Here is the complete insight taxonomy to help you understand the scope and avoid overlap:
 ${categoryTreeStr}
