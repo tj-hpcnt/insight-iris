@@ -24,7 +24,7 @@ const BINARY_PROBABILITY = 0.65;
 const GENERATE_ALL_COMPARISONS = false;
 const GENERATE_SELF_COMPARISONS = true;
 const REGENERATE_IMPORTED_QUESTIONS = true;
-const IMPORT_QUESTIONS_FROM_CSV = false;
+const IMPORT_QUESTIONS_FROM_CSV = true;
 
 async function main() {
   try {
