@@ -4,22 +4,45 @@ import QuestionCountChip from './QuestionCountChip';
 import ApprovedCountChip from './ApprovedCountChip';
 
 // FirstDays count chip component (similar to QuestionCountChip)
-const FirstDaysCountChip: React.FC<{ count: number }> = ({ count }) => {
+const FirstDaysCountChip: React.FC<{ count: number; onClick?: () => void }> = ({ count, onClick }) => {
   if (count === 0) return null;
   
+  const isClickable = !!onClick;
+  
   return (
-    <span style={{
-      backgroundColor: '#495057', // Dark grey background
-      color: 'white',
-      padding: '4px 8px',
-      borderRadius: '12px',
-      fontSize: '12px',
-      fontWeight: '600',
-      display: 'inline-block',
-      marginLeft: '8px',
-      minWidth: '20px',
-      textAlign: 'center'
-    }}>
+    <span 
+      onClick={(e) => {
+        if (onClick) {
+          e.stopPropagation(); // Prevent row click
+          onClick();
+        }
+      }}
+      style={{
+        backgroundColor: '#495057', // Dark grey background
+        color: 'white',
+        padding: '4px 8px',
+        borderRadius: '12px',
+        fontSize: '12px',
+        fontWeight: '600',
+        display: 'inline-block',
+        marginLeft: '8px',
+        minWidth: '20px',
+        textAlign: 'center',
+        cursor: isClickable ? 'pointer' : 'default',
+        transition: isClickable ? 'background-color 0.2s ease' : 'none'
+      }}
+      onMouseEnter={(e) => {
+        if (isClickable) {
+          e.currentTarget.style.backgroundColor = '#6c757d';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (isClickable) {
+          e.currentTarget.style.backgroundColor = '#495057';
+        }
+      }}
+      title={isClickable ? 'Click to view first days questions only' : undefined}
+    >
       {count} d0
     </span>
   );
@@ -62,6 +85,7 @@ interface CategoryDisplay {
 interface CategoryTableProps {
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
   onApprovalChipClick?: (categoryId: number, insightSubject: string) => void;
+  onFirstDaysChipClick?: (categoryId: number, insightSubject: string) => void;
   onRefresh?: () => void;
   refreshTrigger?: number;
 }
@@ -77,7 +101,7 @@ interface Totals {
   newQuestions: number;
 }
 
-const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprovalChipClick, onRefresh, refreshTrigger }) => {
+const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprovalChipClick, onFirstDaysChipClick, onRefresh, refreshTrigger }) => {
   const [categories, setCategories] = useState<CategoryDisplay[]>([]);
   const [totals, setTotals] = useState<Totals>({
     published: 0,
@@ -264,7 +288,10 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
                     <QuestionCountChip count={category.questionCounts.published} type="published" />
                     <QuestionCountChip count={category.questionCounts.proposed} type="proposed" />
                     <QuestionCountChip count={category.questionCounts.generated} type="generated" />
-                    <FirstDaysCountChip count={category.questionCounts.firstDays} />
+                    <FirstDaysCountChip 
+                      count={category.questionCounts.firstDays} 
+                      onClick={onFirstDaysChipClick ? () => onFirstDaysChipClick(category.id, category.insightSubject || '') : undefined}
+                    />
                     <ApprovedCountChip 
                       approved={category.questionCounts.approved} 
                       total={category.questionCounts.total}

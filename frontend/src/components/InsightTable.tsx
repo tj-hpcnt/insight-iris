@@ -68,6 +68,7 @@ interface InsightTableProps {
   categoryId: number;
   insightType: InsightType; // 'inspiration' or 'answers'
   approved?: boolean; // Filter for approved/unapproved questions
+  firstDays?: boolean; // Filter for firstDays/not firstDays questions
   onInsightClick: (questionId: number) => void; // Changed to questionId
   onInsightTypeChange: (type: InsightType) => void;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
@@ -79,6 +80,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
   categoryId, 
   insightType,
   approved,
+  firstDays,
   onInsightClick, 
   onInsightTypeChange, 
   onCategoryClick,
@@ -99,10 +101,17 @@ const InsightTable: React.FC<InsightTableProps> = ({
       setLoading(true);
       setError(null);
       
-      // Build URL with approved filter if specified
+      // Build URL with filters if specified
       let url = `/api/categories/${categoryId}/questions`;
+      const params = new URLSearchParams();
       if (approved !== undefined) {
-        url += `?approved=${approved}`;
+        params.append('approved', approved.toString());
+      }
+      if (firstDays !== undefined) {
+        params.append('firstDays', firstDays.toString());
+      }
+      if (params.toString()) {
+        url += `?${params.toString()}`;
       }
       
       const response = await fetch(url);
@@ -126,7 +135,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
   useEffect(() => {
     if (!categoryId) return;
     fetchQuestions();
-  }, [categoryId, approved]);
+  }, [categoryId, approved, firstDays]);
 
   // Refresh data when refreshTrigger changes
   useEffect(() => {

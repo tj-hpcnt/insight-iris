@@ -35,10 +35,12 @@ export class AppController {
   @UseGuards(AuthGuard)
   async listQuestionsInCategory(
     @Param('categoryId', ParseIntPipe) categoryId: number,
-    @Query('approved') approved?: string
+    @Query('approved') approved?: string,
+    @Query('firstDays') firstDays?: string
   ) {
     const approvedFilter = approved === 'true' ? true : approved === 'false' ? false : undefined;
-    return this.appService.listQuestionsInCategory(categoryId, approvedFilter);
+    const firstDaysFilter = firstDays === 'true' ? true : firstDays === 'false' ? false : undefined;
+    return this.appService.listQuestionsInCategory(categoryId, approvedFilter, firstDaysFilter);
   }
 
   @Post('categories/:categoryId/generate')

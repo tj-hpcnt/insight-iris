@@ -30,15 +30,17 @@ interface Category {
 const CategoriesView = ({ 
   onCategoryClick,
   onApprovalChipClick,
+  onFirstDaysChipClick,
   onRefresh,
   refreshTrigger
 }: { 
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
   onApprovalChipClick?: (categoryId: number, insightSubject: string) => void;
+  onFirstDaysChipClick?: (categoryId: number, insightSubject: string) => void;
   onRefresh?: () => void;
   refreshTrigger?: number;
 }) => {
-  return <CategoryTable onCategoryClick={onCategoryClick} onApprovalChipClick={onApprovalChipClick} onRefresh={onRefresh} refreshTrigger={refreshTrigger} />;
+  return <CategoryTable onCategoryClick={onCategoryClick} onApprovalChipClick={onApprovalChipClick} onFirstDaysChipClick={onFirstDaysChipClick} onRefresh={onRefresh} refreshTrigger={refreshTrigger} />;
 };
 
 // Component for Insights view
@@ -69,6 +71,15 @@ const InsightsView = ({
     approved = false;
   }
 
+  // Get firstDays filter from URL
+  const firstDaysParam = searchParams.get('firstDays');
+  let firstDays: boolean | undefined = undefined;
+  if (firstDaysParam === 'true') {
+    firstDays = true;
+  } else if (firstDaysParam === 'false') {
+    firstDays = false;
+  }
+
   if (!categoryId) {
     return <p>Category not found</p>;
   }
@@ -78,6 +89,7 @@ const InsightsView = ({
       categoryId={parseInt(categoryId)} 
       insightType={insightType} 
       approved={approved}
+      firstDays={firstDays}
       onInsightClick={onInsightClick}
       onInsightTypeChange={onInsightTypeChange}
       onCategoryClick={onCategoryClick}
@@ -147,6 +159,7 @@ function App() {
     let questionId: number | null = null;
     let insightType: InsightType | null = null;
     let approved: boolean | null = null;
+    let firstDays: boolean | null = null;
     
     // Extract categoryId from path like /categories/123 or /categories/123/questions/456
     const categoryMatch = path.match(/\/categories\/(\d+)/);
@@ -174,17 +187,26 @@ function App() {
       approved = false;
     }
     
-    return { categoryId, questionId, insightType, approved };
+    // Get firstDays filter from search params
+    const firstDaysParam = searchParams.get('firstDays');
+    if (firstDaysParam === 'true') {
+      firstDays = true;
+    } else if (firstDaysParam === 'false') {
+      firstDays = false;
+    }
+    
+    return { categoryId, questionId, insightType, approved, firstDays };
   };
 
   const [currentView, setCurrentView] = useState<string>(getViewFromURL());
-  const { categoryId: urlCategoryId, questionId: urlQuestionId, insightType: urlInsightType, approved: urlApproved } = getParamsFromURL();
+  const { categoryId: urlCategoryId, questionId: urlQuestionId, insightType: urlInsightType, approved: urlApproved, firstDays: urlFirstDays } = getParamsFromURL();
   
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(urlCategoryId);
   const [selectedInsightSubject, setSelectedInsightSubject] = useState<string | null>(null);
   const [selectedInsightType, setSelectedInsightType] = useState<InsightType | null>(urlInsightType || 'answers');
   const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(urlQuestionId);
   const [selectedApproved, setSelectedApproved] = useState<boolean | null>(urlApproved);
+  const [selectedFirstDays, setSelectedFirstDays] = useState<boolean | null>(urlFirstDays);
 
   // For Question View navigation - now tracks questions instead of inspiration insights
   const [currentQuestions, setCurrentQuestions] = useState<{ id: number; questionText: string }[]>([]);
@@ -298,12 +320,14 @@ function App() {
   // Update state when URL changes (back/forward button)
   useEffect(() => {
     const newView = getViewFromURL();
-    const { categoryId, questionId, insightType } = getParamsFromURL();
+    const { categoryId, questionId, insightType, approved, firstDays } = getParamsFromURL();
     
     setCurrentView(newView);
     setSelectedCategoryId(categoryId);
     setSelectedQuestionId(questionId);
     setSelectedInsightType(insightType || 'answers');
+    setSelectedApproved(approved);
+    setSelectedFirstDays(firstDays);
   }, [location]);
 
   // Fetch category details when selectedCategoryId changes (for page reload scenario)
@@ -365,12 +389,7 @@ function App() {
     if (selectedCategoryId) {
       const fetchQuestionsForNavigation = async () => {
         try {
-          // Build URL with approved filter if specified
-          let url = `/api/categories/${selectedCategoryId}/questions`;
-          if (selectedApproved !== null) {
-            url += `?approved=${selectedApproved}`;
-          }
-          
+          const url = buildQuestionsURL(selectedCategoryId);
           const response = await apiFetch(url);
           const questions = await response.json();
           // Extract questions for navigation
@@ -391,7 +410,7 @@ function App() {
       };
       fetchQuestionsForNavigation();
     }
-  }, [selectedCategoryId, selectedApproved]); // Now also depend on selectedApproved
+  }, [selectedCategoryId, selectedApproved, selectedFirstDays]); // Now also depend on selectedApproved and selectedFirstDays
 
   // Effect to handle message queue and transitions
   useEffect(() => {
@@ -464,6 +483,7 @@ function App() {
     setSelectedInsightSubject(insightSubject);
     setSelectedInsightType('answers'); 
     setSelectedApproved(null); // Clear approval filter for normal navigation
+    setSelectedFirstDays(null); // Clear firstDays filter for normal navigation
     setCurrentQuestionIndex(0); // Reset index when category changes
     
     // Navigate to insights view with URL
@@ -475,34 +495,62 @@ function App() {
     setSelectedInsightSubject(insightSubject);
     setSelectedInsightType('answers'); 
     setSelectedApproved(false); // Filter for unapproved questions
+    setSelectedFirstDays(null); // Clear firstDays filter
     setCurrentQuestionIndex(0); // Reset index when category changes
     
     // Navigate to insights view with URL and approved=false filter for unapproved questions
     navigate(`/categories/${categoryId}?type=answers&approved=false`);
   };
 
+  const handleFirstDaysChipClick = async (categoryId: number, insightSubject: string) => {
+    setSelectedCategoryId(categoryId);
+    setSelectedInsightSubject(insightSubject);
+    setSelectedInsightType('answers'); 
+    setSelectedApproved(null); // Clear approval filter
+    setSelectedFirstDays(true); // Filter for firstDays questions
+    setCurrentQuestionIndex(0); // Reset index when category changes
+    
+    // Navigate to insights view with URL and firstDays=true filter for firstDays questions
+    navigate(`/categories/${categoryId}?type=answers&firstDays=true`);
+  };
+
   const handleCycleApprovalFilter = () => {
     if (!selectedCategoryId) return;
     
     let newApprovalFilter: boolean | null;
+    let newFirstDaysFilter: boolean | null;
     let urlSuffix = '';
     
-    // Cycle through the states: unapproved (false) → approved (true) → no filter (null) → unapproved (false)
-    if (selectedApproved === false) {
+    // Cycle through the states: unapproved → approved → all → d0 only → not d0 → (back to unapproved)
+    if (selectedApproved === false && selectedFirstDays === null) {
       // Currently unapproved only, switch to approved only
       newApprovalFilter = true;
+      newFirstDaysFilter = null;
       urlSuffix = '&approved=true';
-    } else if (selectedApproved === true) {
-      // Currently approved only, switch to no filter
+    } else if (selectedApproved === true && selectedFirstDays === null) {
+      // Currently approved only, switch to all questions
       newApprovalFilter = null;
+      newFirstDaysFilter = null;
       urlSuffix = '';
+    } else if (selectedApproved === null && selectedFirstDays === null) {
+      // Currently all questions, switch to d0 only
+      newApprovalFilter = null;
+      newFirstDaysFilter = true;
+      urlSuffix = '&firstDays=true';
+    } else if (selectedApproved === null && selectedFirstDays === true) {
+      // Currently d0 only, switch to not d0
+      newApprovalFilter = null;
+      newFirstDaysFilter = false;
+      urlSuffix = '&firstDays=false';
     } else {
-      // Currently no filter, switch to unapproved only
+      // Currently not d0 (or any other state), switch to unapproved only
       newApprovalFilter = false;
+      newFirstDaysFilter = null;
       urlSuffix = '&approved=false';
     }
     
     setSelectedApproved(newApprovalFilter);
+    setSelectedFirstDays(newFirstDaysFilter);
     setCurrentQuestionIndex(0); // Reset index when filter changes
     
     // Navigate to insights view with new filter state, preserving insight type
@@ -510,15 +558,34 @@ function App() {
     navigate(`/categories/${selectedCategoryId}?type=${currentType}${urlSuffix}`);
   };
 
+  // Helper function to build URLs with filters
+  const buildQuestionsURL = (categoryId: number, approved: boolean | null = selectedApproved, firstDays: boolean | null = selectedFirstDays) => {
+    let url = `/api/categories/${categoryId}/questions`;
+    const params = new URLSearchParams();
+    if (approved !== null) {
+      params.append('approved', approved.toString());
+    }
+    if (firstDays !== null) {
+      params.append('firstDays', firstDays.toString());
+    }
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    return url;
+  };
+
   const handleInsightTypeSelect = (type: InsightType) => {
     if (!selectedCategoryId) return;
     setSelectedInsightType(type);
     setCurrentQuestionIndex(0); // Reset index when type changes
     
-    // Update URL with new insight type, preserving approved filter if present
+    // Update URL with new insight type, preserving filters if present
     let url = `/categories/${selectedCategoryId}?type=${type}`;
     if (selectedApproved !== null) {
       url += `&approved=${selectedApproved}`;
+    }
+    if (selectedFirstDays !== null) {
+      url += `&firstDays=${selectedFirstDays}`;
     }
     navigate(url);
   };
@@ -562,12 +629,7 @@ function App() {
       }
       
       // Refresh the questions list for this category to get correct index
-      // Build URL with approved filter if specified
-      let questionsUrl = `/api/categories/${categoryId}/questions`;
-      if (selectedApproved !== null) {
-        questionsUrl += `?approved=${selectedApproved}`;
-      }
-      
+      const questionsUrl = buildQuestionsURL(categoryId);
       const questionsResponse = await apiFetch(questionsUrl);
       const questions = await questionsResponse.json();
       const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
@@ -599,6 +661,7 @@ function App() {
     setSelectedInsightSubject(null);
     setSelectedInsightType(null);
     setSelectedApproved(null); // Clear approval filter
+    setSelectedFirstDays(null); // Clear firstDays filter
     setSelectedQuestionId(null);
     setCurrentQuestions([]);
     setCurrentQuestionIndex(0);
@@ -613,10 +676,13 @@ function App() {
     setSelectedInsightType(insightType);
     setSelectedQuestionId(null);
     
-    // Navigate to insights view with URL, preserving approved filter if present
+    // Navigate to insights view with URL, preserving filters if present
     let url = `/categories/${selectedCategoryId}?type=${insightType}`;
     if (selectedApproved !== null) {
       url += `&approved=${selectedApproved}`;
+    }
+    if (selectedFirstDays !== null) {
+      url += `&firstDays=${selectedFirstDays}`;
     }
     navigate(url);
   };
@@ -681,13 +747,8 @@ function App() {
     if (!selectedCategoryId) return;
     
     try {
-      // Build URL with approved filter if specified
-      let url = `/api/categories/${selectedCategoryId}/questions`;
-      if (selectedApproved !== null) {
-        url += `?approved=${selectedApproved}`;
-      }
-      
-      // Refetch questions for the current category
+      // Refetch questions for the current category with current filters
+      const url = buildQuestionsURL(selectedCategoryId);
       const response = await apiFetch(url);
       const questions = await response.json();
       
@@ -881,12 +942,7 @@ function App() {
                 
                 // Refresh the questions list to include the new question
                 try {
-                  // Build URL with approved filter if specified
-                  let url = `/api/categories/${categoryId}/questions`;
-                  if (selectedApproved !== null) {
-                    url += `?approved=${selectedApproved}`;
-                  }
-                  
+                  const url = buildQuestionsURL(categoryId);
                   const response = await apiFetch(url);
                   const questions = await response.json();
                   const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
@@ -928,12 +984,7 @@ function App() {
                   setSelectedCategoryId(categoryId);
                   
                   // Refresh the questions list for this category
-                  // Build URL with approved filter if specified
-                  let url = `/api/categories/${categoryId}/questions`;
-                  if (selectedApproved !== null) {
-                    url += `?approved=${selectedApproved}`;
-                  }
-                  
+                  const url = buildQuestionsURL(categoryId);
                   const response = await apiFetch(url);
                   const questions = await response.json();
                   const questionList: { id: number; questionText: string }[] = questions.map((question: any) => ({
@@ -1080,6 +1131,7 @@ function App() {
       isCurrent: currentView === 'insights',
       insightSubject: selectedInsightSubject || undefined,
       approvalFilter: selectedApproved,
+      firstDaysFilter: selectedFirstDays,
       onClearApprovalFilter: handleCycleApprovalFilter
     });
   }
@@ -1364,12 +1416,12 @@ function App() {
           <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
           <Route path="/" element={
             <AuthGuard user={user} onSetUser={setUser}>
-              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
+              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onFirstDaysChipClick={handleFirstDaysChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
             </AuthGuard>
           } />
           <Route path="/categories" element={
             <AuthGuard user={user} onSetUser={setUser}>
-              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
+              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onFirstDaysChipClick={handleFirstDaysChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
             </AuthGuard>
           } />
           <Route path="/search" element={

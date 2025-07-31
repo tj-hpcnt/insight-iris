@@ -154,7 +154,7 @@ export class AppService {
     };
   }
 
-  async listQuestionsInCategory(categoryId: number, approved?: boolean) {
+  async listQuestionsInCategory(categoryId: number, approved?: boolean, firstDays?: boolean) {
     const whereClause: any = {
       categoryId,
     };
@@ -162,6 +162,11 @@ export class AppService {
     // Add approved filter if specified
     if (approved !== undefined) {
       whereClause.approved = approved;
+    }
+    
+    // Add firstDays filter if specified
+    if (firstDays !== undefined) {
+      whereClause.firstDays = firstDays;
     }
     
     const questions = await this.prisma.question.findMany({

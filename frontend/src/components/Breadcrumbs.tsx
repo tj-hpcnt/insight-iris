@@ -7,6 +7,7 @@ export interface BreadcrumbItem {
   isCurrent?: boolean;
   insightSubject?: string;
   approvalFilter?: boolean | null; // true = approved only, false = unapproved only, null/undefined = no filter
+  firstDaysFilter?: boolean | null; // true = firstDays only, false = not firstDays, null/undefined = no filter
   onClearApprovalFilter?: () => void; // Callback to cycle through approval filter states
 }
 
@@ -135,7 +136,11 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                       ? '#28a745' 
                       : item.approvalFilter === false 
                         ? '#dc3545' 
-                        : '#6c757d',
+                        : item.firstDaysFilter === true
+                          ? '#495057'
+                          : item.firstDaysFilter === false
+                            ? '#ffc107'
+                            : '#6c757d',
                     color: '#fff',
                     padding: '2px 6px',
                     borderRadius: '8px',
@@ -156,18 +161,26 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                     e.currentTarget.style.opacity = '1';
                   }}
                   title={`Click to switch to ${
-                    item.approvalFilter === false 
+                    item.approvalFilter === false && item.firstDaysFilter === null
                       ? 'approved only' 
-                      : item.approvalFilter === true 
-                        ? 'no filter' 
-                        : 'unapproved only'
+                      : item.approvalFilter === true && item.firstDaysFilter === null
+                        ? 'all questions'
+                        : item.approvalFilter === null && item.firstDaysFilter === null
+                          ? 'd0 only'
+                          : item.approvalFilter === null && item.firstDaysFilter === true
+                            ? 'not d0'
+                            : 'unapproved only'
                   }`}
                 >
                   👍 {item.approvalFilter === true 
                     ? 'Approved Only' 
                     : item.approvalFilter === false 
                       ? 'Unapproved Only' 
-                      : 'All Questions'} ↻
+                      : item.firstDaysFilter === true
+                        ? 'd0 Only'
+                        : item.firstDaysFilter === false
+                          ? 'Not d0'
+                          : 'All Questions'} ↻
                 </button>
               )}
             </div>
