@@ -1269,7 +1269,7 @@ export async function generateInsightBatchComparisonByRanking(
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine how a specific insight relates to other insights.
 
-  You are provided a list of insights to compare against a single target insight. Your job is to compare each one with the single target insight. For each of the insights, you need to determine if that would indicate compatibility or incompatibility with the target insight. You will output a list of insights that are compatible and one list of insights that are incompatible. Only include ones where the relationship is strong, e.g. it would strongly impact the compatibility of the two users. List the most important one first. Do not include weak or unrelated relationships.
+  You are provided a list of insights to compare against a single target insight. Your job is to compare each one with the single target insight. For each of the insights, you need to determine if that would indicate compatibility or incompatibility with the target insight. You will output a list of insights that are compatible and one list of insights that are incompatible. Only include ones where the relationship is strong, e.g. it would strongly impact the compatibility of the two users or be fun and sensible ice breaker. List the most important one first.
 
   Output JSON only. Format:
   {"compatible": ["I love Italian food", "Pizza is my favorite food"], "incompatible": ["I'm a vegetarian"]}
@@ -1281,7 +1281,7 @@ export async function generateInsightBatchComparisonByRanking(
   "${insight.insightText}"
   `;
 
-  const model = ULTRA_LOW_MODEL;
+  const model = LOW_MODEL;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }];
   const format = {
     type: "json_schema" as const,
@@ -1294,13 +1294,15 @@ export async function generateInsightBatchComparisonByRanking(
           compatible: {
             type: "array",
             items: {
-              type: "string"
+              type: "string",
+              enum: insightsToCompare.map(insight => insight.insightText)
             }
           },
           incompatible: {
             type: "array",
             items: {
-              type: "string"
+              type: "string",
+              enum: insightsToCompare.map(insight => insight.insightText)
             }
           }
         },
