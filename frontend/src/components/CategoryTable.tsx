@@ -48,6 +48,51 @@ const FirstDaysCountChip: React.FC<{ count: number; onClick?: () => void }> = ({
   );
 };
 
+// ConversationStarter count chip component (similar to FirstDaysCountChip)
+const ConversationStarterCountChip: React.FC<{ count: number; onClick?: () => void }> = ({ count, onClick }) => {
+  if (count === 0) return null;
+  
+  const isClickable = !!onClick;
+  
+  return (
+    <span 
+      onClick={(e) => {
+        if (onClick) {
+          e.stopPropagation(); // Prevent row click
+          onClick();
+        }
+      }}
+      style={{
+        backgroundColor: '#17a2b8', // Teal background to match the button color
+        color: 'white',
+        padding: '4px 8px',
+        borderRadius: '12px',
+        fontSize: '12px',
+        fontWeight: '600',
+        display: 'inline-block',
+        marginLeft: '8px',
+        minWidth: '20px',
+        textAlign: 'center',
+        cursor: isClickable ? 'pointer' : 'default',
+        transition: isClickable ? 'background-color 0.2s ease' : 'none'
+      }}
+      onMouseEnter={(e) => {
+        if (isClickable) {
+          e.currentTarget.style.backgroundColor = '#138496';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (isClickable) {
+          e.currentTarget.style.backgroundColor = '#17a2b8';
+        }
+      }}
+      title={isClickable ? 'Click to view conversation starter questions only' : undefined}
+    >
+      {count} 🗣️
+    </span>
+  );
+};
+
 interface CategoryFromAPI { // Reflects Prisma model
   id: number;
   category: string; // Main display name
@@ -60,6 +105,7 @@ interface CategoryFromAPI { // Reflects Prisma model
     generated: number;
     approved: number;
     firstDays: number;
+    conversationStarter: number;
     total: number;
   };
   // insights: any[]; // Not fetching insights here
@@ -78,6 +124,7 @@ interface CategoryDisplay {
       generated: number;
       approved: number;
       firstDays: number;
+      conversationStarter: number;
       total: number;
     };
 }
@@ -86,6 +133,7 @@ interface CategoryTableProps {
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
   onApprovalChipClick?: (categoryId: number, insightSubject: string) => void;
   onFirstDaysChipClick?: (categoryId: number, insightSubject: string) => void;
+  onConversationStarterChipClick?: (categoryId: number, insightSubject: string) => void;
   onRefresh?: () => void;
   refreshTrigger?: number;
 }
@@ -96,12 +144,13 @@ interface Totals {
   generated: number;
   approved: number;
   firstDays: number;
+  conversationStarter: number;
   total: number;
   absoluteTotal: number;
   newQuestions: number;
 }
 
-const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprovalChipClick, onFirstDaysChipClick, onRefresh, refreshTrigger }) => {
+const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprovalChipClick, onFirstDaysChipClick, onConversationStarterChipClick, onRefresh, refreshTrigger }) => {
   const [categories, setCategories] = useState<CategoryDisplay[]>([]);
   const [totals, setTotals] = useState<Totals>({
     published: 0,
@@ -109,6 +158,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
     generated: 0,
     approved: 0,
     firstDays: 0,
+    conversationStarter: 0,
     total: 0,
     absoluteTotal: 0,
     newQuestions: 0
@@ -144,6 +194,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
           acc.generated += category.questionCounts.generated;
           acc.approved += category.questionCounts.approved;
           acc.firstDays += category.questionCounts.firstDays;
+          acc.conversationStarter += category.questionCounts.conversationStarter;
           acc.total += category.questionCounts.total;
         }
         return acc;
@@ -153,6 +204,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
         generated: 0,
         approved: 0,
         firstDays: 0,
+        conversationStarter: 0,
         total: 0,
         absoluteTotal: 0,
         newQuestions: 0
@@ -292,6 +344,10 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
                       count={category.questionCounts.firstDays} 
                       onClick={onFirstDaysChipClick ? () => onFirstDaysChipClick(category.id, category.insightSubject || '') : undefined}
                     />
+                    <ConversationStarterCountChip 
+                      count={category.questionCounts.conversationStarter} 
+                      onClick={onConversationStarterChipClick ? () => onConversationStarterChipClick(category.id, category.insightSubject || '') : undefined}
+                    />
                     <ApprovedCountChip 
                       approved={category.questionCounts.approved} 
                       total={category.questionCounts.total}
@@ -335,6 +391,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
               <QuestionCountChip count={totals.proposed} type="proposed" />
               <QuestionCountChip count={totals.generated} type="generated" />
               <FirstDaysCountChip count={totals.firstDays} />
+              <ConversationStarterCountChip count={totals.conversationStarter} />
               <ApprovedCountChip approved={totals.approved} total={totals.total} />
             </td>
           </tr>

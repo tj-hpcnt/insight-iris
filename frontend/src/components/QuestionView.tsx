@@ -77,6 +77,7 @@ interface QuestionData {
   persistentId: string; // Add persistentId field
   approved: boolean; // Add approved field
   firstDays: boolean; // Add firstDays field
+  conversationStarter: boolean; // Add conversationStarter field
   inspiration: PrismaInsight;
   answers: {
     id: number;
@@ -137,15 +138,17 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [canDeleteAnswers, setCanDeleteAnswers] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<{ type: 'question' | 'answer'; id: number } | null>(null);
   
-  // Add state for approval, firstDays, and comments
+  // Add state for approval, firstDays, conversationStarter, and comments
   const [isApproved, setIsApproved] = useState<boolean>(false);
   const [isFirstDays, setIsFirstDays] = useState<boolean>(false);
+  const [isConversationStarter, setIsConversationStarter] = useState<boolean>(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [showCommentModal, setShowCommentModal] = useState<boolean>(false);
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [submittingComment, setSubmittingComment] = useState<boolean>(false);
   const [togglingApproval, setTogglingApproval] = useState<boolean>(false);
   const [togglingFirstDays, setTogglingFirstDays] = useState<boolean>(false);
+  const [togglingConversationStarter, setTogglingConversationStarter] = useState<boolean>(false);
   
   // Add state for comment editing and deleting
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
@@ -202,6 +205,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
         setQuestionData(data);
         setIsApproved(data.approved); // Set approval state
         setIsFirstDays(data.firstDays); // Set firstDays state
+        setIsConversationStarter(data.conversationStarter); // Set conversationStarter state
         
         if (countResponse.ok) {
           const countData = await countResponse.json();
@@ -392,6 +396,30 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       alert('Failed to toggle first days: ' + (error as Error).message);
     } finally {
       setTogglingFirstDays(false);
+    }
+  };
+
+  const handleConversationStarterToggle = async () => {
+    if (!questionData || togglingConversationStarter) return;
+    
+    try {
+      setTogglingConversationStarter(true);
+      const response = await fetch(`/api/questions/${questionData.id}/conversation-starter`, {
+        method: 'PUT'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      setIsConversationStarter(result.conversationStarter);
+    } catch (error) {
+      console.error('Failed to toggle conversation starter:', error);
+      alert('Failed to toggle conversation starter: ' + (error as Error).message);
+    } finally {
+      setTogglingConversationStarter(false);
     }
   };
 
@@ -678,6 +706,42 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                 title={isApproved ? 'Remove approval' : 'Approve question'}
               >
                 {togglingApproval ? '⏳' : isApproved ? '👍' : '👍'}
+              </button>
+
+              {/* Conversation starter button */}
+              <button
+                onClick={handleConversationStarterToggle}
+                disabled={togglingConversationStarter}
+                style={{
+                  background: 'none',
+                  border: isConversationStarter ? '2px solid #17a2b8' : '2px solid #ccc',
+                  color: isConversationStarter ? '#17a2b8' : '#666',
+                  fontSize: '10px',
+                  cursor: togglingConversationStarter ? 'not-allowed' : 'pointer',
+                  padding: '6px 6px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: isConversationStarter ? '#17a2b8' : 'transparent',
+                  opacity: togglingConversationStarter ? 0.5 : 1,
+                  transition: 'all 0.2s ease',
+                  minWidth: '24px',
+                  height: '24px'
+                }}
+                onMouseEnter={(e) => {
+                  if (!togglingConversationStarter) {
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!togglingConversationStarter) {
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }
+                }}
+                title={isConversationStarter ? 'Remove conversation starter' : 'Mark as conversation starter'}
+              >
+                {togglingConversationStarter ? '⏳' : '🗣️'}
               </button>
 
               {/* Comment button */}

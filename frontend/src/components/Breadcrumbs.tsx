@@ -8,6 +8,7 @@ export interface BreadcrumbItem {
   insightSubject?: string;
   approvalFilter?: boolean | null; // true = approved only, false = unapproved only, null/undefined = no filter
   firstDaysFilter?: boolean | null; // true = firstDays only, false = not firstDays, null/undefined = no filter
+  conversationStarterFilter?: boolean | null; // true = conversation starters only, false = not conversation starters, null/undefined = no filter
   onClearApprovalFilter?: () => void; // Callback to cycle through approval filter states
 }
 
@@ -140,7 +141,9 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                           ? '#495057'
                           : item.firstDaysFilter === false
                             ? '#ffc107'
-                            : '#6c757d',
+                            : item.conversationStarterFilter === true
+                              ? '#17a2b8'
+                              : '#6c757d',
                     color: '#fff',
                     padding: '2px 6px',
                     borderRadius: '8px',
@@ -161,26 +164,30 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                     e.currentTarget.style.opacity = '1';
                   }}
                   title={`Click to switch to ${
-                    item.approvalFilter === false && item.firstDaysFilter === null
+                    item.approvalFilter === false && item.firstDaysFilter === null && item.conversationStarterFilter === null
                       ? 'approved only' 
-                      : item.approvalFilter === true && item.firstDaysFilter === null
+                      : item.approvalFilter === true && item.firstDaysFilter === null && item.conversationStarterFilter === null
                         ? 'all questions'
-                        : item.approvalFilter === null && item.firstDaysFilter === null
+                        : item.approvalFilter === null && item.firstDaysFilter === null && item.conversationStarterFilter === null
                           ? 'd0 only'
-                          : item.approvalFilter === null && item.firstDaysFilter === true
+                          : item.approvalFilter === null && item.firstDaysFilter === true && item.conversationStarterFilter === null
                             ? 'not d0'
-                            : 'unapproved only'
+                            : item.approvalFilter === null && item.firstDaysFilter === false && item.conversationStarterFilter === null
+                              ? 'conversation starters'
+                              : 'unapproved only'
                   }`}
                 >
-                  👍 {item.approvalFilter === true 
-                    ? 'Approved Only' 
+                  {item.approvalFilter === true 
+                    ? '👍 Approved Only' 
                     : item.approvalFilter === false 
-                      ? 'Unapproved Only' 
+                      ? '👍 Unapproved Only' 
                       : item.firstDaysFilter === true
                         ? 'd0 Only'
                         : item.firstDaysFilter === false
                           ? 'Not d0'
-                          : 'All Questions'} ↻
+                          : item.conversationStarterFilter === true
+                            ? '🗣️ Convo Starters'
+                            : '👍 All Questions'} ↻
                 </button>
               )}
             </div>

@@ -31,16 +31,18 @@ const CategoriesView = ({
   onCategoryClick,
   onApprovalChipClick,
   onFirstDaysChipClick,
+  onConversationStarterChipClick,
   onRefresh,
   refreshTrigger
 }: { 
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
   onApprovalChipClick?: (categoryId: number, insightSubject: string) => void;
   onFirstDaysChipClick?: (categoryId: number, insightSubject: string) => void;
+  onConversationStarterChipClick?: (categoryId: number, insightSubject: string) => void;
   onRefresh?: () => void;
   refreshTrigger?: number;
 }) => {
-  return <CategoryTable onCategoryClick={onCategoryClick} onApprovalChipClick={onApprovalChipClick} onFirstDaysChipClick={onFirstDaysChipClick} onRefresh={onRefresh} refreshTrigger={refreshTrigger} />;
+  return <CategoryTable onCategoryClick={onCategoryClick} onApprovalChipClick={onApprovalChipClick} onFirstDaysChipClick={onFirstDaysChipClick} onConversationStarterChipClick={onConversationStarterChipClick} onRefresh={onRefresh} refreshTrigger={refreshTrigger} />;
 };
 
 // Component for Insights view
@@ -80,6 +82,15 @@ const InsightsView = ({
     firstDays = false;
   }
 
+  // Get conversationStarter filter from URL
+  const conversationStarterParam = searchParams.get('conversationStarter');
+  let conversationStarter: boolean | undefined = undefined;
+  if (conversationStarterParam === 'true') {
+    conversationStarter = true;
+  } else if (conversationStarterParam === 'false') {
+    conversationStarter = false;
+  }
+
   if (!categoryId) {
     return <p>Category not found</p>;
   }
@@ -90,6 +101,7 @@ const InsightsView = ({
       insightType={insightType} 
       approved={approved}
       firstDays={firstDays}
+      conversationStarter={conversationStarter}
       onInsightClick={onInsightClick}
       onInsightTypeChange={onInsightTypeChange}
       onCategoryClick={onCategoryClick}
@@ -160,6 +172,7 @@ function App() {
     let insightType: InsightType | null = null;
     let approved: boolean | null = null;
     let firstDays: boolean | null = null;
+    let conversationStarter: boolean | null = null;
     
     // Extract categoryId from path like /categories/123 or /categories/123/questions/456
     const categoryMatch = path.match(/\/categories\/(\d+)/);
@@ -195,11 +208,19 @@ function App() {
       firstDays = false;
     }
     
-    return { categoryId, questionId, insightType, approved, firstDays };
+    // Get conversationStarter filter from search params
+    const conversationStarterParam = searchParams.get('conversationStarter');
+    if (conversationStarterParam === 'true') {
+      conversationStarter = true;
+    } else if (conversationStarterParam === 'false') {
+      conversationStarter = false;
+    }
+    
+    return { categoryId, questionId, insightType, approved, firstDays, conversationStarter };
   };
 
   const [currentView, setCurrentView] = useState<string>(getViewFromURL());
-  const { categoryId: urlCategoryId, questionId: urlQuestionId, insightType: urlInsightType, approved: urlApproved, firstDays: urlFirstDays } = getParamsFromURL();
+  const { categoryId: urlCategoryId, questionId: urlQuestionId, insightType: urlInsightType, approved: urlApproved, firstDays: urlFirstDays, conversationStarter: urlConversationStarter } = getParamsFromURL();
   
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(urlCategoryId);
   const [selectedInsightSubject, setSelectedInsightSubject] = useState<string | null>(null);
@@ -207,6 +228,7 @@ function App() {
   const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(urlQuestionId);
   const [selectedApproved, setSelectedApproved] = useState<boolean | null>(urlApproved);
   const [selectedFirstDays, setSelectedFirstDays] = useState<boolean | null>(urlFirstDays);
+  const [selectedConversationStarter, setSelectedConversationStarter] = useState<boolean | null>(urlConversationStarter);
 
   // For Question View navigation - now tracks questions instead of inspiration insights
   const [currentQuestions, setCurrentQuestions] = useState<{ id: number; questionText: string }[]>([]);
@@ -508,10 +530,24 @@ function App() {
     setSelectedInsightType('answers'); 
     setSelectedApproved(null); // Clear approval filter
     setSelectedFirstDays(true); // Filter for firstDays questions
+    setSelectedConversationStarter(null); // Clear conversation starter filter
     setCurrentQuestionIndex(0); // Reset index when category changes
     
     // Navigate to insights view with URL and firstDays=true filter for firstDays questions
     navigate(`/categories/${categoryId}?type=answers&firstDays=true`);
+  };
+
+  const handleConversationStarterChipClick = async (categoryId: number, insightSubject: string) => {
+    setSelectedCategoryId(categoryId);
+    setSelectedInsightSubject(insightSubject);
+    setSelectedInsightType('answers'); 
+    setSelectedApproved(null); // Clear approval filter
+    setSelectedFirstDays(null); // Clear firstDays filter
+    setSelectedConversationStarter(true); // Filter for conversation starter questions
+    setCurrentQuestionIndex(0); // Reset index when category changes
+    
+    // Navigate to insights view with URL and conversationStarter=true filter for conversation starter questions
+    navigate(`/categories/${categoryId}?type=answers&conversationStarter=true`);
   };
 
   const handleCycleApprovalFilter = () => {
@@ -519,38 +555,51 @@ function App() {
     
     let newApprovalFilter: boolean | null;
     let newFirstDaysFilter: boolean | null;
+    let newConversationStarterFilter: boolean | null;
     let urlSuffix = '';
     
-    // Cycle through the states: unapproved → approved → all → d0 only → not d0 → (back to unapproved)
-    if (selectedApproved === false && selectedFirstDays === null) {
+    // Cycle through the states: unapproved → approved → all → d0 only → not d0 → conversation starters → (back to unapproved)
+    if (selectedApproved === false && selectedFirstDays === null && selectedConversationStarter === null) {
       // Currently unapproved only, switch to approved only
       newApprovalFilter = true;
       newFirstDaysFilter = null;
+      newConversationStarterFilter = null;
       urlSuffix = '&approved=true';
-    } else if (selectedApproved === true && selectedFirstDays === null) {
+    } else if (selectedApproved === true && selectedFirstDays === null && selectedConversationStarter === null) {
       // Currently approved only, switch to all questions
       newApprovalFilter = null;
       newFirstDaysFilter = null;
+      newConversationStarterFilter = null;
       urlSuffix = '';
-    } else if (selectedApproved === null && selectedFirstDays === null) {
+    } else if (selectedApproved === null && selectedFirstDays === null && selectedConversationStarter === null) {
       // Currently all questions, switch to d0 only
       newApprovalFilter = null;
       newFirstDaysFilter = true;
+      newConversationStarterFilter = null;
       urlSuffix = '&firstDays=true';
-    } else if (selectedApproved === null && selectedFirstDays === true) {
+    } else if (selectedApproved === null && selectedFirstDays === true && selectedConversationStarter === null) {
       // Currently d0 only, switch to not d0
       newApprovalFilter = null;
       newFirstDaysFilter = false;
+      newConversationStarterFilter = null;
       urlSuffix = '&firstDays=false';
+    } else if (selectedApproved === null && selectedFirstDays === false && selectedConversationStarter === null) {
+      // Currently not d0, switch to conversation starters only
+      newApprovalFilter = null;
+      newFirstDaysFilter = null;
+      newConversationStarterFilter = true;
+      urlSuffix = '&conversationStarter=true';
     } else {
-      // Currently not d0 (or any other state), switch to unapproved only
+      // Currently conversation starters (or any other state), switch to unapproved only
       newApprovalFilter = false;
       newFirstDaysFilter = null;
+      newConversationStarterFilter = null;
       urlSuffix = '&approved=false';
     }
     
     setSelectedApproved(newApprovalFilter);
     setSelectedFirstDays(newFirstDaysFilter);
+    setSelectedConversationStarter(newConversationStarterFilter);
     setCurrentQuestionIndex(0); // Reset index when filter changes
     
     // Navigate to insights view with new filter state, preserving insight type
@@ -559,7 +608,7 @@ function App() {
   };
 
   // Helper function to build URLs with filters
-  const buildQuestionsURL = (categoryId: number, approved: boolean | null = selectedApproved, firstDays: boolean | null = selectedFirstDays) => {
+  const buildQuestionsURL = (categoryId: number, approved: boolean | null = selectedApproved, firstDays: boolean | null = selectedFirstDays, conversationStarter: boolean | null = selectedConversationStarter) => {
     let url = `/api/categories/${categoryId}/questions`;
     const params = new URLSearchParams();
     if (approved !== null) {
@@ -567,6 +616,9 @@ function App() {
     }
     if (firstDays !== null) {
       params.append('firstDays', firstDays.toString());
+    }
+    if (conversationStarter !== null) {
+      params.append('conversationStarter', conversationStarter.toString());
     }
     if (params.toString()) {
       url += `?${params.toString()}`;
@@ -586,6 +638,9 @@ function App() {
     }
     if (selectedFirstDays !== null) {
       url += `&firstDays=${selectedFirstDays}`;
+    }
+    if (selectedConversationStarter !== null) {
+      url += `&conversationStarter=${selectedConversationStarter}`;
     }
     navigate(url);
   };
@@ -1132,6 +1187,7 @@ function App() {
       insightSubject: selectedInsightSubject || undefined,
       approvalFilter: selectedApproved,
       firstDaysFilter: selectedFirstDays,
+      conversationStarterFilter: selectedConversationStarter,
       onClearApprovalFilter: handleCycleApprovalFilter
     });
   }
@@ -1416,12 +1472,12 @@ function App() {
           <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
           <Route path="/" element={
             <AuthGuard user={user} onSetUser={setUser}>
-              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onFirstDaysChipClick={handleFirstDaysChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
+              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onFirstDaysChipClick={handleFirstDaysChipClick} onConversationStarterChipClick={handleConversationStarterChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
             </AuthGuard>
           } />
           <Route path="/categories" element={
             <AuthGuard user={user} onSetUser={setUser}>
-              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onFirstDaysChipClick={handleFirstDaysChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
+              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onFirstDaysChipClick={handleFirstDaysChipClick} onConversationStarterChipClick={handleConversationStarterChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
             </AuthGuard>
           } />
           <Route path="/search" element={

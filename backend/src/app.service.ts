@@ -82,6 +82,7 @@ export class AppService {
             proposedQuestion: true,
             approved: true,
             firstDays: true as any,
+            conversationStarter: true as any,
           },
         });
 
@@ -90,6 +91,7 @@ export class AppService {
         const generatedCount = questions.filter(q => q.publishedId === null && q.proposedQuestion === null).length;
         const approvedCount = questions.filter(q => q.approved === true).length;
         const firstDaysCount = questions.filter(q => q.firstDays === true).length;
+        const conversationStarterCount = questions.filter(q => q.conversationStarter === true).length;
         const totalCount = questions.length;
 
         return {
@@ -100,6 +102,7 @@ export class AppService {
             generated: generatedCount,
             approved: approvedCount,
             firstDays: firstDaysCount,
+            conversationStarter: conversationStarterCount,
             total: totalCount,
           },
         };
@@ -155,7 +158,7 @@ export class AppService {
     };
   }
 
-  async listQuestionsInCategory(categoryId: number, approved?: boolean, firstDays?: boolean) {
+  async listQuestionsInCategory(categoryId: number, approved?: boolean, firstDays?: boolean, conversationStarter?: boolean) {
     const whereClause: any = {
       categoryId,
     };
@@ -168,6 +171,11 @@ export class AppService {
     // Add firstDays filter if specified
     if (firstDays !== undefined) {
       whereClause.firstDays = firstDays;
+    }
+    
+    // Add conversationStarter filter if specified
+    if (conversationStarter !== undefined) {
+      whereClause.conversationStarter = conversationStarter;
     }
     
     const questions = await this.prisma.question.findMany({
@@ -1322,6 +1330,32 @@ export class AppService {
       });
 
       return { success: true, firstDays: updatedQuestion.firstDays };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async toggleQuestionConversationStarter(questionId: number) {
+    try {
+      const question = await this.prisma.question.findUnique({
+        where: { id: questionId },
+        select: { conversationStarter: true }
+      });
+
+      if (!question) {
+        throw new NotFoundException('Question not found');
+      }
+
+      const updatedQuestion = await this.prisma.question.update({
+        where: { id: questionId },
+        data: { conversationStarter: !question.conversationStarter },
+        select: { id: true, conversationStarter: true }
+      });
+
+      return { success: true, conversationStarter: updatedQuestion.conversationStarter };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;

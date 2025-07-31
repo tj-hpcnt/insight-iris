@@ -25,6 +25,7 @@ interface QuestionFromAPI {
   persistentId: string; // Add persistentId field
   approved: boolean;
   firstDays: boolean;
+  conversationStarter: boolean;
   category: CategoryInfo;
   inspiration: {
     id: number;
@@ -59,6 +60,7 @@ interface QuestionDisplay {
   persistentId: string; // Add persistentId field
   approved: boolean;
   firstDays: boolean;
+  conversationStarter: boolean;
   insightText: string;
   shortInsightText: string | null | undefined;
   publishedTag: string | null;
@@ -73,6 +75,7 @@ interface InsightTableProps {
   insightType: InsightType; // 'inspiration' or 'answers'
   approved?: boolean; // Filter for approved/unapproved questions
   firstDays?: boolean; // Filter for firstDays/not firstDays questions
+  conversationStarter?: boolean; // Filter for conversation starter questions
   onInsightClick: (questionId: number) => void; // Changed to questionId
   onInsightTypeChange: (type: InsightType) => void;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
@@ -85,6 +88,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
   insightType,
   approved,
   firstDays,
+  conversationStarter,
   onInsightClick, 
   onInsightTypeChange, 
   onCategoryClick,
@@ -114,6 +118,9 @@ const InsightTable: React.FC<InsightTableProps> = ({
       if (firstDays !== undefined) {
         params.append('firstDays', firstDays.toString());
       }
+      if (conversationStarter !== undefined) {
+        params.append('conversationStarter', conversationStarter.toString());
+      }
       if (params.toString()) {
         url += `?${params.toString()}`;
       }
@@ -139,7 +146,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
   useEffect(() => {
     if (!categoryId) return;
     fetchQuestions();
-  }, [categoryId, approved, firstDays]);
+  }, [categoryId, approved, firstDays, conversationStarter]);
 
   // Refresh data when refreshTrigger changes
   useEffect(() => {
@@ -201,6 +208,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
         persistentId: question.persistentId, // Add persistentId field
         approved: question.approved,
         firstDays: question.firstDays,
+        conversationStarter: question.conversationStarter,
         insightText: question.inspiration.insightText,
         shortInsightText: question.inspiration.shortInsightText,
         publishedTag: question.inspiration.publishedTag,
@@ -247,6 +255,7 @@ const InsightTable: React.FC<InsightTableProps> = ({
             persistentId: question.persistentId, // Add persistentId field
             approved: question.approved,
             firstDays: question.firstDays,
+            conversationStarter: question.conversationStarter,
             answerText: answer.answerText,
             insightText: answer.insight.insightText,
             shortInsightText: answer.insight.shortInsightText,
@@ -499,6 +508,24 @@ const InsightTable: React.FC<InsightTableProps> = ({
                         title="First days question"
                       >
                         d0
+                      </div>
+                    )}
+                    {item.conversationStarter && (
+                      <div
+                        style={{
+                          backgroundColor: '#17a2b8',
+                          color: 'white',
+                          fontSize: '12px',
+                          padding: '4px 6px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: '600'
+                        }}
+                        title="Conversation starter question"
+                      >
+                        🗣️
                       </div>
                     )}
                     {item.approved ? (

@@ -84,6 +84,7 @@ model Question {
   proposedQuestion String?     @unique // The original proposed question text if this was generated from a proposal
   approved        Boolean @default(false) // Whether the question has been approved
   firstDays       Boolean @default(false) // Whether the question is designated as an initial launch question
+  conversationStarter Boolean @default(false) // Whether the question is marked as a good conversation starter
   answers         Answer[]
   comments        Comment[]
   inspiration     Insight      @relation("QuestionInspiration", fields: [inspirationId], references: [id])

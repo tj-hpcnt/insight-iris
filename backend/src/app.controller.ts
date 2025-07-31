@@ -36,11 +36,13 @@ export class AppController {
   async listQuestionsInCategory(
     @Param('categoryId', ParseIntPipe) categoryId: number,
     @Query('approved') approved?: string,
-    @Query('firstDays') firstDays?: string
+    @Query('firstDays') firstDays?: string,
+    @Query('conversationStarter') conversationStarter?: string
   ) {
     const approvedFilter = approved === 'true' ? true : approved === 'false' ? false : undefined;
     const firstDaysFilter = firstDays === 'true' ? true : firstDays === 'false' ? false : undefined;
-    return this.appService.listQuestionsInCategory(categoryId, approvedFilter, firstDaysFilter);
+    const conversationStarterFilter = conversationStarter === 'true' ? true : conversationStarter === 'false' ? false : undefined;
+    return this.appService.listQuestionsInCategory(categoryId, approvedFilter, firstDaysFilter, conversationStarterFilter);
   }
 
   @Post('categories/:categoryId/generate')
@@ -128,6 +130,12 @@ export class AppController {
   @UseGuards(WriteGuard)
   async toggleQuestionFirstDays(@Param('questionId', ParseIntPipe) questionId: number) {
     return this.appService.toggleQuestionFirstDays(questionId);
+  }
+
+  @Put('questions/:questionId/conversation-starter')
+  @UseGuards(WriteGuard)
+  async toggleQuestionConversationStarter(@Param('questionId', ParseIntPipe) questionId: number) {
+    return this.appService.toggleQuestionConversationStarter(questionId);
   }
 
   @Get('questions/:questionId/comments')
