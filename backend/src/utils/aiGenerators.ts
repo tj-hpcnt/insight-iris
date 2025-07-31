@@ -2377,6 +2377,8 @@ Make sure any question does not actually contain a chain of dependent questions.
 
 Focus on generating a question that is specifically relevant to the target category and won't overlap with questions that would be better suited for other categories in the taxonomy.
 
+When you create the insights, try to use simple language that is suitable for a high school graduate.  It should express the preferences or attributed of the person from the first person. 
+
 Here is the complete insight taxonomy to help you understand the scope and avoid overlap:
 ${categoryTreeStr}
 
