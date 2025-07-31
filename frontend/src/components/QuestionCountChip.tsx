@@ -10,18 +10,21 @@ const QuestionCountChip: React.FC<QuestionCountChipProps> = ({ count, type }) =>
     switch (type) {
       case 'published':
         return {
-          backgroundColor: '#000',
-          color: '#fff',
+          backgroundColor: 'transparent',
+          color: '#000',
+          border: '1px solid #000',
         };
       case 'proposed':
         return {
-          backgroundColor: '#ffc0cb', // Pink background
-          color: '#000', // Black text
+          backgroundColor: 'transparent',
+          color: '#d63384', // Pink color for text and border
+          border: '1px solid #d63384',
         };
       case 'generated':
         return {
-          backgroundColor: '#90EE90', // Light green background
-          color: '#000', // Black text
+          backgroundColor: 'transparent',
+          color: '#198754', // Green color for text and border
+          border: '1px solid #198754',
         };
       default:
         return {};
