@@ -193,6 +193,7 @@ export class AppService {
         persistentId: true as any,
         approved: true,
         firstDays: true as any,
+        conversationStarter: true as any,
         inspiration: {
           select: {
             id: true,
@@ -404,6 +405,7 @@ export class AppService {
         persistentId: true as any,
         approved: true,
         firstDays: true as any,
+        conversationStarter: true as any,
         inspiration: {
           select: {
             id: true,
