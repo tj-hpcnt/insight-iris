@@ -355,6 +355,9 @@ async function main() {
               if (question.questionText !== question.originalQuestion) {
                 return
               }
+              if (question.isImageQuestion) {
+                return;
+              }
               const result = await regenerateImportedQuestion(question);
               if (result) {
                 const [updatedQuestion, usage] = result;
