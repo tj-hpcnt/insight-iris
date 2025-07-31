@@ -2858,17 +2858,31 @@ export async function regenerateQuestionWithFeedback(
 /**
  * Generates a short summarized version of an insight text with emojis
  * Targets 30 character limit to provide a quick preview of the insight
- * @param insight The insight to generate a short text for
+ * @param insight The insight to generate a short text for (must include answers with questions and category)
  * @returns Tuple containing the short insight text and token usage statistics
  */
 export async function generateShortInsightText(
-  insight: Insight
+  insight: Insight & {
+    answers: (Answer & {
+      question: Question;
+    })[];
+    category: Category;
+  }
 ): Promise<[string, OpenAI.Completions.CompletionUsage] | null> {
+  // Build context from questions and answers that led to this insight
+  const questionAnswerContext = insight.answers.map(answer => 
+    `Question: "${answer.question.questionText}"\nAnswer: "${answer.answerText}"`
+  ).join('\n\n');
+
   const prompt = `Create an ultra-short summary of this insight that captures both the topic and emotional sentiment. Use emojis to pack more meaning into fewer characters.
 
 Target: 30 characters maximum (including emojis)
-Purpose: Quick preview that gives a sense of the topic and how the user felt when answering
-Style: Use 1-2 relevant emojis + very concise keywords
+Purpose: Quick preview that gives a sense of the topic and how the user felt when answering.  
+Style: Use 1-2 relevant emojis + very concise keywords. Use simple language suitable for a high school graduate.
+Guidelines:
+- Use agent nouns for preferences or traits (e.g., “…prefers direct problem-solving” → “🔧 Direct problem solver”).
+- Stick to ≤ 30 characters total.
+- Avoid filler words; tap emojis for extra meaning.
 
 Examples:
 "I love hiking and outdoor adventures" → "🥾 Outdoor adventures"
@@ -2877,9 +2891,18 @@ Examples:
 "I want someone who shares my faith" → "🙏 Shared faith values"
 "I don't like crowded places" → "🤫 Peace & quiet"
 "I value deep meaningful conversations" → "💭 Deep conversations"
+"I prefer direct problem-solving" → "🔧 Direct problem solver"
 
 Output JSON only. Format:
 {"shortText":"🎵 Music lover"}
+
+Category Classification:
+Category: ${insight.category.category}
+Subcategory: ${insight.category.subcategory}
+Subject: ${insight.category.insightSubject}
+
+Questions and answers that led to this insight:
+${questionAnswerContext}
 
 Insight to summarize: "${insight.insightText}"`;
 
