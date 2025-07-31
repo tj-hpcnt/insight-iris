@@ -15,7 +15,7 @@ import { processInParallel } from '../src/utils/parallelProcessor';
 import { parseQuestionsFromCSV, parseMappingFromCSV, parseQuestionType, extractAnswersFromRow, parseProposedQuestions } from './questions';
 dotenv.config();
 const prisma = new PrismaClient();
-const BATCH_COUNT = 20;
+const BATCH_COUNT = 10;
 const MINIMUM_TARGET_INSIGHTS = 10
 const MAX_NEW_INSIGHTS_PER_GENERATION = 30
 const MIN_NEW_INSIGHTS_PER_GENERATION = 5
