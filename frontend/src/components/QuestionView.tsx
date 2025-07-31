@@ -832,7 +832,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
         </button>
 
         {/* Related Answer Insights (Now to the very right, takes remaining space) */}
-        <div style={{ flex: 1, minWidth: 0 }}> 
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}> 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h4 style={{ margin: 0 }}>Details</h4>
@@ -880,7 +880,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             )}
           </div>
           {questionData.inspiration && (
-            <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0' }}>
+            <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0', textAlign: 'left' }}>
               <h5 style={{ marginTop: 0, marginBottom: '5px' }}>Original Inspiration:</h5>
               <div style={{ marginBottom: '5px' }}>
                 <CategoryChip 
@@ -889,9 +889,9 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                   onClick={onCategoryClick}
                 />
               </div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <p style={{ margin: 0 }}>{questionData.inspiration.insightText}</p>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '10px' }}>
+                <p style={{ margin: 0, flex: 1, textAlign: 'left' }}>{questionData.inspiration.insightText}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                   {questionData.inspiration.publishedTag && (
                     <PublishedTagChip publishedTag={questionData.inspiration.publishedTag} />
                   )}
@@ -903,7 +903,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           {loadingQuestionContext ? (
             <p>Loading related answers...</p>
           ) : options && options.length > 0 ? (
-            <ul style={{ listStyleType: 'none', paddingLeft: 0 }}>
+            <ul style={{ listStyleType: 'none', paddingLeft: 0, textAlign: 'left' }}>
               {options.map(answer => {
                 const isHovered = hoveredAnswerOptionId === answer.id;
                 return (
@@ -924,15 +924,15 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                   >
                     {answer.linkedAnswerInsight ? (
                       <div style={{ position: 'relative' }}>
-                        <div style={{ marginLeft: '20px', marginBottom: '5px' }}>
+                        <div style={{ marginBottom: '5px' }}>
                           <CategoryChip 
                             insightSubject={answer.linkedAnswerInsight.category?.insightSubject || 'Unknown'}
                             categoryId={answer.linkedAnswerInsight.category?.id}
                             onClick={onCategoryClick}
                           />
                         </div>
-                        <div style={{ marginLeft: '20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                          <p style={{ fontStyle: 'italic', color: '#555', margin: 0, display: 'flex', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '10px' }}>
+                          <p style={{ fontStyle: 'italic', color: '#555', margin: 0, display: 'flex', alignItems: 'center', flex: 1, textAlign: 'left' }}>
                             <AnswerCountChip 
                               count={insightAnswerCounts.get(answer.linkedAnswerInsight.id) || 0}
                               relatedQuestions={insightToQuestionsMap.get(answer.linkedAnswerInsight.id) || []}
@@ -940,7 +940,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                             />
                             ↪ {answer.linkedAnswerInsight.insightText}
                           </p>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                             {answer.linkedAnswerInsight.publishedTag && (
                               <PublishedTagChip publishedTag={answer.linkedAnswerInsight.publishedTag} />
                             )}
@@ -949,7 +949,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <p style={{ fontStyle: 'italic', marginLeft: '20px', color: '#777' }}>↪ No linked insight available for this option.</p>
+                      <p style={{ fontStyle: 'italic', color: '#777', textAlign: 'left' }}>↪ No linked insight available for this option.</p>
                     )}
                   </li>
                 );
