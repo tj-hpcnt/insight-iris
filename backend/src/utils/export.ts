@@ -203,6 +203,7 @@ export async function generateExportData(prisma: PrismaClient): Promise<ExportDa
       },
       answers: question.answers.map(answer => ({
         answerText: answer.answerText,
+        originalAnswerText: answer.originalAnswer,
         answerInsight: answer.insight ? {
           insightText: answer.insight.insightText,
           shortInsightText: answer.insight.shortInsightText,
