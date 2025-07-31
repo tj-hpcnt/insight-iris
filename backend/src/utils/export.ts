@@ -32,6 +32,7 @@ interface ExportQuestion {
   questionText: string;
   questionType: string;
   publishedId: string | null;
+  persistentId: string;
   proposedQuestion: string | null;
   approved: boolean;
   conversationStarter: boolean;
@@ -191,6 +192,7 @@ export async function generateExportData(prisma: PrismaClient): Promise<ExportDa
       questionText: question.questionText,
       questionType: question.questionType,
       publishedId: question.publishedId,
+      persistentId: question.persistentId,
       proposedQuestion: question.proposedQuestion,
       approved: question.approved,
       conversationStarter: question.conversationStarter,
