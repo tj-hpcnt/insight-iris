@@ -32,6 +32,10 @@ const CategoriesView = ({
   onApprovalChipClick,
   onFirstDaysChipClick,
   onConversationStarterChipClick,
+  onTotalRowClick,
+  onTotalApprovalChipClick,
+  onTotalFirstDaysChipClick,
+  onTotalConversationStarterChipClick,
   onRefresh,
   refreshTrigger
 }: { 
@@ -39,10 +43,25 @@ const CategoriesView = ({
   onApprovalChipClick?: (categoryId: number, insightSubject: string) => void;
   onFirstDaysChipClick?: (categoryId: number, insightSubject: string) => void;
   onConversationStarterChipClick?: (categoryId: number, insightSubject: string) => void;
+  onTotalRowClick?: () => void;
+  onTotalApprovalChipClick?: () => void;
+  onTotalFirstDaysChipClick?: () => void;
+  onTotalConversationStarterChipClick?: () => void;
   onRefresh?: () => void;
   refreshTrigger?: number;
 }) => {
-  return <CategoryTable onCategoryClick={onCategoryClick} onApprovalChipClick={onApprovalChipClick} onFirstDaysChipClick={onFirstDaysChipClick} onConversationStarterChipClick={onConversationStarterChipClick} onRefresh={onRefresh} refreshTrigger={refreshTrigger} />;
+  return <CategoryTable 
+    onCategoryClick={onCategoryClick} 
+    onApprovalChipClick={onApprovalChipClick} 
+    onFirstDaysChipClick={onFirstDaysChipClick} 
+    onConversationStarterChipClick={onConversationStarterChipClick}
+    onTotalRowClick={onTotalRowClick}
+    onTotalApprovalChipClick={onTotalApprovalChipClick}
+    onTotalFirstDaysChipClick={onTotalFirstDaysChipClick}
+    onTotalConversationStarterChipClick={onTotalConversationStarterChipClick}
+    onRefresh={onRefresh} 
+    refreshTrigger={refreshTrigger} 
+  />;
 };
 
 // Component for Insights view
@@ -111,6 +130,67 @@ const InsightsView = ({
   );
 };
 
+// Component for All Insights view (wrapper around InsightTable)
+const AllInsightsWrapper = ({ 
+  onInsightClick, 
+  onInsightTypeChange,
+  onCategoryClick,
+  onRefresh,
+  refreshTrigger
+}: { 
+  onInsightClick: (questionId: number) => void;
+  onInsightTypeChange: (type: InsightType) => void;
+  onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  onRefresh?: () => void;
+  refreshTrigger?: number;
+}) => {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const insightType = (searchParams.get('type') as InsightType) || 'answers';
+  
+  // Get approved filter from URL
+  const approvedParam = searchParams.get('approved');
+  let approved: boolean | undefined = undefined;
+  if (approvedParam === 'true') {
+    approved = true;
+  } else if (approvedParam === 'false') {
+    approved = false;
+  }
+
+  // Get firstDays filter from URL
+  const firstDaysParam = searchParams.get('firstDays');
+  let firstDays: boolean | undefined = undefined;
+  if (firstDaysParam === 'true') {
+    firstDays = true;
+  } else if (firstDaysParam === 'false') {
+    firstDays = false;
+  }
+
+  // Get conversationStarter filter from URL
+  const conversationStarterParam = searchParams.get('conversationStarter');
+  let conversationStarter: boolean | undefined = undefined;
+  if (conversationStarterParam === 'true') {
+    conversationStarter = true;
+  } else if (conversationStarterParam === 'false') {
+    conversationStarter = false;
+  }
+
+  return (
+    <InsightTable 
+      // Don't pass categoryId to fetch from all categories
+      insightType={insightType} 
+      approved={approved}
+      firstDays={firstDays}
+      conversationStarter={conversationStarter}
+      onInsightClick={onInsightClick}
+      onInsightTypeChange={onInsightTypeChange}
+      onCategoryClick={onCategoryClick}
+      onRefresh={onRefresh}
+      refreshTrigger={refreshTrigger}
+    />
+  );
+};
+
 // Component for Question view
 const QuestionViewWrapper = ({ 
   onNavigateQuestion, 
@@ -158,6 +238,7 @@ function App() {
     const path = location.pathname;
     if (path === '/' || path === '/categories') return 'categories';
     if (path === '/search') return 'search';
+    if (path === '/insights/all') return 'allinsights';
     if (path.includes('/categories/') && path.includes('/questions/')) return 'question';
     if (path.includes('/categories/')) return 'insights';
     return 'categories';
@@ -342,7 +423,7 @@ function App() {
   // Update state when URL changes (back/forward button)
   useEffect(() => {
     const newView = getViewFromURL();
-    const { categoryId, questionId, insightType, approved, firstDays } = getParamsFromURL();
+    const { categoryId, questionId, insightType, approved, firstDays, conversationStarter } = getParamsFromURL();
     
     setCurrentView(newView);
     setSelectedCategoryId(categoryId);
@@ -350,6 +431,7 @@ function App() {
     setSelectedInsightType(insightType || 'answers');
     setSelectedApproved(approved);
     setSelectedFirstDays(firstDays);
+    setSelectedConversationStarter(conversationStarter);
   }, [location]);
 
   // Fetch category details when selectedCategoryId changes (for page reload scenario)
@@ -550,9 +632,63 @@ function App() {
     navigate(`/categories/${categoryId}?type=answers&conversationStarter=true`);
   };
 
-  const handleCycleApprovalFilter = () => {
-    if (!selectedCategoryId) return;
+  // Handler for total row click - show all insights without category filter
+  const handleTotalRowClick = async () => {
+    setSelectedCategoryId(null); // Clear category filter
+    setSelectedInsightSubject(null);
+    setSelectedInsightType('answers'); 
+    setSelectedApproved(null); // Clear approval filter
+    setSelectedFirstDays(null); // Clear firstDays filter
+    setSelectedConversationStarter(null); // Clear conversation starter filter
+    setCurrentQuestionIndex(0); // Reset index
     
+    // Navigate to a view that shows all insights - we'll need to create an "all" route
+    navigate('/insights/all?type=answers');
+  };
+
+  // Handler for total approval chip click - show all unapproved questions
+  const handleTotalApprovalChipClick = async () => {
+    setSelectedCategoryId(null); // Clear category filter  
+    setSelectedInsightSubject(null);
+    setSelectedInsightType('answers');
+    setSelectedApproved(false); // Filter for unapproved questions
+    setSelectedFirstDays(null); // Clear firstDays filter
+    setSelectedConversationStarter(null); // Clear conversation starter filter
+    setCurrentQuestionIndex(0); // Reset index
+    
+    // Navigate to a view that shows all unapproved insights
+    navigate('/insights/all?type=answers&approved=false');
+  };
+
+  // Handler for total first days chip click - show all d0 questions
+  const handleTotalFirstDaysChipClick = async () => {
+    setSelectedCategoryId(null); // Clear category filter
+    setSelectedInsightSubject(null);
+    setSelectedInsightType('answers');
+    setSelectedApproved(null); // Clear approval filter
+    setSelectedFirstDays(true); // Filter for firstDays questions
+    setSelectedConversationStarter(null); // Clear conversation starter filter
+    setCurrentQuestionIndex(0); // Reset index
+    
+    // Navigate to a view that shows all first days insights
+    navigate('/insights/all?type=answers&firstDays=true');
+  };
+
+  // Handler for total conversation starter chip click - show all conversation starter questions
+  const handleTotalConversationStarterChipClick = async () => {
+    setSelectedCategoryId(null); // Clear category filter
+    setSelectedInsightSubject(null);
+    setSelectedInsightType('answers');
+    setSelectedApproved(null); // Clear approval filter
+    setSelectedFirstDays(null); // Clear firstDays filter
+    setSelectedConversationStarter(true); // Filter for conversation starter questions
+    setCurrentQuestionIndex(0); // Reset index
+    
+    // Navigate to a view that shows all conversation starter insights
+    navigate('/insights/all?type=answers&conversationStarter=true');
+  };
+
+  const handleCycleApprovalFilter = () => {
     let newApprovalFilter: boolean | null;
     let newFirstDaysFilter: boolean | null;
     let newConversationStarterFilter: boolean | null;
@@ -604,7 +740,15 @@ function App() {
     
     // Navigate to insights view with new filter state, preserving insight type
     const currentType = selectedInsightType || 'answers';
-    navigate(`/categories/${selectedCategoryId}?type=${currentType}${urlSuffix}`);
+    
+    // Check if we're in the "all insights" view or a specific category view
+    if (selectedCategoryId) {
+      // Navigate to category-specific view
+      navigate(`/categories/${selectedCategoryId}?type=${currentType}${urlSuffix}`);
+    } else {
+      // Navigate to all insights view
+      navigate(`/insights/all?type=${currentType}${urlSuffix}`);
+    }
   };
 
   // Helper function to build URLs with filters
@@ -627,12 +771,19 @@ function App() {
   };
 
   const handleInsightTypeSelect = (type: InsightType) => {
-    if (!selectedCategoryId) return;
     setSelectedInsightType(type);
     setCurrentQuestionIndex(0); // Reset index when type changes
     
     // Update URL with new insight type, preserving filters if present
-    let url = `/categories/${selectedCategoryId}?type=${type}`;
+    let url;
+    if (selectedCategoryId) {
+      // Category-specific view
+      url = `/categories/${selectedCategoryId}?type=${type}`;
+    } else {
+      // All insights view
+      url = `/insights/all?type=${type}`;
+    }
+    
     if (selectedApproved !== null) {
       url += `&approved=${selectedApproved}`;
     }
@@ -645,21 +796,49 @@ function App() {
     navigate(url);
   };
 
-  const handleQuestionClick = (questionId: number) => {
-    if (!selectedCategoryId) return;
+  const handleQuestionClick = async (questionId: number) => {
     setSelectedQuestionId(questionId);
     
-    // Find the correct question index for navigation
-    const questionIndex = currentQuestions.findIndex(question => question.id === questionId);
-    if (questionIndex !== -1) {
-        setCurrentQuestionIndex(questionIndex);
+    if (selectedCategoryId) {
+      // We're in a specific category view
+      // Find the correct question index for navigation
+      const questionIndex = currentQuestions.findIndex(question => question.id === questionId);
+      if (questionIndex !== -1) {
+          setCurrentQuestionIndex(questionIndex);
+      } else {
+          // If not found, reset to 0
+          setCurrentQuestionIndex(0);
+      }
+      
+      // Navigate to question view with URL
+      navigate(`/categories/${selectedCategoryId}/questions/${questionId}`);
     } else {
-        // If not found, reset to 0
-        setCurrentQuestionIndex(0);
+      // We're in the "all insights" view, need to get the question's category
+      try {
+        const response = await apiFetch(`/api/questions/${questionId}`);
+        const questionData = await response.json();
+        
+        // Set the category context
+        const categoryId = questionData.category.id;
+        setSelectedCategoryId(categoryId);
+        setSelectedInsightSubject(questionData.category.insightSubject);
+        
+        // Update category index if needed
+        if (allCategories.length > 0) {
+          const categoryIndex = allCategories.findIndex(cat => cat.id === categoryId);
+          if (categoryIndex !== -1) {
+            setCurrentCategoryIndex(categoryIndex);
+          }
+        }
+        
+        // Navigate to the question
+        navigate(`/categories/${categoryId}/questions/${questionId}`);
+      } catch (error) {
+        console.error('Failed to get question category:', error);
+        // Fallback: try to navigate anyway
+        navigate(`/questions/${questionId}`);
+      }
     }
-    
-    // Navigate to question view with URL
-    navigate(`/categories/${selectedCategoryId}/questions/${questionId}`);
   };
 
   const handleSearchQuestionClick = async (questionId: number) => {
@@ -1179,6 +1358,16 @@ function App() {
       onClick: () => {}, // No action needed for current page
       isCurrent: true
     });
+  } else if (currentView === 'allinsights') {
+    breadcrumbItems.push({
+      label: 'All',
+      onClick: () => {}, // No action needed for current page
+      isCurrent: true,
+      approvalFilter: selectedApproved,
+      firstDaysFilter: selectedFirstDays,
+      conversationStarterFilter: selectedConversationStarter,
+      onClearApprovalFilter: handleCycleApprovalFilter
+    });
   } else if (selectedCategoryId && selectedInsightSubject) {
     breadcrumbItems.push({
       label: '',
@@ -1363,6 +1552,7 @@ function App() {
               {isGenerating ? '⏳ Generating...' : '🔄 Generate'}
             </button>
           )}
+          {/* Note: No generate button for allinsights view since it spans multiple categories */}
           {currentView === 'question' && selectedQuestionId && (
             <button
               onClick={() => handleRegenerateQuestion(selectedQuestionId, '')}
@@ -1472,12 +1662,34 @@ function App() {
           <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
           <Route path="/" element={
             <AuthGuard user={user} onSetUser={setUser}>
-              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onFirstDaysChipClick={handleFirstDaysChipClick} onConversationStarterChipClick={handleConversationStarterChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
+              <CategoriesView 
+                onCategoryClick={handleCategoryClick} 
+                onApprovalChipClick={handleApprovalChipClick} 
+                onFirstDaysChipClick={handleFirstDaysChipClick} 
+                onConversationStarterChipClick={handleConversationStarterChipClick}
+                onTotalRowClick={handleTotalRowClick}
+                onTotalApprovalChipClick={handleTotalApprovalChipClick}
+                onTotalFirstDaysChipClick={handleTotalFirstDaysChipClick}
+                onTotalConversationStarterChipClick={handleTotalConversationStarterChipClick}
+                onRefresh={handleRefreshCategories} 
+                refreshTrigger={categoryRefreshTrigger} 
+              />
             </AuthGuard>
           } />
           <Route path="/categories" element={
             <AuthGuard user={user} onSetUser={setUser}>
-              <CategoriesView onCategoryClick={handleCategoryClick} onApprovalChipClick={handleApprovalChipClick} onFirstDaysChipClick={handleFirstDaysChipClick} onConversationStarterChipClick={handleConversationStarterChipClick} onRefresh={handleRefreshCategories} refreshTrigger={categoryRefreshTrigger} />
+              <CategoriesView 
+                onCategoryClick={handleCategoryClick} 
+                onApprovalChipClick={handleApprovalChipClick} 
+                onFirstDaysChipClick={handleFirstDaysChipClick} 
+                onConversationStarterChipClick={handleConversationStarterChipClick}
+                onTotalRowClick={handleTotalRowClick}
+                onTotalApprovalChipClick={handleTotalApprovalChipClick}
+                onTotalFirstDaysChipClick={handleTotalFirstDaysChipClick}
+                onTotalConversationStarterChipClick={handleTotalConversationStarterChipClick}
+                onRefresh={handleRefreshCategories} 
+                refreshTrigger={categoryRefreshTrigger} 
+              />
             </AuthGuard>
           } />
           <Route path="/search" element={
@@ -1490,6 +1702,20 @@ function App() {
             element={
               <AuthGuard user={user} onSetUser={setUser}>
                 <InsightsView 
+                  onInsightClick={handleQuestionClick}
+                  onInsightTypeChange={handleInsightTypeSelect}
+                  onCategoryClick={handleCategoryClick}
+                  onRefresh={handleRefreshInsights}
+                  refreshTrigger={refreshTrigger}
+                />
+              </AuthGuard>
+            } 
+          />
+          <Route 
+            path="/insights/all" 
+            element={
+              <AuthGuard user={user} onSetUser={setUser}>
+                <AllInsightsWrapper 
                   onInsightClick={handleQuestionClick}
                   onInsightTypeChange={handleInsightTypeSelect}
                   onCategoryClick={handleCategoryClick}

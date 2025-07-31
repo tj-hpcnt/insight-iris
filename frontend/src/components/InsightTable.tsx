@@ -71,7 +71,7 @@ interface QuestionDisplay {
 }
 
 interface InsightTableProps {
-  categoryId: number;
+  categoryId?: number; // Made optional to support all categories view
   insightType: InsightType; // 'inspiration' or 'answers'
   approved?: boolean; // Filter for approved/unapproved questions
   firstDays?: boolean; // Filter for firstDays/not firstDays questions
@@ -109,29 +109,79 @@ const InsightTable: React.FC<InsightTableProps> = ({
       setLoading(true);
       setError(null);
       
-      // Build URL with filters if specified
-      let url = `/api/categories/${categoryId}/questions`;
-      const params = new URLSearchParams();
-      if (approved !== undefined) {
-        params.append('approved', approved.toString());
-      }
-      if (firstDays !== undefined) {
-        params.append('firstDays', firstDays.toString());
-      }
-      if (conversationStarter !== undefined) {
-        params.append('conversationStarter', conversationStarter.toString());
-      }
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
+      // Clear existing data to prevent mixing old and new results
+      setQuestions([]);
+      setDisplayData([]);
+      setInsightAnswerCounts(new Map());
+      setInsightToQuestionsMap(new Map());
+      setAnswerCounts(new Map());
       
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (categoryId) {
+        // Fetch questions for a specific category
+        let url = `/api/categories/${categoryId}/questions`;
+        const params = new URLSearchParams();
+        if (approved !== undefined) {
+          params.append('approved', approved.toString());
+        }
+        if (firstDays !== undefined) {
+          params.append('firstDays', firstDays.toString());
+        }
+        if (conversationStarter !== undefined) {
+          params.append('conversationStarter', conversationStarter.toString());
+        }
+        if (params.toString()) {
+          url += `?${params.toString()}`;
+        }
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data: QuestionFromAPI[] = await response.json();
+        setQuestions(data);
+      } else {
+        // Fetch questions from all categories
+        const categoriesResponse = await fetch('/api/categories');
+        if (!categoriesResponse.ok) {
+          throw new Error(`Failed to fetch categories: ${categoriesResponse.status}`);
+        }
+        
+        const categories = await categoriesResponse.json();
+        const allQuestions: QuestionFromAPI[] = [];
+        
+        for (const category of categories) {
+          try {
+            let url = `/api/categories/${category.id}/questions`;
+            const params = new URLSearchParams();
+            if (approved !== undefined) {
+              params.append('approved', approved.toString());
+            }
+            if (firstDays !== undefined) {
+              params.append('firstDays', firstDays.toString());
+            }
+            if (conversationStarter !== undefined) {
+              params.append('conversationStarter', conversationStarter.toString());
+            }
+            if (params.toString()) {
+              url += `?${params.toString()}`;
+            }
+
+            const response = await fetch(url);
+            if (!response.ok) {
+              console.warn(`Failed to fetch questions for category ${category.id}: ${response.status}`);
+              continue;
+            }
+            
+            const questions: QuestionFromAPI[] = await response.json();
+            allQuestions.push(...questions);
+          } catch (error) {
+            console.warn(`Error fetching questions for category ${category.id}:`, error);
+          }
+        }
+        
+        setQuestions(allQuestions);
       }
-      
-      const data: QuestionFromAPI[] = await response.json();
-      setQuestions(data);
     } catch (e) {
       if (e instanceof Error) {
         setError(e.message);
@@ -144,13 +194,12 @@ const InsightTable: React.FC<InsightTableProps> = ({
   };
 
   useEffect(() => {
-    if (!categoryId) return;
     fetchQuestions();
   }, [categoryId, approved, firstDays, conversationStarter]);
 
   // Refresh data when refreshTrigger changes
   useEffect(() => {
-    if (!categoryId || refreshTrigger === undefined) return;
+    if (refreshTrigger === undefined) return;
     fetchQuestions();
   }, [refreshTrigger]);
 
@@ -281,7 +330,6 @@ const InsightTable: React.FC<InsightTableProps> = ({
 
   if (loading) return <p>Loading questions...</p>;
   if (error) return <p>Error loading questions: {error}</p>;
-  if (!categoryId) return <p>Please select a category first.</p>;
 
   const tabStyle = {
     display: 'flex',
@@ -311,8 +359,8 @@ const InsightTable: React.FC<InsightTableProps> = ({
   };
 
   const handleQuestionNavigation = (questionId: number, questionCategoryId: number) => {
-    // If we're navigating to a question in a different category, we need to handle it
-    if (questionCategoryId !== categoryId) {
+    // If we're in a specific category view and navigating to a question in a different category
+    if (categoryId && questionCategoryId !== categoryId) {
       // For now, just navigate to the question in the current category context
       // In a more complex implementation, you might want to switch categories first
       console.warn('Navigation to different category not fully implemented');

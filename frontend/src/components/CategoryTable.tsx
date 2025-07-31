@@ -134,6 +134,10 @@ interface CategoryTableProps {
   onApprovalChipClick?: (categoryId: number, insightSubject: string) => void;
   onFirstDaysChipClick?: (categoryId: number, insightSubject: string) => void;
   onConversationStarterChipClick?: (categoryId: number, insightSubject: string) => void;
+  onTotalRowClick?: () => void; // For clicking the total row to show all insights without filter
+  onTotalApprovalChipClick?: () => void;
+  onTotalFirstDaysChipClick?: () => void;
+  onTotalConversationStarterChipClick?: () => void;
   onRefresh?: () => void;
   refreshTrigger?: number;
 }
@@ -150,7 +154,18 @@ interface Totals {
   newQuestions: number;
 }
 
-const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprovalChipClick, onFirstDaysChipClick, onConversationStarterChipClick, onRefresh, refreshTrigger }) => {
+const CategoryTable: React.FC<CategoryTableProps> = ({ 
+  onCategoryClick, 
+  onApprovalChipClick, 
+  onFirstDaysChipClick, 
+  onConversationStarterChipClick,
+  onTotalRowClick,
+  onTotalApprovalChipClick,
+  onTotalFirstDaysChipClick,
+  onTotalConversationStarterChipClick,
+  onRefresh, 
+  refreshTrigger 
+}) => {
   const [categories, setCategories] = useState<CategoryDisplay[]>([]);
   const [totals, setTotals] = useState<Totals>({
     published: 0,
@@ -360,11 +375,15 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
           ))}
         </tbody>
         <tfoot>
-          <tr style={{ 
-            fontWeight: 'bold', 
-            borderTop: '2px solid #ddd', 
-            backgroundColor: '#f8f9fa' 
-          }}>
+          <tr 
+            onClick={onTotalRowClick ? () => onTotalRowClick() : undefined}
+            style={{ 
+              fontWeight: 'bold', 
+              borderTop: '2px solid #ddd', 
+              backgroundColor: '#f8f9fa',
+              cursor: onTotalRowClick ? 'pointer' : 'default'
+            }}
+          >
             <td colSpan={3}>
               Total
               <span style={{ 
@@ -390,9 +409,19 @@ const CategoryTable: React.FC<CategoryTableProps> = ({ onCategoryClick, onApprov
               <QuestionCountChip count={totals.published} type="published" />
               <QuestionCountChip count={totals.proposed} type="proposed" />
               <QuestionCountChip count={totals.generated} type="generated" />
-              <FirstDaysCountChip count={totals.firstDays} />
-              <ConversationStarterCountChip count={totals.conversationStarter} />
-              <ApprovedCountChip approved={totals.approved} total={totals.total} />
+              <FirstDaysCountChip 
+                count={totals.firstDays} 
+                onClick={onTotalFirstDaysChipClick ? () => onTotalFirstDaysChipClick() : undefined}
+              />
+              <ConversationStarterCountChip 
+                count={totals.conversationStarter} 
+                onClick={onTotalConversationStarterChipClick ? () => onTotalConversationStarterChipClick() : undefined}
+              />
+              <ApprovedCountChip 
+                approved={totals.approved} 
+                total={totals.total} 
+                onClick={onTotalApprovalChipClick ? () => onTotalApprovalChipClick() : undefined}
+              />
             </td>
           </tr>
         </tfoot>
