@@ -36,6 +36,35 @@ interface PrismaInsight {
 // This remains the same as before, an array of PrismaInsight where source is ANSWER
 // interface RelatedAnswerInsightDisplay extends PrismaInsight {} // Removed - not used
 
+// Interface for compatibility comparison data
+interface CompatibilityComparison {
+  id: number;
+  insightA: {
+    id: number;
+    insightText: string;
+    shortInsightText?: string | null;
+    category: {
+      id: number;
+      insightSubject: string;
+    };
+  };
+  insightB: {
+    id: number;
+    insightText: string;
+    shortInsightText?: string | null;
+    category: {
+      id: number;
+      insightSubject: string;
+    };
+  };
+  presentation?: {
+    presentationTitle: string;
+    conciseAText: string;
+    conciseBText: string;
+    importance: number;
+  } | null;
+}
+
 // Interface for the question data from the new API
 interface QuestionData {
   id: number;
@@ -56,6 +85,7 @@ interface QuestionData {
     linkedAnswerInsight: PrismaInsight | null;
   }[];
   category: CategoryInfo;
+  compatibilityComparisons: CompatibilityComparison[];
 }
 
 // Add interface for comments
@@ -544,7 +574,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          alignSelf: 'center',
+          alignSelf: 'flex-start',
           flexShrink: 0,
           boxShadow: hoveredPrevButton ? '0 0 10px rgba(255,255,255,0.3)' : 'none',
           transition: 'all 0.2s ease'
@@ -820,7 +850,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            alignSelf: 'center',
+            alignSelf: 'flex-start',
             flexShrink: 0,
             boxShadow: hoveredNextButton ? '0 0 10px rgba(255,255,255,0.3)' : 'none',
             transition: 'all 0.2s ease'
@@ -957,6 +987,93 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             </ul>
           ) : (
             <p>No related answer insights found for this question's options.</p>
+          )}
+          {/* Compatibility Section */}
+          {questionData.compatibilityComparisons && questionData.compatibilityComparisons.length > 0 && (
+            <div style={{ marginTop: '30px' }}>
+              <h4 style={{ margin: 0, marginBottom: '15px' }}>Compatibility</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {questionData.compatibilityComparisons.map((comparison) => (
+                  <div key={comparison.id} style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '15px',
+                    padding: '15px',
+                    border: '1px solid #e0e0e0',
+                    borderRadius: '8px',
+                    backgroundColor: '#fafafa'
+                  }}>
+                    {/* Left side - Stacked ShortInsightChips */}
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '8px',
+                      flexShrink: 0,
+                      minWidth: '120px'
+                    }}>
+                      <ShortInsightChip shortInsightText={comparison.insightA.shortInsightText} />
+                      <ShortInsightChip shortInsightText={comparison.insightB.shortInsightText} />
+                    </div>
+                    
+                    {/* Right side - Presentation content */}
+                    <div style={{ flex: 1 }}>
+                      {comparison.presentation ? (
+                        <div>
+                          <h5 style={{ 
+                            margin: 0, 
+                            marginBottom: '8px', 
+                            fontWeight: 'bold',
+                            fontSize: '14px'
+                          }}>
+                            {comparison.presentation.presentationTitle}
+                          </h5>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <div style={{
+                              backgroundColor: '#2c5282',
+                              color: 'white',
+                              padding: '4px 8px',
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              maxWidth: '200px',
+                              wordWrap: 'break-word',
+                              lineHeight: '1.3'
+                            }}>
+                              {comparison.presentation.conciseAText}
+                            </div>
+                            <div style={{
+                              backgroundColor: '#2c5282',
+                              color: 'white',
+                              padding: '4px 8px',
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              maxWidth: '200px',
+                              wordWrap: 'break-word',
+                              lineHeight: '1.3'
+                            }}>
+                              {comparison.presentation.conciseBText}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <h5 style={{ 
+                            margin: 0, 
+                            marginBottom: '8px', 
+                            fontWeight: 'bold',
+                            fontSize: '16px'
+                          }}>
+                            Compatible Insights
+                          </h5>
+                          <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
+                            These insights show positive compatibility but don't have detailed presentation data yet.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>

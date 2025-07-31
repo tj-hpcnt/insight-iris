@@ -456,6 +456,56 @@ export class AppService {
       throw new NotFoundException(`Question with ID ${questionId} not found`);
     }
 
+    // Get the insight IDs from the answers
+    const answerInsightIds = (question as any).answers
+      .map((answer: any) => answer.insight?.id)
+      .filter(Boolean);
+
+    // Fetch positive compatibility comparisons between answer insights
+    let compatibilityComparisons = [];
+    if (answerInsightIds.length > 1) {
+      compatibilityComparisons = await this.prisma.insightComparison.findMany({
+        where: {
+          polarity: 'POSITIVE',
+          OR: [
+            {
+              insightAId: { in: answerInsightIds },
+              insightBId: { in: answerInsightIds },
+            },
+          ],
+        },
+        include: {
+          presentation: true,
+          insightA: {
+            select: {
+              id: true,
+              insightText: true,
+              shortInsightText: true,
+              category: {
+                select: {
+                  id: true,
+                  insightSubject: true,
+                },
+              },
+            },
+          },
+          insightB: {
+            select: {
+              id: true,
+              insightText: true,
+              shortInsightText: true,
+              category: {
+                select: {
+                  id: true,
+                  insightSubject: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
     return {
       ...question,
       answers: (question as any).answers.map((answer: any) => ({
@@ -463,6 +513,12 @@ export class AppService {
         answerText: answer.answerText,
         originalAnswer: answer.originalAnswer ?? null,
         linkedAnswerInsight: answer.insight,
+      })),
+      compatibilityComparisons: compatibilityComparisons.map((comparison: any) => ({
+        id: comparison.id,
+        insightA: comparison.insightA,
+        insightB: comparison.insightB,
+        presentation: comparison.presentation,
       })),
     };
   }

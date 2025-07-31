@@ -1254,36 +1254,28 @@ async function processQuestionCompletion(
   }
 }
 /**
- * Generates insight comparisons between a target insight and all insights in a given category
+ * Generates insight comparisons between a target insight and a list of insights using batch ranking
  * @param insight The target insight to compare against
- * @param category The category containing insights to compare with
+ * @param insightsToCompare Array of insights to compare with the target insight
  * @returns Tuple containing array of created InsightComparison objects and token usage statistics
  */
-export async function generateInsightCategoryComparisonByRanking(
+export async function generateInsightBatchComparisonByRanking(
   insight: Insight,
-  category: Category
+  insightsToCompare: Insight[]
 ): Promise<[InsightComparison[], OpenAI.Completions.CompletionUsage] | null> {
-  // Get all insights from the specified category
-  const categoryInsights = await prisma.insight.findMany({
-    where: {
-      categoryId: category.id,
-      source: InsightSource.ANSWER,
-    },
-  });
-
-  if (categoryInsights.length === 0) {
+  if (insightsToCompare.length === 0) {
     return [[], NO_TOKEN_USAGE]
   }
 
-  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine how a specific insight relates to other insights in a category.
+  const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers. We need to determine how a specific insight relates to other insights.
 
-  You are provided a lists of insights from an specific category.  Your job is to compare each one with the single target insight.  For each of the categories insights, you need to determine if that would indicate compatiblity or incompatiblility with the target insight. You will output a list of insights that are compatible and one list of insights that are incompatible.  Only include ones where the relationship is strong, e.g. it would strongly impact the compatibility of the two users. List the most important one first.  Do not include weak or unrelated relationships.
+  You are provided a list of insights to compare against a single target insight. Your job is to compare each one with the single target insight. For each of the insights, you need to determine if that would indicate compatibility or incompatibility with the target insight. You will output a list of insights that are compatible and one list of insights that are incompatible. Only include ones where the relationship is strong, e.g. it would strongly impact the compatibility of the two users. List the most important one first. Do not include weak or unrelated relationships.
 
   Output JSON only. Format:
   {"compatible": ["I love Italian food", "Pizza is my favorite food"], "incompatible": ["I'm a vegetarian"]}
 
-  Category Insights to Compare Against:
-  ${categoryInsights.map((catInsight) => `"${catInsight.insightText}"`).join('\n')}
+  Insights to Compare Against:
+  ${insightsToCompare.map((compareInsight) => `"${compareInsight.insightText}"`).join('\n')}
 
   Target Insight:
   "${insight.insightText}"
@@ -1343,17 +1335,17 @@ export async function generateInsightCategoryComparisonByRanking(
     const strongCompatible = new Set(comparisonData.compatible);
     const strongIncompatible = new Set(comparisonData.incompatible);
 
-    for (const catInsight of categoryInsights) {
+    for (const compareInsight of insightsToCompare) {
       let polarity: PolarityType = null;
-      if (strongCompatible.has(catInsight.insightText)) polarity = "POSITIVE";
-      else if (strongIncompatible.has(catInsight.insightText)) polarity = "NEGATIVE";
+      if (strongCompatible.has(compareInsight.insightText)) polarity = "POSITIVE";
+      else if (strongIncompatible.has(compareInsight.insightText)) polarity = "NEGATIVE";
 
       if (!polarity) {
         const comparison = await prisma.insightComparison.upsert({
           where: {
             insightAId_insightBId: {
-              insightAId: Math.min(insight.id, catInsight.id),
-              insightBId: Math.max(insight.id, catInsight.id),
+              insightAId: Math.min(insight.id, compareInsight.id),
+              insightBId: Math.max(insight.id, compareInsight.id),
             },
           },
           update: {
@@ -1361,8 +1353,8 @@ export async function generateInsightCategoryComparisonByRanking(
             overlap: "WEAK",
           },
           create: {
-            insightA: { connect: { id: Math.min(insight.id, catInsight.id) } },
-            insightB: { connect: { id: Math.max(insight.id, catInsight.id) } },
+            insightA: { connect: { id: Math.min(insight.id, compareInsight.id) } },
+            insightB: { connect: { id: Math.max(insight.id, compareInsight.id) } },
             polarity: "NEUTRAL",
             overlap: "WEAK",
           },
@@ -1377,12 +1369,10 @@ export async function generateInsightCategoryComparisonByRanking(
         continue;
       }
 
-
-
       let overlap: OverlapType = "STRONG";
 
-      const insightAId = Math.min(insight.id, catInsight.id);
-      const insightBId = Math.max(insight.id, catInsight.id);
+      const insightAId = Math.min(insight.id, compareInsight.id);
+      const insightBId = Math.max(insight.id, compareInsight.id);
 
       const comparison = await prisma.insightComparison.upsert({
         where: {
@@ -1415,6 +1405,51 @@ export async function generateInsightCategoryComparisonByRanking(
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
+}
+
+/**
+ * Generates insight comparisons between a target insight and all insights in a given category
+ * @param insight The target insight to compare against
+ * @param category The category containing insights to compare with
+ * @returns Tuple containing array of created InsightComparison objects and token usage statistics
+ */
+export async function generateInsightCategoryComparisonByRanking(
+  insight: Insight,
+  category: Category
+): Promise<[InsightComparison[], OpenAI.Completions.CompletionUsage] | null> {
+  // Get all insights from the specified category
+  const categoryInsights = await prisma.insight.findMany({
+    where: {
+      categoryId: category.id,
+      source: InsightSource.ANSWER,
+    },
+  });
+
+  return await generateInsightBatchComparisonByRanking(insight, categoryInsights);
+}
+
+/**
+ * Generates insight comparisons between a target insight and all answer insights from a specific question
+ * @param insight The target insight to compare against
+ * @param question The question containing answer insights to compare with
+ * @returns Tuple containing array of created InsightComparison objects and token usage statistics
+ */
+export async function generateInsightQuestionComparisonByRanking(
+  insight: Insight,
+  question: Question
+): Promise<[InsightComparison[], OpenAI.Completions.CompletionUsage] | null> {
+  // Get all answer insights from the specified question
+  const questionAnswers = await prisma.answer.findMany({
+    where: {
+      questionId: question.id,
+    },
+    include: {
+      insight: true,
+    },
+  });
+
+  const questionInsights = questionAnswers.map(answer => answer.insight);
+  return await generateInsightBatchComparisonByRanking(insight, questionInsights);
 }
 
 /**
