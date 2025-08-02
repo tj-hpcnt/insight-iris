@@ -59,6 +59,25 @@ export interface FullQuestionContextPayload {
 export class AppService {
   constructor(private prisma: PrismaClient) {}
 
+  /**
+   * Checks if any self-insight comparisons exist in the database
+   * (comparisons between answer insights within the same questions)
+   * @returns true if any self-insight comparisons exist, false otherwise
+   */
+  private async hasSelfInsightComparisons(): Promise<boolean> {
+    const selfComparison = await this.prisma.insightComparison.findFirst({
+      where: {
+        insightA: {
+          source: 'ANSWER'
+        },
+        insightB: {
+          source: 'ANSWER'
+        }
+      }
+    });
+    return selfComparison !== null;
+  }
+
   getHello(): string {
     return 'Welcome to Insight Iris API';
   }
@@ -751,48 +770,54 @@ export class AppService {
         }
       }
 
-      // Phase 5: Generate self-insight comparisons for all questions in category
-      log('Phase 5: Generating self-insight comparisons for all questions in category...');
-      const questionsForComparisons = await this.prisma.question.findMany({
-        where: { categoryId: category.id },
-        include: {
-          answers: {
-            include: {
-              insight: true,
+      // Phase 5: Generate self-insight comparisons for all questions in category (only if others exist)
+      const hasExistingSelfComparisons = await this.hasSelfInsightComparisons();
+      
+      if (hasExistingSelfComparisons) {
+        log('Phase 5: Generating self-insight comparisons for all questions in category...');
+        const questionsForComparisons = await this.prisma.question.findMany({
+          where: { categoryId: category.id },
+          include: {
+            answers: {
+              include: {
+                insight: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      log(`Found ${questionsForComparisons.length} questions with multiple answers for self-comparisons`);
+        log(`Found ${questionsForComparisons.length} questions with multiple answers for self-comparisons`);
 
-      if (questionsForComparisons.length > 0) {
-        const stopProgress6 = createProgressIndicator('Generating self-insight comparisons');
-        
-        let totalStrongComparisons = 0;
-        await processInParallel<typeof questionsForComparisons[0], void>(
-          questionsForComparisons,
-          async (question) => {
-            try {
-              const comparisonResult = await generateSelfInsightComparisons(question.id);
-              if (comparisonResult) {
-                const [comparisonUsage, strongComparisonCount] = comparisonResult;
-                totalUsage.promptTokens += comparisonUsage.prompt_tokens;
-                totalUsage.cachedPromptTokens += comparisonUsage.prompt_tokens_details?.cached_tokens || 0;
-                totalUsage.completionTokens += comparisonUsage.completion_tokens;
-                totalStrongComparisons += strongComparisonCount;
+        if (questionsForComparisons.length > 0) {
+          const stopProgress6 = createProgressIndicator('Generating self-insight comparisons');
+          
+          let totalStrongComparisons = 0;
+          await processInParallel<typeof questionsForComparisons[0], void>(
+            questionsForComparisons,
+            async (question) => {
+              try {
+                const comparisonResult = await generateSelfInsightComparisons(question.id);
+                if (comparisonResult) {
+                  const [comparisonUsage, strongComparisonCount] = comparisonResult;
+                  totalUsage.promptTokens += comparisonUsage.prompt_tokens;
+                  totalUsage.cachedPromptTokens += comparisonUsage.prompt_tokens_details?.cached_tokens || 0;
+                  totalUsage.completionTokens += comparisonUsage.completion_tokens;
+                  totalStrongComparisons += strongComparisonCount;
+                }
+              } catch (err) {
+                console.error(`Error generating self-comparisons for question ${question.id}:`, err);
               }
-            } catch (err) {
-              console.error(`Error generating self-comparisons for question ${question.id}:`, err);
-            }
-          },
-          BATCH_COUNT
-        );
-        
-        stopProgress6();
-        log(`Generated ${totalStrongComparisons} total strong self-insight comparisons across all questions`);
+            },
+            BATCH_COUNT
+          );
+          
+          stopProgress6();
+          log(`Generated ${totalStrongComparisons} total strong self-insight comparisons across all questions`);
+        } else {
+          log('No questions with multiple answers found, skipping self-comparisons');
+        }
       } else {
-        log('No questions with multiple answers found, skipping self-comparisons');
+        log('Phase 5: Skipping self-insight comparisons for all questions (none exist in system)');
       }
 
       // Phase 6: Generate short insight text for answer insights
@@ -1064,21 +1089,27 @@ export class AppService {
         },
       });
 
-      // Phase 5: Generate self-insight comparisons
+      // Phase 5: Generate self-insight comparisons (only if others exist)
       const questionIdForComparisons = finalQuestion?.id || question.id;
-      log('Phase 5: Generating self-insight comparisons...');
-      const stopProgress5 = createProgressIndicator('Generating self-insight comparisons');
-      const comparisonResult = await generateSelfInsightComparisons(questionIdForComparisons, log);
-      stopProgress5();
+      const hasExistingSelfComparisons = await this.hasSelfInsightComparisons();
       
-      if (comparisonResult) {
-        const [comparisonUsage, strongComparisonCount] = comparisonResult;
-        totalUsage.promptTokens += comparisonUsage.prompt_tokens;
-        totalUsage.cachedPromptTokens += comparisonUsage.prompt_tokens_details?.cached_tokens || 0;
-        totalUsage.completionTokens += comparisonUsage.completion_tokens;
-        log(`Generated ${strongComparisonCount} strong self-insight comparisons`);
+      if (hasExistingSelfComparisons) {
+        log('Phase 5: Generating self-insight comparisons...');
+        const stopProgress5 = createProgressIndicator('Generating self-insight comparisons');
+        const comparisonResult = await generateSelfInsightComparisons(questionIdForComparisons, log);
+        stopProgress5();
+        
+        if (comparisonResult) {
+          const [comparisonUsage, strongComparisonCount] = comparisonResult;
+          totalUsage.promptTokens += comparisonUsage.prompt_tokens;
+          totalUsage.cachedPromptTokens += comparisonUsage.prompt_tokens_details?.cached_tokens || 0;
+          totalUsage.completionTokens += comparisonUsage.completion_tokens;
+          log(`Generated ${strongComparisonCount} strong self-insight comparisons`);
+        } else {
+          log('No self-insight comparisons generated');
+        }
       } else {
-        log('No self-insight comparisons generated');
+        log('Phase 5: Skipping self-insight comparisons (none exist in system)');
       }
 
       log(`\nProposal processing completed successfully!`);
@@ -1225,20 +1256,26 @@ export class AppService {
         log('No answer insights need short text generation');
       }
 
-      // Generate self-insight comparisons
-      log('Generating self-insight comparisons...');
-      const comparisonProgressIndicator = createProgressIndicator('Generating self-insight comparisons');
+      // Generate self-insight comparisons (only if others exist)
+      const hasExistingSelfComparisons = await this.hasSelfInsightComparisons();
       
-      const comparisonResult = await generateSelfInsightComparisons(updatedQuestion.id, log);
-      
-      clearInterval(comparisonProgressIndicator);
+      if (hasExistingSelfComparisons) {
+        log('Generating self-insight comparisons...');
+        const comparisonProgressIndicator = createProgressIndicator('Generating self-insight comparisons');
+        
+        const comparisonResult = await generateSelfInsightComparisons(updatedQuestion.id, log);
+        
+        clearInterval(comparisonProgressIndicator);
 
-      if (comparisonResult) {
-        const [comparisonUsage, strongComparisonCount] = comparisonResult;
-        log(`Generated ${strongComparisonCount} strong self-insight comparisons`);
-        log(`Comparison token usage: ${comparisonUsage.prompt_tokens} prompt + ${comparisonUsage.completion_tokens} completion`);
+        if (comparisonResult) {
+          const [comparisonUsage, strongComparisonCount] = comparisonResult;
+          log(`Generated ${strongComparisonCount} strong self-insight comparisons`);
+          log(`Comparison token usage: ${comparisonUsage.prompt_tokens} prompt + ${comparisonUsage.completion_tokens} completion`);
+        } else {
+          log('No self-insight comparisons generated');
+        }
       } else {
-        log('No self-insight comparisons generated');
+        log('Skipping self-insight comparisons (none exist in system)');
       }
 
       log('Question regeneration complete!');
