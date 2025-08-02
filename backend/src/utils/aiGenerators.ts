@@ -114,7 +114,7 @@ ${existingInsightsText}`;
 - Does it help you on a first date?
 - Is it not a criterion for matching but knowing it would help you understand each other ?
 
-Generate ${count} candidate insights for the requested category.  If all useful insights have been generated, set done to true.  Don't generate duplicate or useless insights.  Focus on insights that are specific to the target category and don't overlap with insights that would be better categorized elsewhere. Output JSON only.  Format:
+Generate ${count} candidate insights for the requested category.  If all useful insights have been generated, set done to true.  Don't generate duplicate or useless insights.  Focus on insights that are specific to the target category and don't overlap with insights that would be better categorized elsewhere. Remember that this is for a dating app and users may be uncomfortable with extremely intimate insights, try to stick to things that would be suitable for the Tinder brand but don't avoid topics that are critical for finding a partner. Output JSON only.  Format:
 
 {"insights":["I enjoy Italian food", "I prefer a partner who works out a lot", "I love dogs"], "done":false}
 {"insights":[],"done":true}
@@ -265,7 +265,7 @@ async function buildQuestionGenerationPrompt(
 
   const prompt = `We are building a database of information about users of a dating app by asking them questions and extracting insights from their answers.  We need to generate the fun questions to answer that can explore a potential insight 
 
-You must generate a great question to facilitate finding out if a particular insight is true of a user.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  Do not generate a "None of these" option if the other options aren't completely exhaustive, as it would not be able to have an insight.
+You must generate a great question to facilitate finding out if a particular insight is true of a user.  There will always be a skip option so if no choice is suitable, then you don't need to include a vague alternative, only include decisive alternatives.  Any option presented should produce a usable insight about the person answering the question.  Do not generate a "None of these" option if the other options aren't completely exhaustive, as it would not be able to have an insight.  Remember that this is for a dating app and users may be uncomfortable with extremely questions, try to stick to things that would be suitable for the Tinder brand but don't avoid topics that are critical for finding a partner.
 
 The allowed question types are:
 - BINARY: ${TYPE_DESCRIPTIONS[QuestionType.BINARY]}
