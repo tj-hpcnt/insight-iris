@@ -677,6 +677,8 @@ Output JSON only. Format:
           )
         );
         
+        let affectedQuestions = new Set<number>();
+        affectedQuestions.add(primaryInsight.answers[0].question.id);
 
         for (let i = 1; i < group.length; i++) {
           const redundantInsight = group[i];
@@ -695,6 +697,13 @@ Output JSON only. Format:
             console.warn(`Redundant insight text "${redundantInsight.insightText}" is published. Skipping merge for this item.`);
             continue;
           }
+
+          let thisQuestionId = redundantInsight.answers[0].question.id;
+
+          if (affectedQuestions.has(thisQuestionId)) {
+            console.warn(`Redundant insight text "${redundantInsight.insightText}" is already associated with a question that has been affected by a merge. Skipping merge for this item.`);
+          }
+          affectedQuestions.add(thisQuestionId);
 
           // Relink Answer records
           await tx.answer.updateMany({
