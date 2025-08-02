@@ -1743,6 +1743,132 @@ export async function reduceRedundancyForQuestions(
   category: Category,
   keepIdAndBelow?: number
 ): Promise<[{oldQuestion: Question, newQuestion: Question}[], OpenAI.Completions.CompletionUsage] | null> {
+  const analysisResult = await analyzeQuestionRedundancy(category);
+  
+  if (!analysisResult) {
+    return null;
+  }
+
+  const { equivalentQuestionGroups, questionsMap, usage } = analysisResult;
+
+  // Get inspiration insights for the category (needed for deletion logic)
+  const inspirationInsights = await prisma.insight.findMany({
+    where: {
+      categoryId: category.id,
+      source: InsightSource.INSPIRATION,
+    },
+  });
+
+  const mergedQuestionsInfo: {oldQuestion: Question, newQuestion: Question}[] = [];
+  
+  // Wrap in a transaction
+  await prisma.$transaction(async (tx) => {
+    for (const rawGroup of equivalentQuestionGroups) {
+      if (rawGroup.length < 2) { // If only one question in a group, nothing to delete
+        continue;
+      }
+
+      const allInGroup = rawGroup.map(questionText => questionsMap.get(questionText));
+      const existing = allInGroup.filter(question => question.publishedId)
+      const allGenerated  = allInGroup.filter(question => !question.publishedId)
+      const generatedBefore  = allGenerated.filter(question => keepIdAndBelow === undefined ? false : question.id <= keepIdAndBelow)
+      const generatedAfter  = allGenerated.filter(question => keepIdAndBelow === undefined ? true : question.id > keepIdAndBelow)
+      const group = existing.concat(generatedBefore).concat(generatedAfter)
+
+      const primaryQuestion = group[0];
+
+      if (!primaryQuestion) {
+        console.warn(`Primary question text "${primaryQuestion.questionText}" not found in category ${category.id}. Skipping group.`);
+        continue;
+      }
+
+      // Delete redundant questions (all except the first one)
+      for (let i = 1; i < group.length; i++) {
+        const redundantQuestion = group[i];
+
+        if (!redundantQuestion) {
+          console.warn(`Redundant question text "${redundantQuestion.questionText}" not found in category ${category.id}. Skipping.`);
+          continue;
+        }
+
+        if (redundantQuestion.id === primaryQuestion.id) {
+          console.warn(`Primary and redundant question are the same for text "${primaryQuestion.questionText}". Skipping deletion for this item.`);
+          continue;
+        }
+
+        // If keepBelowId is provided, never delete questions below the threshold
+        if (keepIdAndBelow !== undefined && redundantQuestion.id <= keepIdAndBelow) {
+          console.warn(`Skipping deletion of question ID ${redundantQuestion.id} (below keepBelowId threshold ${keepIdAndBelow})`);
+          continue;
+        }
+
+        if (redundantQuestion.publishedId) {
+          console.warn(`Redundant question text "${redundantQuestion.questionText}" is published. Skipping deletion for this item.`);
+          continue;
+        }
+
+        // Get the inspiration insight for this question
+        const inspirationInsight = inspirationInsights.find(insight => insight.id === redundantQuestion.inspirationId);
+
+        // Fetch the question with answers for the cascade delete function
+        const questionWithAnswers = await tx.question.findUnique({
+          where: { id: redundantQuestion.id },
+          include: {
+            answers: {
+              include: {
+                insight: true,
+              }
+            }
+          }
+        });
+
+        if (!questionWithAnswers) {
+          console.warn(`Question ID ${redundantQuestion.id} not found for deletion. Skipping.`);
+          continue;
+        }
+
+        // Delete the question and all its cascading relationships
+        await deleteQuestionWithCascade(tx, questionWithAnswers);
+
+        // Delete the inspiration insight that generated this question
+        if (inspirationInsight) {
+          await tx.insight.delete({
+            where: { id: inspirationInsight.id },
+          });
+        }
+
+        mergedQuestionsInfo.push({oldQuestion: redundantQuestion, newQuestion: primaryQuestion});
+      }
+    }
+  },
+  {
+    maxWait: 10000, // default 2000
+    timeout: 20000, // default 5000
+  });
+
+  return [mergedQuestionsInfo, usage];
+}
+
+/**
+ * Reduces redundancy in INSPIRATION insights by identifying and merging insights with identical text.
+ * It identifies groups of insights with identical insightText, keeps one as primary,
+ * handles cascading deletion of questions, answers, and orphaned answer insights,
+ * and then deletes the redundant insights. This version does not use AI and operates globally.
+ * @returns Array of objects detailing each merge, with oldInsight and newInsight.
+ */
+/**
+ * Analyzes questions in a category using AI to identify equivalent question groups.
+ * This is a shared function used by both reduce and compute redundancy functions.
+ * @param category The category to analyze question redundancy in
+ * @returns Object containing equivalent question groups, questions map, and token usage, or null on error
+ */
+async function analyzeQuestionRedundancy(
+  category: Category
+): Promise<{
+  equivalentQuestionGroups: string[][];
+  questionsMap: Map<string, Question>;
+  usage: OpenAI.Completions.CompletionUsage;
+} | null> {
   // Get all questions for this category via their inspiration insights
   const inspirationInsights = await prisma.insight.findMany({
     where: {
@@ -1766,7 +1892,11 @@ export async function reduceRedundancyForQuestions(
   });
 
   if (inspirationInsights.length <= 1) {
-    return [[], NO_TOKEN_USAGE];
+    return {
+      equivalentQuestionGroups: [],
+      questionsMap: new Map(),
+      usage: NO_TOKEN_USAGE
+    };
   }
 
   const questions = inspirationInsights.map(insight => insight.question);
@@ -1861,82 +1991,80 @@ Output JSON only. Format:
     }
 
     const questionsMap = new Map(questions.map(q => [q.questionText, q]));
-    const mergedQuestionsInfo: {oldQuestion: Question, newQuestion: Question}[] = [];
-    // Wrap in a transaction
-    await prisma.$transaction(async (tx) => {
-      for (const rawGroup of redundancyData.equivalentQuestionGroups) {
-        if (rawGroup.length < 2) { // If only one question in a group, nothing to delete
-          continue;
-        }
-
-        const allInGroup = rawGroup.map(questionText => questionsMap.get(questionText));
-        const existing = allInGroup.filter(question => question.publishedId)
-        const allGenerated  = allInGroup.filter(question => !question.publishedId)
-        const generatedBefore  = allGenerated.filter(question => keepIdAndBelow === undefined ? false : question.id <= keepIdAndBelow)
-        const generatedAfter  = allGenerated.filter(question => keepIdAndBelow === undefined ? true : question.id > keepIdAndBelow)
-        const group = existing.concat(generatedBefore).concat(generatedAfter)
-
-        const primaryQuestion = group[0];
-
-        if (!primaryQuestion) {
-          console.warn(`Primary question text "${primaryQuestion.questionText}" not found in category ${category.id}. Skipping group.`);
-          continue;
-        }
-
-        // Delete redundant questions (all except the first one)
-        for (let i = 1; i < group.length; i++) {
-          const redundantQuestion = group[i];
-
-          if (!redundantQuestion) {
-            console.warn(`Redundant question text "${redundantQuestion.questionText}" not found in category ${category.id}. Skipping.`);
-            continue;
-          }
-
-          if (redundantQuestion.id === primaryQuestion.id) {
-            console.warn(`Primary and redundant question are the same for text "${primaryQuestion.questionText}". Skipping deletion for this item.`);
-            continue;
-          }
-
-          // If keepBelowId is provided, never delete questions below the threshold
-          if (keepIdAndBelow !== undefined && redundantQuestion.id <= keepIdAndBelow) {
-            console.warn(`Skipping deletion of question ID ${redundantQuestion.id} (below keepBelowId threshold ${keepIdAndBelow})`);
-            continue;
-          }
-
-          if (redundantQuestion.publishedId) {
-            console.warn(`Redundant question text "${redundantQuestion.questionText}" is published. Skipping deletion for this item.`);
-            continue;
-          }
-
-          // Get the inspiration insight for this question
-          const inspirationInsight = inspirationInsights.find(insight => insight.id === redundantQuestion.inspirationId);
-
-          // Delete the question and all its cascading relationships
-          await deleteQuestionWithCascade(tx, redundantQuestion);
-
-          // Delete the inspiration insight that generated this question
-          if (inspirationInsight) {
-            await tx.insight.delete({
-              where: { id: inspirationInsight.id },
-            });
-          }
-
-          mergedQuestionsInfo.push({oldQuestion: redundantQuestion, newQuestion: primaryQuestion});
-        }
-      }
-    },
-    {
-      maxWait: 10000, // default 2000
-      timeout: 20000, // default 5000
-    });
-
-    return [mergedQuestionsInfo, completion.usage];
+    
+    return {
+      equivalentQuestionGroups: redundancyData.equivalentQuestionGroups,
+      questionsMap,
+      usage: completion.usage
+    };
 
   } catch (error) {
-    console.error(`Error reducing redundancy for questions in category ${category.insightSubject}:`, error);
+    console.error(`Error analyzing question redundancy for category ${category.insightSubject}:`, error);
     console.error('Raw response:', completion.choices[0].message);
     return null;
   }
+}
+
+/**
+ * Computes question redundancy groups for a given category and populates the QuestionRedundancy table.
+ * This function analyzes questions using AI to identify equivalent groups but does not delete any questions.
+ * Instead, it stores the redundancy relationships in the QuestionRedundancy table.
+ * @param category The category to analyze question redundancy in
+ * @returns Token usage statistics from the AI analysis
+ */
+export async function computeQuestionRedundancyGroups(
+  category: Category
+): Promise<OpenAI.Completions.CompletionUsage | null> {
+  const analysisResult = await analyzeQuestionRedundancy(category);
+  
+  if (!analysisResult) {
+    return null;
+  }
+
+  const { equivalentQuestionGroups, questionsMap, usage } = analysisResult;
+  
+  // Wrap in a transaction
+  await prisma.$transaction(async (tx) => {
+    // Delete all existing redundancy entries for this category
+    await tx.questionRedundancy.deleteMany({
+      where: {
+        categoryId: category.id
+      }
+    });
+
+    // Insert new redundancy groups
+    for (let groupIndex = 0; groupIndex < equivalentQuestionGroups.length; groupIndex++) {
+      const group = equivalentQuestionGroups[groupIndex];
+      
+      if (group.length < 2) { // Skip groups with only one question
+        continue;
+      }
+
+      // Create redundancy entries for all questions in this group
+      for (const questionText of group) {
+        const question = questionsMap.get(questionText);
+        
+        if (!question) {
+          console.warn(`Question text "${questionText}" not found in category ${category.id}. Skipping.`);
+          continue;
+        }
+
+        await tx.questionRedundancy.create({
+          data: {
+            categoryId: category.id,
+            redundancyGroupNumber: groupIndex,
+            questionId: question.id
+          }
+        });
+      }
+    }
+  },
+  {
+    maxWait: 10000, // default 2000
+    timeout: 20000, // default 5000
+  });
+
+  return usage;
 }
 
 /**

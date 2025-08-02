@@ -9,7 +9,7 @@ import {
   reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
   reduceExactRedundancyForQuestions, reduceExactRedundancyForAnswers,
   predictQuestionCandidateCategory, generateQuestionFromProposal, generateSelfInsightComparisons,
-  generateShortInsightText
+  generateShortInsightText, computeQuestionRedundancyGroups
 } from './utils/aiGenerators';
 import { deleteQuestion, deleteAnswer, getAnswerCount, deleteCategory } from './utils/delete';
 import { processInParallel } from './utils/parallelProcessor';
@@ -770,6 +770,20 @@ export class AppService {
         }
       }
 
+      // Phase 4.5: Update question redundancy table after reductions
+      log('Phase 4.5: Computing question redundancy groups for category...');
+      const stopProgress4_5 = createProgressIndicator('Computing question redundancy groups');
+      const redundancyUsage = await computeQuestionRedundancyGroups(category);
+      stopProgress4_5();
+      if (redundancyUsage) {
+        totalUsage.promptTokens += redundancyUsage.prompt_tokens;
+        totalUsage.cachedPromptTokens += redundancyUsage.prompt_tokens_details?.cached_tokens || 0;
+        totalUsage.completionTokens += redundancyUsage.completion_tokens;
+        log(`Updated question redundancy groups for category: ${category.insightSubject}`);
+      } else {
+        log(`No redundancy groups computed for category: ${category.insightSubject} (insufficient questions or error)`);
+      }
+
       // Phase 5: Generate self-insight comparisons for all questions in category (only if others exist)
       const hasExistingSelfComparisons = await this.hasSelfInsightComparisons();
       
@@ -995,24 +1009,24 @@ export class AppService {
       log(`Generated answers: ${answers.map(a => a.answerText).join(' | ')}`);
       log(`Generated insights: ${insights.map(i => i.insightText).join(' | ')}`);
 
-      // Phase 3: Reduce redundancy for questions in the category
-      log('Phase 3: Reducing redundancy for questions...');
+      // Phase 3: Reduce exact redundancy and compute redundancy table
+      log('Phase 3: Reducing exact redundancy for questions...');
       const exactQuestionDupes = await reduceExactRedundancyForQuestions();
       for (const merged of exactQuestionDupes) {
         log(`Merged exact duplicate question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
       }
 
-      const stopProgress3 = createProgressIndicator('Reducing redundancy for questions');
-      const questionReductionResult = await reduceRedundancyForQuestions(category);
+      log('Computing question redundancy groups for category...');
+      const stopProgress3 = createProgressIndicator('Computing question redundancy groups');
+      const redundancyUsage = await computeQuestionRedundancyGroups(category);
       stopProgress3();
-      if (questionReductionResult) {
-        const [mergedQuestions, usage] = questionReductionResult;
-        totalUsage.promptTokens += usage.prompt_tokens;
-        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-        totalUsage.completionTokens += usage.completion_tokens;
-        for (const merged of mergedQuestions) {
-          log(`Merged similar question: "${merged.oldQuestion.questionText}" -> "${merged.newQuestion.questionText}"`);
-        }
+      if (redundancyUsage) {
+        totalUsage.promptTokens += redundancyUsage.prompt_tokens;
+        totalUsage.cachedPromptTokens += redundancyUsage.prompt_tokens_details?.cached_tokens || 0;
+        totalUsage.completionTokens += redundancyUsage.completion_tokens;
+        log(`Computed question redundancy groups for category: ${category.insightSubject}`);
+      } else {
+        log(`No redundancy groups computed for category: ${category.insightSubject} (insufficient questions or error)`);
       }
 
       // Phase 4: Reduce redundancy for answer insights in the category

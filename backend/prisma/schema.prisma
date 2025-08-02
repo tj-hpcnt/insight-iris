@@ -43,6 +43,7 @@ model Category {
   expandedHints    String?
   insights         Insight[] @relation("CurrentCategory")
   questions        Question[]
+  questionRedundancies QuestionRedundancy[]
   categoryOverlapA CategoryOverlap[] @relation("CategoryA")
   categoryOverlapB CategoryOverlap[] @relation("CategoryB")
 }
@@ -87,6 +88,7 @@ model Question {
   conversationStarter Boolean @default(false) // Whether the question is marked as a good conversation starter
   answers         Answer[]
   comments        Comment[]
+  questionRedundancies QuestionRedundancy[]
   inspiration     Insight      @relation("QuestionInspiration", fields: [inspirationId], references: [id])
   category        Category     @relation(fields: [categoryId], references: [id])
 
@@ -163,4 +165,17 @@ model Comment {
   @@index([questionId])
   @@index([createdAt])
   @@index([username])
+}
+
+model QuestionRedundancy {
+  id                    Int      @id @default(autoincrement())
+  categoryId            Int
+  redundancyGroupNumber Int
+  questionId            Int
+  category              Category @relation(fields: [categoryId], references: [id])
+  question              Question @relation(fields: [questionId], references: [id])
+
+  @@unique([categoryId, redundancyGroupNumber, questionId])
+  @@index([categoryId])
+  @@index([questionId])
 }

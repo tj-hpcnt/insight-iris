@@ -7,7 +7,7 @@ import {
   reduceExactRedundancyForQuestions, reduceExactRedundancyForInspirations, reduceExactRedundancyForAnswers, 
   reduceRedundancyForQuestions, reduceRedundancyForInspirations, reduceRedundancyForAnswers,
   predictQuestionCandidateCategory, generateQuestionFromProposal, regenerateImportedQuestion,
-  generateShortInsightText, generateSelfInsightComparisons,
+  generateShortInsightText, generateSelfInsightComparisons, computeQuestionRedundancyGroups,
   } from '../src/utils/aiGenerators';
 import { EXTRA_CATEGORIES, parseCategoriesFromCSV } from './categories';
 import { FIXED_STYLES } from './styles';
@@ -606,6 +606,27 @@ async function main() {
     if (IMPORT_AFTER_GENERATE) {
       await handleQuestionImport(categories, totalUsage);
     }
+
+    console.log('Computing question redundancy groups for all categories...');
+    await processInParallel<Category, void>(
+      categories,
+      async (category) => {
+        try {
+          const usage = await computeQuestionRedundancyGroups(category);
+          if (usage) {
+            totalUsage.promptTokens += usage.prompt_tokens;
+            totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
+            totalUsage.completionTokens += usage.completion_tokens;
+            console.log(`Computed question redundancy groups for category: ${category.insightSubject}`);
+          } else {
+            console.log(`No redundancy groups computed for category: ${category.insightSubject} (insufficient questions)`);
+          }
+        } catch (err) {
+          console.error(`Error computing question redundancy groups for category ${category.insightSubject}:`, err);
+        }
+      },
+      BATCH_COUNT
+    );
 
     console.log('Reducing redundancy for ANSWER insights exact matches...');
     const answerInsightExactDupes = await reduceExactRedundancyForAnswers();

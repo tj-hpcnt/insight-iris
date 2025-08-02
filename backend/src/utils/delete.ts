@@ -77,6 +77,11 @@ export async function deleteQuestionWithCascade(
     });
   }
 
+  // Delete question redundancy entries that reference this question
+  await tx.questionRedundancy.deleteMany({
+    where: { questionId: question.id },
+  });
+
   // Delete the question itself
   await tx.question.delete({
     where: { id: question.id },
