@@ -1,5 +1,5 @@
 import { PrismaClient, Insight, Question, Answer } from '@prisma/client';
-import { generateQuestionExportData } from './export.js';
+import { generateQuestionExportData } from './export';
 
 const prisma = new PrismaClient();
 
