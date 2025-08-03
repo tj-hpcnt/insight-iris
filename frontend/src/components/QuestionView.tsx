@@ -1038,13 +1038,15 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           {questionData.inspiration && (
             <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f0f0f0', textAlign: 'left' }}>
               <h5 style={{ marginTop: 0, marginBottom: '5px' }}>Original Inspiration:</h5>
-              <div style={{ marginBottom: '5px' }}>
-                <CategoryChip 
-                  insightSubject={questionData.inspiration.category?.insightSubject || 'Unknown'}
-                  categoryId={questionData.inspiration.category?.id}
-                  onClick={onCategoryClick}
-                />
-              </div>
+              {questionData.inspiration.category?.id !== questionData.category.id && (
+                <div style={{ marginBottom: '5px' }}>
+                  <CategoryChip 
+                    insightSubject={questionData.inspiration.category?.insightSubject || 'Unknown'}
+                    categoryId={questionData.inspiration.category?.id}
+                    onClick={onCategoryClick}
+                  />
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '10px' }}>
                 <p style={{ margin: 0, flex: 1, textAlign: 'left' }}>{questionData.inspiration.insightText}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
@@ -1080,13 +1082,15 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                   >
                     {answer.linkedAnswerInsight ? (
                       <div style={{ position: 'relative' }}>
-                        <div style={{ marginBottom: '5px' }}>
-                          <CategoryChip 
-                            insightSubject={answer.linkedAnswerInsight.category?.insightSubject || 'Unknown'}
-                            categoryId={answer.linkedAnswerInsight.category?.id}
-                            onClick={onCategoryClick}
-                          />
-                        </div>
+                        {answer.linkedAnswerInsight.category?.id !== questionData.category.id && (
+                          <div style={{ marginBottom: '5px' }}>
+                            <CategoryChip 
+                              insightSubject={answer.linkedAnswerInsight.category?.insightSubject || 'Unknown'}
+                              categoryId={answer.linkedAnswerInsight.category?.id}
+                              onClick={onCategoryClick}
+                            />
+                          </div>
+                        )}
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '10px' }}>
                           <p style={{ fontStyle: 'italic', color: '#555', margin: 0, display: 'flex', alignItems: 'center', flex: 1, textAlign: 'left' }}>
                             <AnswerCountChip 
@@ -1193,11 +1197,13 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                              <CategoryChip 
-                                insightSubject={question.category.insightSubject}
-                                categoryId={question.category.id}
-                                onClick={onCategoryClick}
-                              />
+                              {question.category.id !== questionData.category.id && (
+                                <CategoryChip 
+                                  insightSubject={question.category.insightSubject}
+                                  categoryId={question.category.id}
+                                  onClick={onCategoryClick}
+                                />
+                              )}
                               <QuestionIdChip 
                                 persistentId={question.persistentId}
                                 publishedId={question.publishedId}
