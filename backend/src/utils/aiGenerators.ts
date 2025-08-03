@@ -3039,12 +3039,12 @@ Guidelines:
 - Avoid filler words; tap emojis for extra meaning.
 
 Examples:
-"I love hiking and outdoor adventures" → "🥾 Outdoor adventures"
-"I prefer a partner who is financially stable" → "💰 Financial stability"
-"I enjoy cooking Italian food" → "🍝 Italian cooking"
-"I want someone who shares my faith" → "🙏 Shared faith values"
-"I don't like crowded places" → "🤫 Peace & quiet"
-"I value deep meaningful conversations" → "💭 Deep conversations"
+"I love hiking and outdoor adventures" → "🥾 Outdoor adventurer"
+"I prefer a partner who is financially stable" → "💰 Financially stable"
+"I enjoy cooking Italian food" → "🍝 Italian cook"
+"I want someone who shares my faith" → "🙏 Shares faith values"
+"I don't like crowded places" → "🤫 Avoids crowds"
+"I value deep meaningful conversations" → "💭 Deeply converses"
 "I prefer direct problem-solving" → "🔧 Direct problem solver"
 
 Output JSON only. Format:
