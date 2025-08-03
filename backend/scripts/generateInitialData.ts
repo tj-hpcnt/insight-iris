@@ -69,7 +69,8 @@ async function handleQuestionImport(
       }
 
       // Extract answers from the row
-      const answers = extractAnswersFromRow(questionRow);
+      const answers = extractAnswersFromRow(questionRow).
+        filter(x => x != 'None of the above' && x != 'Prefer not to say');
 
       // Determine if the question is an image-based question
       const isImageQuestion = questionRow.question_type.endsWith('_IMAGE');
