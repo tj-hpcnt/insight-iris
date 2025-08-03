@@ -1555,4 +1555,84 @@ export class AppService {
       throw new BadRequestException(error.message);
     }
   }
+
+  async getOverlappingQuestions(questionId: number) {
+    // First, get the current question to get its categoryId
+    const currentQuestion = await this.prisma.question.findUnique({
+      where: { id: questionId },
+      select: { id: true, categoryId: true }
+    });
+
+    if (!currentQuestion) {
+      throw new NotFoundException(`Question with ID ${questionId} not found`);
+    }
+
+    // Find all redundancy groups that contain this question
+    const redundancyEntries = await this.prisma.questionRedundancy.findMany({
+      where: {
+        questionId: questionId,
+        categoryId: currentQuestion.categoryId
+      },
+      select: {
+        redundancyGroupNumber: true
+      }
+    });
+
+    if (redundancyEntries.length === 0) {
+      return []; // No overlapping questions found
+    }
+
+    // Get all redundancy group numbers for this question
+    const groupNumbers = redundancyEntries.map(entry => entry.redundancyGroupNumber);
+
+    // Find all other questions in the same redundancy groups
+    const allRedundantQuestionIds = await this.prisma.questionRedundancy.findMany({
+      where: {
+        categoryId: currentQuestion.categoryId,
+        redundancyGroupNumber: { in: groupNumbers },
+        questionId: { not: questionId } // Exclude the current question
+      },
+      select: {
+        questionId: true
+      }
+    });
+
+    const questionIds = allRedundantQuestionIds.map(entry => entry.questionId);
+
+    if (questionIds.length === 0) {
+      return []; // No overlapping questions found
+    }
+
+    const overlappingQuestions = await this.prisma.question.findMany({
+      where: {
+        id: { in: questionIds }
+      },
+      select: {
+        id: true,
+        questionText: true,
+        persistentId: true,
+        publishedId: true,
+        proposedQuestion: true,
+        isImageQuestion: true,
+        answers: {
+          orderBy: { id: 'asc' },
+          select: {
+            id: true,
+            answerText: true
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            category: true,
+            subcategory: true,
+            insightSubject: true
+          }
+        }
+      },
+      orderBy: { id: 'asc' }
+    });
+
+    return overlappingQuestions;
+  }
 } 

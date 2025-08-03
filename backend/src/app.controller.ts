@@ -75,6 +75,12 @@ export class AppController {
     return this.appService.getQuestionById(questionId);
   }
 
+  @Get('questions/:questionId/overlapping')
+  @UseGuards(AuthGuard)
+  async getOverlappingQuestions(@Param('questionId', ParseIntPipe) questionId: number) {
+    return this.appService.getOverlappingQuestions(questionId);
+  }
+
   @Post('search')
   @UseGuards(AuthGuard)
   async searchQuestionsAnswersInsights(@Body() body: { query: string }) {

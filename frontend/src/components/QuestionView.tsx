@@ -114,8 +114,14 @@ interface QuestionViewProps {
 interface RelatedQuestion {
   id: number;
   questionText: string;
+  persistentId: string;
   publishedId: string | null;
   proposedQuestion: string | null;
+  isImageQuestion: boolean;
+  answers?: {
+    id: number;
+    answerText: string;
+  }[];
   category: CategoryInfo;
 }
 
@@ -159,6 +165,10 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   // Add state for insight question counts and mappings
   const [insightAnswerCounts, setInsightAnswerCounts] = useState<Map<number, number>>(new Map());
   const [insightToQuestionsMap, setInsightToQuestionsMap] = useState<Map<number, RelatedQuestion[]>>(new Map());
+  
+  // Add state for overlapping questions
+  const [overlappingQuestions, setOverlappingQuestions] = useState<RelatedQuestion[]>([]);
+  const [loadingOverlappingQuestions, setLoadingOverlappingQuestions] = useState<boolean>(false);
 
   // Add helper function for relative time formatting
   const formatRelativeTime = (dateString: string): string => {
@@ -287,8 +297,10 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                 questionsList.push({
                   id: question.id,
                   questionText: question.questionText,
+                  persistentId: question.persistentId,
                   publishedId: question.publishedId,
                   proposedQuestion: question.proposedQuestion,
+                  isImageQuestion: question.isImageQuestion || false,
                   category: question.category
                 });
               }
@@ -314,6 +326,33 @@ const QuestionView: React.FC<QuestionViewProps> = ({
 
     fetchInsightCounts();
   }, [questionData]);
+
+  // Add effect to fetch overlapping questions
+  useEffect(() => {
+    if (!questionId) return;
+
+    const fetchOverlappingQuestions = async () => {
+      try {
+        setLoadingOverlappingQuestions(true);
+        const response = await fetch(`/api/questions/${questionId}/overlapping`);
+        if (response.ok) {
+          const overlappingData = await response.json();
+          setOverlappingQuestions(overlappingData);
+        } else {
+          // Silently fail - overlapping questions are not critical
+          setOverlappingQuestions([]);
+        }
+      } catch (e) {
+        // Silently fail - overlapping questions are not critical
+        console.warn('Failed to fetch overlapping questions:', e);
+        setOverlappingQuestions([]);
+      } finally {
+        setLoadingOverlappingQuestions(false);
+      }
+    };
+
+    fetchOverlappingQuestions();
+  }, [questionId]);
 
   useEffect(() => {
     if (hoveredAnswerOptionId !== null) {
@@ -516,6 +555,29 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       alert('Failed to delete comment: ' + (error as Error).message);
     } finally {
       setDeletingCommentId(null);
+    }
+  };
+
+  // Add delete overlapping question function
+  const handleDeleteOverlappingQuestion = async (questionId: number) => {
+    const confirmed = window.confirm('Are you sure you want to delete this overlapping question? This cannot be undone.');
+    if (!confirmed) return;
+    
+    try {
+      const response = await fetch(`/api/questions/${questionId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      // Remove the deleted question from the overlapping questions list
+      setOverlappingQuestions(prev => prev.filter(q => q.id !== questionId));
+    } catch (error) {
+      console.error('Failed to delete overlapping question:', error);
+      alert('Failed to delete question: ' + (error as Error).message);
     }
   };
 
@@ -1052,6 +1114,136 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           ) : (
             <p>No related answer insights found for this question's options.</p>
           )}
+          
+          {/* Overlapping Questions Section */}
+          {overlappingQuestions.length > 0 && (
+            <div style={{ marginTop: '30px' }}>
+              <h4 style={{ margin: 0, marginBottom: '15px' }}>Overlapping Questions ({overlappingQuestions.length})</h4>
+              {loadingOverlappingQuestions ? (
+                <p style={{ color: '#666', fontStyle: 'italic' }}>Loading overlapping questions...</p>
+              ) : (
+                <div>
+                  {overlappingQuestions.map((question) => (
+                    <div key={question.id} style={{ 
+                      marginBottom: '15px',
+                      border: '1px solid #ddd', 
+                      borderRadius: '8px', 
+                      overflow: 'hidden',
+                      transition: 'box-shadow 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                    >
+                      {/* Question header */}
+                      <div style={{ 
+                        backgroundColor: '#f8f9fa', 
+                        padding: '15px', 
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '15px',
+                        borderBottom: '1px solid #eee'
+                      }}>
+                        {/* Question type icon */}
+                        <div style={{ 
+                          flexShrink: 0,
+                          fontSize: '16px',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          paddingTop: '2px'
+                        }}>
+                          {question.isImageQuestion ? '🖼️' : '💬'}
+                        </div>
+                        
+                        {/* Main content area - clickable */}
+                        <div 
+                          style={{ 
+                            flex: 1,
+                            cursor: 'pointer',
+                            minWidth: 0 // Allow text to wrap
+                          }}
+                          onClick={() => handleQuestionNavigation(question.id, question.category.id)}
+                        >
+                          <div style={{ 
+                            fontSize: '14px', 
+                            lineHeight: '1.4', 
+                            color: '#333', 
+                            fontWeight: 'normal', 
+                            textAlign: 'left',
+                            wordWrap: 'break-word'
+                          }}>
+                            <span style={{ fontWeight: 'bold' }}>{question.questionText}</span>
+                            {question.answers && question.answers.map((answer: any, index: number) => (
+                              <span key={answer.id || index}>
+                                {' '}<span style={{ fontWeight: 'bold' }}>({index + 1})</span> {answer.answerText}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Right side chips and delete button */}
+                        <div 
+                          style={{ 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            alignItems: 'flex-end', 
+                            gap: '8px',
+                            flexShrink: 0 // Prevent shrinking
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                              <CategoryChip 
+                                insightSubject={question.category.insightSubject}
+                                categoryId={question.category.id}
+                                onClick={onCategoryClick}
+                              />
+                              <QuestionIdChip 
+                                persistentId={question.persistentId}
+                                publishedId={question.publishedId}
+                                isProposed={!!question.proposedQuestion}
+                              />
+                            </div>
+                            <button
+                              onClick={() => handleDeleteOverlappingQuestion(question.id)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#dc3545',
+                                fontSize: '14px',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                borderRadius: '3px',
+                                opacity: 0.7,
+                                transition: 'opacity 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                minWidth: '20px',
+                                height: '20px'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.opacity = '1';
+                                e.currentTarget.style.backgroundColor = '#f8d7da';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.opacity = '0.7';
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                              }}
+                              title="Delete overlapping question"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
           {/* Compatibility Section */}
           {questionData.compatibilityComparisons && questionData.compatibilityComparisons.length > 0 && (
             <div style={{ marginTop: '30px' }}>
