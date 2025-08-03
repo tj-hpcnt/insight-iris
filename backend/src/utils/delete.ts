@@ -1,6 +1,44 @@
 import { PrismaClient, Insight, Question, Answer } from '@prisma/client';
+import { generateQuestionExportData } from './export.js';
 
 const prisma = new PrismaClient();
+
+/**
+ * Helper function to preserve published question data before deletion
+ * @param tx The Prisma transaction context
+ * @param questionId The ID of the question to preserve
+ * @returns void
+ */
+async function preservePublishedQuestionData(tx: any, questionId: number): Promise<void> {
+  // Get the full question data for export
+  const questionForExport = await tx.question.findUnique({
+    where: { id: questionId },
+    include: {
+      category: true,
+      answers: {
+        include: {
+          insight: true
+        },
+        orderBy: {
+          id: 'asc'
+        }
+      }
+    }
+  });
+
+  if (questionForExport && questionForExport.publishedId) {
+    // Generate export data
+    const exportData = generateQuestionExportData(questionForExport, true);
+    
+    // Store in DeletedPublishedQuestion table
+    await tx.deletedPublishedQuestion.create({
+      data: {
+        publishedId: questionForExport.publishedId,
+        exportData: JSON.stringify(exportData)
+      }
+    });
+  }
+}
 
 /**
  * Helper function to delete a question and all its cascading relationships within a transaction
@@ -95,6 +133,9 @@ export async function deleteQuestionWithCascade(
  */
 export async function deleteQuestion(questionId: number): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    // First, preserve published question data if it exists
+    await preservePublishedQuestionData(tx, questionId);
+
     // Get the question with its answers and insights
     const question = await tx.question.findUnique({
       where: { id: questionId },
@@ -267,6 +308,9 @@ export async function deleteCategory(categoryId: number): Promise<void> {
 
     // Delete all questions in this category (this will cascade to delete answers and orphaned insights)
     for (const question of category.questions) {
+      // First preserve published question data if it exists
+      await preservePublishedQuestionData(tx, question.id);
+      // Then delete the question
       await deleteQuestionWithCascade(tx, question);
     }
 

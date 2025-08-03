@@ -27,6 +27,7 @@ interface ExportCompatibilityInsight {
 
 interface ExportQuestion {
   persistentId: string;
+  deleted: boolean;
   publishedId: string | null;
   category: string;
   subcategory: string;
@@ -75,40 +76,85 @@ export async function generateExportData(prisma: PrismaClient): Promise<ExportDa
     ]
   });
 
-  const exportQuestions: ExportQuestion[] = questions.map(question => {
-    // Collect all insight IDs related to this question
-    const questionInsightIds = [
-      question.inspirationId,
-      ...question.answers.map(answer => answer.insightId).filter(id => id !== null)
-    ];
+  const exportQuestions: ExportQuestion[] = questions.map(question => 
+    generateQuestionExportData(question, false)
+  );
 
+  // Get deleted questions
+  const deletedQuestions = await prisma.deletedPublishedQuestion.findMany({
+    orderBy: {
+      id: 'asc'
+    }
+  });
+
+  // Parse deleted questions from JSON and mark as deleted
+  const deletedExportQuestions: ExportQuestion[] = deletedQuestions.map(deleted => {
+    const parsedData = JSON.parse(deleted.exportData) as ExportQuestion;
     return {
-      persistentId: question.persistentId,
-      publishedId: question.publishedId,
-      category: question.category.category,
-      subcategory: question.category.subcategory,
-      insightSubject: question.category.insightSubject,
-      questionText: question.questionText,
-      questionType: question.questionType,
-      isImageQuestion: question.isImageQuestion,
-      approved: question.approved,
-      conversationStarter: question.conversationStarter,
-      answers: question.answers.map(answer => ({
-        answerText: answer.answerText,
-        originalAnswerText: answer.originalAnswer,
-        answerInsight: answer.insight ? {
-          insightText: answer.insight.insightText,
-          shortInsightText: answer.insight.shortInsightText,
-          publishedTag: answer.insight.publishedTag
-        } : null
-      })),
-      proposedQuestion: question.proposedQuestion,
+      ...parsedData,
+      deleted: true
     };
   });
 
+  // Concatenate active and deleted questions
+  const allQuestions = [...exportQuestions, ...deletedExportQuestions];
+
   return {
     exportedAt: new Date().toISOString(),
-    questions: exportQuestions
+    questions: allQuestions
+  };
+}
+
+/**
+ * Generates export data for a single question
+ * @param question - Question with all related data included
+ * @returns ExportQuestion object
+ */
+export function generateQuestionExportData(question: {
+  persistentId: string;
+  publishedId: string | null;
+  questionText: string;
+  questionType: string;
+  isImageQuestion: boolean;
+  approved: boolean;
+  conversationStarter: boolean;
+  proposedQuestion: string | null;
+  category: {
+    category: string;
+    subcategory: string;
+    insightSubject: string;
+  };
+  answers: Array<{
+    answerText: string;
+    originalAnswer: string | null;
+    insight: {
+      insightText: string;
+      shortInsightText: string | null;
+      publishedTag: string | null;
+    } | null;
+  }>;
+}, deleted: boolean = false): ExportQuestion {
+  return {
+    persistentId: question.persistentId,
+    deleted,
+    publishedId: question.publishedId,
+    category: question.category.category,
+    subcategory: question.category.subcategory,
+    insightSubject: question.category.insightSubject,
+    questionText: question.questionText,
+    questionType: question.questionType,
+    isImageQuestion: question.isImageQuestion,
+    approved: question.approved,
+    conversationStarter: question.conversationStarter,
+    answers: question.answers.map(answer => ({
+      answerText: answer.answerText,
+      answerInsight: answer.insight ? {
+        insightText: answer.insight.insightText,
+        shortInsightText: answer.insight.shortInsightText,
+        publishedTag: answer.insight.publishedTag
+      } : null
+    })),
+    proposedQuestion: question.proposedQuestion,
   };
 }
 

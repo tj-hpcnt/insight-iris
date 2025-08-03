@@ -179,3 +179,11 @@ model QuestionRedundancy {
   @@index([categoryId])
   @@index([questionId])
 }
+
+model DeletedPublishedQuestion {
+  id             Int      @id @default(autoincrement())
+  publishedId    String   // The publishedId that was deleted
+  exportData     String   // JSON string of the ExportQuestion data
+
+  @@index([publishedId])
+}
