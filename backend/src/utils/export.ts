@@ -37,6 +37,7 @@ interface ExportQuestion {
   isImageQuestion: boolean;
   approved: boolean;
   conversationStarter: boolean;
+  firstDays: boolean;
   answers: {
     answerText: string;
     answerInsight: {
@@ -118,6 +119,7 @@ export function generateQuestionExportData(question: {
   isImageQuestion: boolean;
   approved: boolean;
   conversationStarter: boolean;
+  firstDays: boolean;
   proposedQuestion: string | null;
   category: {
     category: string;
@@ -146,6 +148,7 @@ export function generateQuestionExportData(question: {
     isImageQuestion: question.isImageQuestion,
     approved: question.approved,
     conversationStarter: question.conversationStarter,
+    firstDays: question.firstDays,
     answers: question.answers.map(answer => ({
       answerText: answer.answerText,
       answerInsight: answer.insight ? {
