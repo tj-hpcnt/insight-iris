@@ -13,20 +13,24 @@ import { EXTRA_CATEGORIES, parseCategoriesFromCSV } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
 import { parseQuestionsFromCSV, parseMappingFromCSV, parseQuestionType, extractAnswersFromRow, parseProposedQuestions } from './questions';
+import { AI_GENERATION_CONFIG } from '../src/config';
 dotenv.config();
 const prisma = new PrismaClient();
-const BATCH_COUNT = 20;
-const MINIMUM_TARGET_INSIGHTS = 10
-const MAX_NEW_INSIGHTS_PER_GENERATION = 30
-const MIN_NEW_INSIGHTS_PER_GENERATION = 5
-const BINARY_PROBABILITY = 0.65;
 
-const GENERATE_ALL_COMPARISONS = false;
-const GENERATE_SELF_COMPARISONS = false;
-const REGENERATE_IMPORTED_QUESTIONS = true;
-const IMPORT_QUESTIONS_FROM_CSV = true;
-const IMPORT_AFTER_GENERATE = true;
-const REDUCE_ANSWER_INSIGHT_REDUNDANCY = false;
+// Extract configuration constants
+const {
+  BATCH_COUNT,
+  MINIMUM_TARGET_INSIGHTS,
+  MAX_NEW_INSIGHTS_PER_GENERATION,
+  MIN_NEW_INSIGHTS_PER_GENERATION,
+  BINARY_PROBABILITY,
+  GENERATE_ALL_COMPARISONS,
+  GENERATE_SELF_COMPARISONS,
+  REGENERATE_IMPORTED_QUESTIONS,
+  IMPORT_QUESTIONS_FROM_CSV,
+  IMPORT_AFTER_GENERATE,
+  REDUCE_ANSWER_INSIGHT_REDUNDANCY,
+} = AI_GENERATION_CONFIG;
 
 async function handleQuestionImport(
   categories: any[], 

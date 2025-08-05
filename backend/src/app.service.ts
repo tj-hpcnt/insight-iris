@@ -13,6 +13,9 @@ import {
 } from './utils/aiGenerators';
 import { deleteQuestion, deleteAnswer, getAnswerCount, deleteCategory } from './utils/delete';
 import { processInParallel } from './utils/parallelProcessor';
+import { AI_GENERATION_CONFIG } from './config';
+
+const { BATCH_COUNT, REDUCE_ANSWER_INSIGHT_REDUNDANCY } = AI_GENERATION_CONFIG;
 
 // Define category information structure
 type CategoryInfo = {
@@ -566,12 +569,14 @@ export class AppService {
   }
 
   async generateQuestionsForCategory(categoryId: number, res: Response) {
-    const BATCH_COUNT = 10;
-    const MINIMUM_TARGET_INSIGHTS = 10;
-    const MAX_NEW_INSIGHTS_PER_GENERATION = 30;
-    const MIN_NEW_INSIGHTS_PER_GENERATION = 5;
-    const BINARY_PROBABILITY = 0.3;
-
+    // Use shared configuration with service-specific overrides
+    const {
+      MINIMUM_TARGET_INSIGHTS,
+      MAX_NEW_INSIGHTS_PER_GENERATION,
+      MIN_NEW_INSIGHTS_PER_GENERATION,
+      BINARY_PROBABILITY,
+    } = AI_GENERATION_CONFIG;
+    
     let totalUsage = {
       promptTokens: 0,
       cachedPromptTokens: 0,
@@ -736,16 +741,18 @@ export class AppService {
         log(`Merged exact duplicate answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
       }
 
-      const stopProgress5 = createProgressIndicator('Reducing redundancy for answer insights');
-      const answerReductionResult = await reduceRedundancyForAnswers(category);
-      stopProgress5();
-      if (answerReductionResult) {
-        const [mergedInsights, usage] = answerReductionResult;
-        totalUsage.promptTokens += usage.prompt_tokens;
-        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-        totalUsage.completionTokens += usage.completion_tokens;
-        for (const merged of mergedInsights) {
-          log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+      if (REDUCE_ANSWER_INSIGHT_REDUNDANCY) {
+        const stopProgress5 = createProgressIndicator('Reducing redundancy for answer insights');
+        const answerReductionResult = await reduceRedundancyForAnswers(category);
+        stopProgress5();
+        if (answerReductionResult) {
+          const [mergedInsights, usage] = answerReductionResult;
+          totalUsage.promptTokens += usage.prompt_tokens;
+          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+          totalUsage.completionTokens += usage.completion_tokens;
+          for (const merged of mergedInsights) {
+            log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+          }
         }
       }
 
@@ -1036,16 +1043,18 @@ export class AppService {
         log(`Merged exact duplicate answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
       }
 
-      const stopProgress4 = createProgressIndicator('Reducing redundancy for answer insights');
-      const answerReductionResult = await reduceRedundancyForAnswers(category);
-      stopProgress4();
-      if (answerReductionResult) {
-        const [mergedInsights, usage] = answerReductionResult;
-        totalUsage.promptTokens += usage.prompt_tokens;
-        totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-        totalUsage.completionTokens += usage.completion_tokens;
-        for (const merged of mergedInsights) {
-          log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+      if (REDUCE_ANSWER_INSIGHT_REDUNDANCY) {
+        const stopProgress4 = createProgressIndicator('Reducing redundancy for answer insights');
+        const answerReductionResult = await reduceRedundancyForAnswers(category);
+        stopProgress4();
+        if (answerReductionResult) {
+          const [mergedInsights, usage] = answerReductionResult;
+          totalUsage.promptTokens += usage.prompt_tokens;
+          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+          totalUsage.completionTokens += usage.completion_tokens;
+          for (const merged of mergedInsights) {
+            log(`Merged similar answer insight: "${merged.oldInsight.insightText}" -> "${merged.newInsight.insightText}"`);
+          }
         }
       }
 
@@ -1089,7 +1098,7 @@ export class AppService {
               log(`Error processing insight ${insight.id}: ${error.message}`);
             }
           },
-          10 // Use batch count of 10 like in generateInitialData.ts
+          BATCH_COUNT
         );
         stopProgress4_5();
       } else {
@@ -1260,7 +1269,7 @@ export class AppService {
               console.error(`Error processing insight ${insight.id}:`, error);
             }
           },
-          10 // Use batch count of 10 like in generateInitialData.ts
+          BATCH_COUNT
         );
         
         clearInterval(shortTextProgressIndicator);
