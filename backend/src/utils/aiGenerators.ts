@@ -273,7 +273,9 @@ The allowed question types are:
 - MULTIPLE_CHOICE: ${TYPE_DESCRIPTIONS[QuestionType.MULTIPLE_CHOICE]}
 ${preferBinaryPrompt}
 
-When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.
+When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  Make sure any question does not actually contain a chain of dependent questions.  Don't make new questions that are too similar to existing questions.  If the question has a huge number of possible answers, try to emphasize diversity in selecting possible answers.  
+
+When offering user alternatives in statement, be careful to ensure they would not make the user interpret the question seriously differently. For example, "Attending a sex-positive event or fetish club together is on my bucket list." is not good because a sex-positive event and fetish club are very different, some users would likely be turned off by fetish clubs but may be open minded to other types of events.
 
 Focus on generating a question that is specifically relevant to the target category and won't overlap with questions that would be better suited for other categories in the taxonomy.
 
