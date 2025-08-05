@@ -26,6 +26,7 @@ const GENERATE_SELF_COMPARISONS = false;
 const REGENERATE_IMPORTED_QUESTIONS = true;
 const IMPORT_QUESTIONS_FROM_CSV = true;
 const IMPORT_AFTER_GENERATE = true;
+const REDUCE_ANSWER_INSIGHT_REDUNDANCY = false;
 
 async function handleQuestionImport(
   categories: any[], 
@@ -634,23 +635,25 @@ async function main() {
     for (const mergedInsight of answerInsightExactDupes) {
       console.log(`Merged insight: ${mergedInsight.oldInsight.insightText} -> ${mergedInsight.newInsight.insightText}`);
     }
-    console.log('Reducing redundancy for ANSWER insights AI matches...');
-    await processInParallel<Category, void>(
-      categories,
-      async (category) => {
-        const result = await reduceRedundancyForAnswers(category);
-        if (result) {
-          const [mergedInsights, usage] = result;
-          totalUsage.promptTokens += usage.prompt_tokens;
-          totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
-          totalUsage.completionTokens += usage.completion_tokens;
-          for (const mergedInsight of mergedInsights) {
-            console.log(`Merged insight: ${mergedInsight.oldInsight.insightText} -> ${mergedInsight.newInsight.insightText}`);
+    if (REDUCE_ANSWER_INSIGHT_REDUNDANCY) {
+      console.log('Reducing redundancy for ANSWER insights AI matches...');
+      await processInParallel<Category, void>(
+        categories,
+        async (category) => {
+          const result = await reduceRedundancyForAnswers(category);
+          if (result) {
+            const [mergedInsights, usage] = result;
+            totalUsage.promptTokens += usage.prompt_tokens;
+            totalUsage.cachedPromptTokens += usage.prompt_tokens_details.cached_tokens;
+            totalUsage.completionTokens += usage.completion_tokens;
+            for (const mergedInsight of mergedInsights) {
+              console.log(`Merged insight: ${mergedInsight.oldInsight.insightText} -> ${mergedInsight.newInsight.insightText}`);
+            }
           }
-        }
-      },
-      BATCH_COUNT
-    );
+        },
+        BATCH_COUNT
+      );
+    }
 
     console.log('Generating short insight text for all insights...');
     const allInsights = await prisma.insight.findMany({
