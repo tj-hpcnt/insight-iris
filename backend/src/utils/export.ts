@@ -35,6 +35,7 @@ interface ExportQuestion {
   questionText: string;
   questionType: string;
   isImageQuestion: boolean;
+  imagesPerRow: number | null;
   approved: boolean;
   conversationStarter: boolean;
   firstDays: boolean;
@@ -117,6 +118,7 @@ export function generateQuestionExportData(question: {
   questionText: string;
   questionType: string;
   isImageQuestion: boolean;
+  imagesPerRow: number | null;
   approved: boolean;
   conversationStarter: boolean;
   firstDays: boolean;
@@ -146,6 +148,7 @@ export function generateQuestionExportData(question: {
     questionText: question.questionText,
     questionType: question.questionType,
     isImageQuestion: question.isImageQuestion,
+    imagesPerRow: question.imagesPerRow,
     approved: question.approved,
     conversationStarter: question.conversationStarter,
     firstDays: question.firstDays,

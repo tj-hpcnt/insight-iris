@@ -116,6 +116,7 @@ async function handleQuestionImport(
           publishedId: questionRow.question_id,
           persistentId: questionRow.question_id, // Use original question ID as persistent ID for imported questions
           isImageQuestion: isImageQuestion,
+          imagesPerRow: isImageQuestion ? parseInt(questionRow.image_per_row) : undefined,
         } as any,
       });
 

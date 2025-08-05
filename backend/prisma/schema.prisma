@@ -80,6 +80,7 @@ model Question {
   questionText    String
   originalQuestion String?
   isImageQuestion Boolean @default(false)
+  imagesPerRow    Int?
   publishedId     String?
   persistentId    String       @unique // Unique persistent ID: GQXXXXXX for generated, PQXXXXXX for proposed, original ID for imported
   proposedQuestion String?     @unique // The original proposed question text if this was generated from a proposal
