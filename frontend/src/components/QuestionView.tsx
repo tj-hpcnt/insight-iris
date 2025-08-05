@@ -156,29 +156,47 @@ const EditableText: React.FC<EditableTextProps> = ({
   // Check if the field has unsaved changes
   const hasUnsavedChanges = editedValues[fieldKey] !== undefined && editedValues[fieldKey] !== value;
 
+  // Check if this is a short insight chip (has the characteristic chip styling)
+  const isChipStyle = style.backgroundColor === '#f5deb3' && style.borderRadius === '12px';
+  
   const baseStyle: React.CSSProperties = {
     ...style,
     cursor: disabled ? 'default' : 'pointer',
     transition: 'background-color 0.2s ease, border-color 0.2s ease',
-    backgroundColor: isEditing 
-      ? 'rgba(0, 123, 255, 0.1)' 
-      : hasUnsavedChanges 
-        ? 'rgba(255, 193, 7, 0.1)' // Light yellow tint for unsaved changes
-        : 'transparent',
-    borderRadius: '4px',
-    padding: isEditing ? '4px' : hasUnsavedChanges ? '2px' : '0',
-    border: isEditing 
-      ? '1px solid rgba(0, 123, 255, 0.3)' 
-      : hasUnsavedChanges 
-        ? '1px solid rgba(255, 193, 7, 0.4)' // Yellow border for unsaved changes
-        : '1px solid transparent',
+    // For chip styling, preserve the chip appearance with subtle tinting
+    backgroundColor: isChipStyle 
+      ? (isEditing 
+          ? '#e6d19b' // Slightly darker tan when editing
+          : hasUnsavedChanges 
+            ? '#f0e6b3' // Slightly different tan for unsaved changes
+            : style.backgroundColor) // Original chip color
+      : (isEditing 
+          ? 'rgba(0, 123, 255, 0.1)' 
+          : hasUnsavedChanges 
+            ? 'rgba(255, 193, 7, 0.1)' // Light yellow tint for unsaved changes
+            : 'transparent'),
+    borderRadius: isChipStyle ? style.borderRadius : '4px',
+    padding: isChipStyle 
+      ? style.padding // Preserve chip padding
+      : (isEditing ? '4px' : hasUnsavedChanges ? '2px' : '0'),
+    border: isChipStyle 
+      ? (isEditing 
+          ? '1px solid #c5b377' // Darker tan border when editing
+          : hasUnsavedChanges 
+            ? '1px solid #d4c499' // Different tan border for unsaved changes
+            : style.border) // Original chip border
+      : (isEditing 
+          ? '1px solid rgba(0, 123, 255, 0.3)' 
+          : hasUnsavedChanges 
+            ? '1px solid rgba(255, 193, 7, 0.4)' // Yellow border for unsaved changes
+            : '1px solid transparent'),
     outline: 'none',
     fontFamily: 'inherit',
-    fontSize: 'inherit',
-    color: 'inherit',
+    fontSize: isChipStyle ? style.fontSize : 'inherit',
+    color: isChipStyle ? style.color : 'inherit',
     lineHeight: 'inherit',
-    width: '100%',
-    minHeight: '1.2em',
+    width: isChipStyle ? 'auto' : '100%', // Chips should not take full width
+    minHeight: isChipStyle ? 'auto' : '1.2em',
     resize: isEditing ? 'vertical' : 'none'
   };
 
