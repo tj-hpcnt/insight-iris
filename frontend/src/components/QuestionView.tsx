@@ -109,6 +109,7 @@ interface EditableTextProps {
   onStartEdit: (fieldKey: string, currentValue: string) => void;
   onUpdateValue: (fieldKey: string, value: string) => void;
   onCancelEdit: (fieldKey: string) => void;
+  onExitEditMode: (fieldKey: string) => void;
   style?: React.CSSProperties;
   disabled?: boolean;
 }
@@ -121,15 +122,18 @@ const EditableText: React.FC<EditableTextProps> = ({
   onStartEdit,
   onUpdateValue,
   onCancelEdit,
+  onExitEditMode,
   style = {},
   disabled = false
 }) => {
   const isEditing = editingFields.has(fieldKey);
-  const currentValue = isEditing ? (editedValues[fieldKey] || value) : value;
+  // Show edited value if it exists, otherwise show original value
+  const currentValue = editedValues[fieldKey] !== undefined ? editedValues[fieldKey] : value;
   
   const handleDoubleClick = () => {
     if (!disabled && !isEditing) {
-      onStartEdit(fieldKey, value);
+      // Use current value (which already includes edited value if it exists)
+      onStartEdit(fieldKey, currentValue);
     }
   };
 
@@ -143,17 +147,31 @@ const EditableText: React.FC<EditableTextProps> = ({
   };
 
   const handleBlur = () => {
-    // Note: Blur no longer ends editing - changes are buffered until save/discard
+    if (isEditing) {
+      // Exit edit mode but keep the changes buffered
+      onExitEditMode(fieldKey);
+    }
   };
+
+  // Check if the field has unsaved changes
+  const hasUnsavedChanges = editedValues[fieldKey] !== undefined && editedValues[fieldKey] !== value;
 
   const baseStyle: React.CSSProperties = {
     ...style,
     cursor: disabled ? 'default' : 'pointer',
-    transition: 'background-color 0.2s ease',
-    backgroundColor: isEditing ? 'rgba(0, 123, 255, 0.1)' : 'transparent',
+    transition: 'background-color 0.2s ease, border-color 0.2s ease',
+    backgroundColor: isEditing 
+      ? 'rgba(0, 123, 255, 0.1)' 
+      : hasUnsavedChanges 
+        ? 'rgba(255, 193, 7, 0.1)' // Light yellow tint for unsaved changes
+        : 'transparent',
     borderRadius: '4px',
-    padding: isEditing ? '4px' : '0',
-    border: isEditing ? '1px solid rgba(0, 123, 255, 0.3)' : '1px solid transparent',
+    padding: isEditing ? '4px' : hasUnsavedChanges ? '2px' : '0',
+    border: isEditing 
+      ? '1px solid rgba(0, 123, 255, 0.3)' 
+      : hasUnsavedChanges 
+        ? '1px solid rgba(255, 193, 7, 0.4)' // Yellow border for unsaved changes
+        : '1px solid transparent',
     outline: 'none',
     fontFamily: 'inherit',
     fontSize: 'inherit',
@@ -195,11 +213,17 @@ const EditableText: React.FC<EditableTextProps> = ({
     );
   }
 
+  const getTooltip = () => {
+    if (disabled) return undefined;
+    if (hasUnsavedChanges) return "Has unsaved changes - Double-click to edit";
+    return "Double-click to edit";
+  };
+
   return (
     <div
       onDoubleClick={handleDoubleClick}
       style={baseStyle}
-      title={disabled ? undefined : "Double-click to edit"}
+      title={getTooltip()}
     >
       {currentValue || (style.fontStyle === 'italic' ? 'No text available' : '')}
     </div>
@@ -215,6 +239,7 @@ interface QuestionViewProps {
   onNavigateQuestion: (direction: 'next' | 'prev') => void;
   onSkipQuestion: () => void;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  onHasChanges?: (hasChanges: boolean) => void; // Callback to notify parent of changes
   user: { username: string; role: string } | null;
 }
 
@@ -240,6 +265,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   onNavigateQuestion,
   onSkipQuestion,
   onCategoryClick,
+  onHasChanges,
   user,
 }) => {
   const navigate = useNavigate();
@@ -372,6 +398,14 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     setHasChanges(hasCurrentChanges);
   };
 
+  const exitEditMode = (fieldKey: string) => {
+    // Exit edit mode but keep the buffered changes
+    const newEditingFields = new Set(editingFields);
+    newEditingFields.delete(fieldKey);
+    setEditingFields(newEditingFields);
+    // Don't remove from editedValues - keep the changes buffered
+  };
+
   const handleSave = async () => {
     if (!questionData || saving) return;
     
@@ -459,6 +493,59 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     
     // Reload the page to get fresh data
     window.location.reload();
+  };
+
+  // Add navigation protection when there are unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return 'You have unsaved changes. Are you sure you want to leave?';
+      }
+    };
+
+    if (hasChanges) {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasChanges]);
+
+  // Notify parent component when hasChanges state changes
+  useEffect(() => {
+    if (onHasChanges) {
+      onHasChanges(hasChanges);
+    }
+  }, [hasChanges, onHasChanges]);
+
+  // Wrap navigation functions to check for unsaved changes
+  const protectedNavigateQuestion = (direction: 'next' | 'prev') => {
+    if (hasChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+      if (!confirmed) return;
+      
+      // Clear changes before navigating
+      setEditingFields(new Set());
+      setEditedValues({});
+      setHasChanges(false);
+    }
+    onNavigateQuestion(direction);
+  };
+
+  const protectedSkipQuestion = () => {
+    if (hasChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+      if (!confirmed) return;
+      
+      // Clear changes before navigating
+      setEditingFields(new Set());
+      setEditedValues({});
+      setHasChanges(false);
+    }
+    onSkipQuestion();
   };
 
   useEffect(() => {
@@ -648,6 +735,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({
 
   // Add function to handle question navigation from AnswerCountChip
   const handleQuestionNavigation = async (questionId: number, categoryId: number) => {
+    if (hasChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+      if (!confirmed) return;
+    }
+    
     try {
       // Navigate to the question using the proper route format
       navigate(`/categories/${categoryId}/questions/${questionId}`);
@@ -917,7 +1009,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '20px', padding: '10px', width: '100%', maxWidth: '100vw', boxSizing: 'border-box', paddingBottom: '50vh' }}>
       {/* Previous Question Button */}
       <button 
-        onClick={() => onNavigateQuestion('prev')} 
+        onClick={() => protectedNavigateQuestion('prev')} 
         disabled={currentQuestionIndex === 0}
         style={{
           background: hoveredPrevButton ? '#777' : '#555',
@@ -1150,6 +1242,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                 onStartEdit={startEdit}
                 onUpdateValue={updateEditValue}
                 onCancelEdit={cancelEdit}
+                onExitEditMode={exitEditMode}
                 style={{ fontWeight: 'bold', fontSize: 'inherit' }}
               />
             </h3>
@@ -1186,6 +1279,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                         onStartEdit={startEdit}
                         onUpdateValue={updateEditValue}
                         onCancelEdit={cancelEdit}
+                        onExitEditMode={exitEditMode}
                         style={{ fontSize: 'inherit' }}
                         disabled={questionData.questionType === 'BINARY'}
                       />
@@ -1241,7 +1335,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             })}
           </div>
           <button 
-              onClick={onSkipQuestion}
+              onClick={protectedSkipQuestion}
               style={{ marginTop: 'auto', paddingTop:'20px', padding: '10px', cursor: 'pointer' }}
           >
               Skip
@@ -1250,7 +1344,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
 
         {/* Next Question Button (Now after iPhone, before Insights) */}
         <button 
-          onClick={() => onNavigateQuestion('next')} 
+          onClick={() => protectedNavigateQuestion('next')} 
           disabled={currentQuestionIndex >= totalQuestionsInCategory - 1}
           style={{
             background: hoveredNextButton ? '#777' : '#555',
@@ -1403,51 +1497,23 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                   <CategoryChip 
                     insightSubject={questionData.inspiration.category?.insightSubject || 'Unknown'}
                     categoryId={questionData.inspiration.category?.id}
-                    onClick={onCategoryClick}
+                    onClick={(categoryId, insightSubject) => {
+                      if (hasChanges) {
+                        const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+                        if (!confirmed) return;
+                      }
+                      onCategoryClick(categoryId, insightSubject);
+                    }}
                   />
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '10px' }}>
-                <p style={{ margin: 0, flex: 1, textAlign: 'left' }}>
-                  <EditableText
-                    fieldKey="inspiration-insight"
-                    value={questionData.inspiration.insightText}
-                    editingFields={editingFields}
-                    editedValues={editedValues}
-                    onStartEdit={startEdit}
-                    onUpdateValue={updateEditValue}
-                    onCancelEdit={cancelEdit}
-                    style={{ fontSize: 'inherit' }}
-                  />
-                </p>
+                <p style={{ margin: 0, flex: 1, textAlign: 'left' }}>{questionData.inspiration.insightText}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                   {questionData.inspiration.publishedTag && (
                     <PublishedTagChip publishedTag={questionData.inspiration.publishedTag} />
                   )}
-                  <div style={{ cursor: 'pointer' }}>
-                    <EditableText
-                      fieldKey="inspiration-short"
-                      value={questionData.inspiration.shortInsightText || ''}
-                      editingFields={editingFields}
-                      editedValues={editedValues}
-                      onStartEdit={startEdit}
-                      onUpdateValue={updateEditValue}
-                      onCancelEdit={cancelEdit}
-                      style={{ 
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        backgroundColor: editingFields.has('inspiration-short') ? 'rgba(0, 123, 255, 0.1)' : '#e0e0e0',
-                        color: '#000',
-                        padding: '6px 12px',
-                        borderRadius: '12px',
-                        display: 'inline-block',
-                        maxWidth: '150px',
-                        wordWrap: 'break-word',
-                        lineHeight: '1.3',
-                        minHeight: '1.3em'
-                      }}
-                    />
-                  </div>
+                  <ShortInsightChip shortInsightText={questionData.inspiration.shortInsightText} />
                 </div>
               </div>
             </div>
@@ -1481,7 +1547,13 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                             <CategoryChip 
                               insightSubject={answer.linkedAnswerInsight.category?.insightSubject || 'Unknown'}
                               categoryId={answer.linkedAnswerInsight.category?.id}
-                              onClick={onCategoryClick}
+                              onClick={(categoryId, insightSubject) => {
+                                if (hasChanges) {
+                                  const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+                                  if (!confirmed) return;
+                                }
+                                onCategoryClick(categoryId, insightSubject);
+                              }}
                             />
                           </div>
                         )}
@@ -1501,6 +1573,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                               onStartEdit={startEdit}
                               onUpdateValue={updateEditValue}
                               onCancelEdit={cancelEdit}
+                              onExitEditMode={exitEditMode}
                               style={{ fontSize: 'inherit', fontStyle: 'inherit', color: 'inherit', marginLeft: '4px' }}
                             />
                           </p>
@@ -1517,18 +1590,21 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                                 onStartEdit={startEdit}
                                 onUpdateValue={updateEditValue}
                                 onCancelEdit={cancelEdit}
+                                onExitEditMode={exitEditMode}
                                 style={{ 
-                                  fontSize: '12px',
-                                  fontWeight: 'bold',
-                                  backgroundColor: editingFields.has(`short-${answer.id}`) ? 'rgba(0, 123, 255, 0.1)' : '#e0e0e0',
-                                  color: '#000',
-                                  padding: '6px 12px',
+                                  // Match ShortInsightChip styling
+                                  backgroundColor: '#f5deb3', // Light tan background
+                                  color: '#8b4513', // Dark brown text
+                                  fontSize: '11px',
+                                  padding: '3px 8px',
                                   borderRadius: '12px',
                                   display: 'inline-block',
-                                  maxWidth: '150px',
+                                  fontWeight: '500',
+                                  maxWidth: '100%',
                                   wordWrap: 'break-word',
-                                  lineHeight: '1.3',
-                                  minHeight: '1.3em'
+                                  lineHeight: '1.2',
+                                  border: '1px solid #deb887', // Tan border
+                                  minHeight: 'auto'
                                 }}
                               />
                             </div>
@@ -1628,7 +1704,13 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                                 <CategoryChip 
                                   insightSubject={question.category.insightSubject}
                                   categoryId={question.category.id}
-                                  onClick={onCategoryClick}
+                                  onClick={(categoryId, insightSubject) => {
+                                    if (hasChanges) {
+                                      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+                                      if (!confirmed) return;
+                                    }
+                                    onCategoryClick(categoryId, insightSubject);
+                                  }}
                                 />
                               )}
                               <QuestionIdChip 

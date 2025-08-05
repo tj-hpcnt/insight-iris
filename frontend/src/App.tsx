@@ -198,6 +198,7 @@ const QuestionViewWrapper = ({
   currentQuestions,
   currentQuestionIndex,
   onCategoryClick,
+  onHasChanges,
   user
 }: { 
   onNavigateQuestion: (direction: 'next' | 'prev') => void;
@@ -205,6 +206,7 @@ const QuestionViewWrapper = ({
   currentQuestions: { id: number; questionText: string }[];
   currentQuestionIndex: number;
   onCategoryClick: (categoryId: number, insightSubject: string) => void;
+  onHasChanges?: (hasChanges: boolean) => void;
   user: { username: string; role: string } | null;
 }) => {
   const { categoryId, questionId } = useParams<{ categoryId: string; questionId: string }>();
@@ -221,6 +223,7 @@ const QuestionViewWrapper = ({
       onNavigateQuestion={onNavigateQuestion}
       onSkipQuestion={onSkipQuestion}
       onCategoryClick={onCategoryClick}
+      onHasChanges={onHasChanges}
       user={user}
     />
   );
@@ -232,6 +235,9 @@ function App() {
   
   // Authentication state
   const [user, setUser] = useState<User | null>(null);
+  
+  // Track unsaved changes state from QuestionView
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   
   // Parse URL to determine current view and parameters
   const getViewFromURL = () => {
@@ -946,7 +952,7 @@ function App() {
         handleQuestionNavigation('next');
     } else {
         // Last question skipped, go back to insights view of the current category/type
-        navigateToInsightsView(); 
+        protectedNavigateToInsightsView(); 
     }
   };
 
@@ -1348,8 +1354,89 @@ function App() {
     setRegeneratingQuestionId(null);
   };
 
+
+
+  const handleExport = async () => {
+    try {
+      await downloadFile('/api/export', 'insights-export.json');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        alert(`Export failed: ${error.message}`);
+      } else {
+        alert('Export failed: An unexpected error occurred. Please try again.');
+      }
+      console.error('Export failed:', error);
+    }
+  };
+
+  // Protected navigation functions that check for unsaved changes
+  const protectedHandleCategoryNavigation = (direction: 'prev' | 'next') => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+      if (!confirmed) return;
+    }
+    handleCategoryNavigation(direction);
+  };
+
+  const protectedHandleCategoryClick = async (categoryId: number, insightSubject: string) => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+      if (!confirmed) return;
+    }
+    handleCategoryClick(categoryId, insightSubject);
+  };
+
+  const protectedHandleGenerate = async () => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to regenerate? Your changes will be lost.');
+      if (!confirmed) return;
+    }
+    handleGenerate();
+  };
+
+  const protectedHandleExport = async () => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to export? Your changes will be lost.');
+      if (!confirmed) return;
+    }
+    handleExport();
+  };
+
+  const protectedNavigateToCategories = () => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+      if (!confirmed) return;
+    }
+    navigateToCategories();
+  };
+
+  const protectedHandleRegenerateQuestion = (questionId: number, feedback: string) => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to regenerate? Your changes will be lost.');
+      if (!confirmed) return;
+    }
+    handleRegenerateQuestion(questionId, feedback);
+  };
+
+  const protectedHandleCycleApprovalFilter = () => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to change filters? Your changes will be lost.');
+      if (!confirmed) return;
+    }
+    handleCycleApprovalFilter();
+  };
+
+  const protectedNavigateToInsightsView = (type?: InsightType) => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+      if (!confirmed) return;
+    }
+    navigateToInsightsView(type);
+  };
+
+  // Build breadcrumb items after all functions are declared
   const breadcrumbItems: BreadcrumbItem[] = [
-    { label: 'Categories', onClick: navigateToCategories, isCurrent: currentView === 'categories' },
+    { label: 'Categories', onClick: protectedNavigateToCategories, isCurrent: currentView === 'categories' },
   ];
 
   if (currentView === 'search') {
@@ -1366,33 +1453,20 @@ function App() {
       approvalFilter: selectedApproved,
       firstDaysFilter: selectedFirstDays,
       conversationStarterFilter: selectedConversationStarter,
-      onClearApprovalFilter: handleCycleApprovalFilter
+      onClearApprovalFilter: protectedHandleCycleApprovalFilter
     });
   } else if (selectedCategoryId && selectedInsightSubject) {
     breadcrumbItems.push({
       label: '',
-      onClick: () => navigateToInsightsView(), // Defaults to current or inspiration type
+      onClick: () => protectedNavigateToInsightsView(), // Defaults to current or inspiration type
       isCurrent: currentView === 'insights',
       insightSubject: selectedInsightSubject || undefined,
       approvalFilter: selectedApproved,
       firstDaysFilter: selectedFirstDays,
       conversationStarterFilter: selectedConversationStarter,
-      onClearApprovalFilter: handleCycleApprovalFilter
+      onClearApprovalFilter: protectedHandleCycleApprovalFilter
     });
   }
-
-  const handleExport = async () => {
-    try {
-      await downloadFile('/api/export', 'insights-export.json');
-    } catch (error) {
-      if (error instanceof ApiError) {
-        alert(`Export failed: ${error.message}`);
-      } else {
-        alert('Export failed: An unexpected error occurred. Please try again.');
-      }
-      console.error('Export failed:', error);
-    }
-  };
 
   const handleLogin = (userData: User) => {
     setUser(userData);
@@ -1508,14 +1582,14 @@ function App() {
         <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Breadcrumbs 
           items={breadcrumbItems} 
-          onCategoryNavigation={handleCategoryNavigation}
+          onCategoryNavigation={protectedHandleCategoryNavigation}
           canNavigatePrev={currentCategoryIndex > 0}
           canNavigateNext={currentCategoryIndex < allCategories.length - 1}
         />
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {currentView === 'categories' && (
             <button
-              onClick={handleExport}
+              onClick={protectedHandleExport}
               style={exportButtonStyle}
               title="Export all data as JSON"
               onMouseEnter={(e) => {
@@ -1532,7 +1606,7 @@ function App() {
           )}
           {currentView === 'insights' && (
             <button
-              onClick={handleGenerate}
+              onClick={protectedHandleGenerate}
               disabled={isGenerating}
               style={generateButtonStyle}
               title="Generate more questions for this category"
@@ -1555,7 +1629,7 @@ function App() {
           {/* Note: No generate button for allinsights view since it spans multiple categories */}
           {currentView === 'question' && selectedQuestionId && (
             <button
-              onClick={() => handleRegenerateQuestion(selectedQuestionId, '')}
+              onClick={() => protectedHandleRegenerateQuestion(selectedQuestionId, '')}
               disabled={isRegenerating}
               style={{
                 background: '#17a2b8',
@@ -1734,7 +1808,8 @@ function App() {
                   onSkipQuestion={handleSkipQuestion}
                   currentQuestions={currentQuestions}
                   currentQuestionIndex={currentQuestionIndex}
-                  onCategoryClick={handleCategoryClick}
+                  onCategoryClick={protectedHandleCategoryClick}
+                  onHasChanges={setHasUnsavedChanges}
                   user={user}
                 />
               </AuthGuard>
