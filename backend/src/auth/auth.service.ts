@@ -39,7 +39,12 @@ export class AuthService {
       username: 'jaegar',
       password: bcrypt.hashSync('meister123', 10),
       role: 'write'
-    }
+    },
+    {
+      username: 'richard',
+      password: bcrypt.hashSync('oreo123', 10),
+      role: 'write'
+    },
   ];
 
   async validateUser(username: string, password: string): Promise<AuthenticatedUser | null> {
