@@ -144,6 +144,19 @@ export class AppController {
     return this.appService.toggleQuestionConversationStarter(questionId);
   }
 
+  @Put('questions/:questionId/edit')
+  @UseGuards(WriteGuard)
+  async editQuestionFields(
+    @Param('questionId', ParseIntPipe) questionId: number,
+    @Body() body: {
+      questionUpdates?: { questionText?: string };
+      answerUpdates?: Record<string, { answerText?: string }>;
+      insightUpdates?: Record<string, { insightText?: string; shortInsightText?: string }>;
+    }
+  ) {
+    return this.appService.editQuestionFields(questionId, body);
+  }
+
   @Get('questions/:questionId/comments')
   @UseGuards(AuthGuard)
   async getQuestionComments(@Param('questionId', ParseIntPipe) questionId: number) {

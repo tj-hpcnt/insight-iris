@@ -1426,6 +1426,112 @@ export class AppService {
     }
   }
 
+  async editQuestionFields(
+    questionId: number,
+    updates: {
+      questionUpdates?: { questionText?: string };
+      answerUpdates?: Record<string, { answerText?: string }>;
+      insightUpdates?: Record<string, { insightText?: string; shortInsightText?: string }>;
+    }
+  ) {
+    try {
+      // Verify the question exists
+      const question = await this.prisma.question.findUnique({
+        where: { id: questionId },
+        select: { id: true, questionType: true }
+      });
+
+      if (!question) {
+        throw new NotFoundException('Question not found');
+      }
+
+      // Use a transaction to ensure all updates succeed or fail together
+      const result = await this.prisma.$transaction(async (tx) => {
+        const results: any = {};
+
+        // Update question if needed
+        if (updates.questionUpdates && Object.keys(updates.questionUpdates).length > 0) {
+          const updatedQuestion = await tx.question.update({
+            where: { id: questionId },
+            data: updates.questionUpdates,
+            select: { id: true, questionText: true }
+          });
+          results.question = updatedQuestion;
+        }
+
+        // Update answers if needed
+        if (updates.answerUpdates && Object.keys(updates.answerUpdates).length > 0) {
+          results.answers = {};
+          for (const [answerIdStr, answerUpdate] of Object.entries(updates.answerUpdates)) {
+            const answerId = parseInt(answerIdStr);
+            
+            // Check if answer exists and belongs to this question
+            const existingAnswer = await tx.answer.findFirst({
+              where: { id: answerId, questionId: questionId },
+              select: { id: true }
+            });
+
+            if (!existingAnswer) {
+              throw new Error(`Answer ${answerId} not found or doesn't belong to question ${questionId}`);
+            }
+
+            // Skip binary questions for answer updates (as per requirements)
+            if (question.questionType === 'BINARY') {
+              throw new Error('Cannot edit answers for binary questions');
+            }
+
+            const updatedAnswer = await tx.answer.update({
+              where: { id: answerId },
+              data: answerUpdate,
+              select: { id: true, answerText: true }
+            });
+            results.answers[answerId] = updatedAnswer;
+          }
+        }
+
+        // Update insights if needed
+        if (updates.insightUpdates && Object.keys(updates.insightUpdates).length > 0) {
+          results.insights = {};
+          for (const [insightIdStr, insightUpdate] of Object.entries(updates.insightUpdates)) {
+            const insightId = parseInt(insightIdStr);
+            
+            // Check if insight exists
+            const existingInsight = await tx.insight.findUnique({
+              where: { id: insightId },
+              select: { id: true, publishedTag: true }
+            });
+
+            if (!existingInsight) {
+              throw new Error(`Insight ${insightId} not found`);
+            }
+
+            // Don't allow editing publishedTag (as per requirements)
+            const updateData = { ...insightUpdate };
+            delete (updateData as any).publishedTag;
+
+            if (Object.keys(updateData).length > 0) {
+              const updatedInsight = await tx.insight.update({
+                where: { id: insightId },
+                data: updateData,
+                select: { id: true, insightText: true, shortInsightText: true }
+              });
+              results.insights[insightId] = updatedInsight;
+            }
+          }
+        }
+
+        return results;
+      });
+
+      return { success: true, ...result };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(error.message);
+    }
+  }
+
   async getQuestionComments(questionId: number) {
     try {
       const comments = await this.prisma.comment.findMany({

@@ -100,6 +100,114 @@ interface Comment {
 
 // --- End Data Interfaces ---
 
+// Editable text component for inline editing
+interface EditableTextProps {
+  fieldKey: string;
+  value: string;
+  editingFields: Set<string>;
+  editedValues: Record<string, string>;
+  onStartEdit: (fieldKey: string, currentValue: string) => void;
+  onUpdateValue: (fieldKey: string, value: string) => void;
+  onCancelEdit: (fieldKey: string) => void;
+  style?: React.CSSProperties;
+  disabled?: boolean;
+}
+
+const EditableText: React.FC<EditableTextProps> = ({
+  fieldKey,
+  value,
+  editingFields,
+  editedValues,
+  onStartEdit,
+  onUpdateValue,
+  onCancelEdit,
+  style = {},
+  disabled = false
+}) => {
+  const isEditing = editingFields.has(fieldKey);
+  const currentValue = isEditing ? (editedValues[fieldKey] || value) : value;
+  
+  const handleDoubleClick = () => {
+    if (!disabled && !isEditing) {
+      onStartEdit(fieldKey, value);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      if (isEditing) {
+        onCancelEdit(fieldKey);
+      }
+    }
+    // Note: Enter key no longer ends editing - changes are buffered
+  };
+
+  const handleBlur = () => {
+    // Note: Blur no longer ends editing - changes are buffered until save/discard
+  };
+
+  const baseStyle: React.CSSProperties = {
+    ...style,
+    cursor: disabled ? 'default' : 'pointer',
+    transition: 'background-color 0.2s ease',
+    backgroundColor: isEditing ? 'rgba(0, 123, 255, 0.1)' : 'transparent',
+    borderRadius: '4px',
+    padding: isEditing ? '4px' : '0',
+    border: isEditing ? '1px solid rgba(0, 123, 255, 0.3)' : '1px solid transparent',
+    outline: 'none',
+    fontFamily: 'inherit',
+    fontSize: 'inherit',
+    color: 'inherit',
+    lineHeight: 'inherit',
+    width: '100%',
+    minHeight: '1.2em',
+    resize: isEditing ? 'vertical' : 'none'
+  };
+
+  // Calculate proper textarea size
+  const calculateRows = (text: string): number => {
+    if (!text || text.trim().length === 0) return 2;
+    
+    const lines = text.split('\n');
+    const wrappedLines = lines.reduce((total, line) => {
+      // Estimate line wrapping based on typical character width (adjust as needed)
+      const estimatedCharsPerLine = 50; // This can be adjusted based on actual width
+      return total + Math.max(1, Math.ceil(line.length / estimatedCharsPerLine));
+    }, 0);
+    return Math.max(2, Math.min(10, wrappedLines)); // Min 2 rows, max 10 rows
+  };
+
+  if (isEditing) {
+    return (
+      <textarea
+        value={currentValue}
+        onChange={(e) => onUpdateValue(fieldKey, e.target.value)}
+        onKeyDown={handleKeyPress}
+        onBlur={handleBlur}
+        style={{
+          ...baseStyle,
+          minHeight: 'auto',
+          height: 'auto'
+        }}
+        autoFocus
+        rows={calculateRows(currentValue)}
+      />
+    );
+  }
+
+  return (
+    <div
+      onDoubleClick={handleDoubleClick}
+      style={baseStyle}
+      title={disabled ? undefined : "Double-click to edit"}
+    >
+      {currentValue || (style.fontStyle === 'italic' ? 'No text available' : '')}
+    </div>
+  );
+};
+
+// --- End Components ---
+
 interface QuestionViewProps {
   questionId: number; // Changed from insightId to questionId
   totalQuestionsInCategory: number; // For X of Y display (list of questions)
@@ -170,6 +278,13 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [overlappingQuestions, setOverlappingQuestions] = useState<RelatedQuestion[]>([]);
   const [loadingOverlappingQuestions, setLoadingOverlappingQuestions] = useState<boolean>(false);
 
+  // Add state for edit functionality
+  const [editingFields, setEditingFields] = useState<Set<string>>(new Set());
+  const [editedValues, setEditedValues] = useState<Record<string, string>>({});
+  const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [discarding, setDiscarding] = useState<boolean>(false);
+
   // Add helper function for relative time formatting
   const formatRelativeTime = (dateString: string): string => {
     const now = new Date();
@@ -192,6 +307,158 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     
     const diffInYears = Math.floor(diffInMonths / 12);
     return `${diffInYears} year${diffInYears !== 1 ? 's' : ''} ago`;
+  };
+
+  // Add helper functions for edit functionality
+  const startEdit = (fieldKey: string, currentValue: string) => {
+    const newEditingFields = new Set(editingFields);
+    newEditingFields.add(fieldKey);
+    setEditingFields(newEditingFields);
+    setEditedValues(prev => ({
+      ...prev,
+      [fieldKey]: currentValue
+    }));
+  };
+
+  const updateEditValue = (fieldKey: string, value: string) => {
+    setEditedValues(prev => ({
+      ...prev,
+      [fieldKey]: value
+    }));
+    
+    // Check if this creates a change
+    const hasCurrentChanges = Object.entries({...editedValues, [fieldKey]: value})
+      .some(([key, val]) => val !== getOriginalValue(key));
+    setHasChanges(hasCurrentChanges);
+  };
+
+  const getOriginalValue = (fieldKey: string): string => {
+    if (!questionData) return '';
+    
+    if (fieldKey === 'question') return questionData.questionText;
+    if (fieldKey === 'inspiration-insight') return questionData.inspiration.insightText;
+    if (fieldKey === 'inspiration-short') return questionData.inspiration.shortInsightText || '';
+    
+    // For answer and answer insight fields
+    const [type, id] = fieldKey.split('-');
+    if (type === 'answer') {
+      const answer = questionData.answers.find(a => a.id.toString() === id);
+      return answer?.answerText || '';
+    }
+    if (type === 'insight') {
+      const answer = questionData.answers.find(a => a.id.toString() === id);
+      return answer?.linkedAnswerInsight?.insightText || '';
+    }
+    if (type === 'short') {
+      const answer = questionData.answers.find(a => a.id.toString() === id);
+      return answer?.linkedAnswerInsight?.shortInsightText || '';
+    }
+    
+    return '';
+  };
+
+  const cancelEdit = (fieldKey: string) => {
+    const newEditingFields = new Set(editingFields);
+    newEditingFields.delete(fieldKey);
+    setEditingFields(newEditingFields);
+    
+    const newEditedValues = { ...editedValues };
+    delete newEditedValues[fieldKey];
+    setEditedValues(newEditedValues);
+    
+    // Recheck if there are still changes
+    const hasCurrentChanges = Object.entries(newEditedValues)
+      .some(([key, val]) => val !== getOriginalValue(key));
+    setHasChanges(hasCurrentChanges);
+  };
+
+  const handleSave = async () => {
+    if (!questionData || saving) return;
+    
+    try {
+      setSaving(true);
+      
+      // Build updates for different entities
+      const updates: any = {
+        questionUpdates: {},
+        answerUpdates: {},
+        insightUpdates: {}
+      };
+      
+      Object.entries(editedValues).forEach(([fieldKey, value]) => {
+        if (value === getOriginalValue(fieldKey)) return; // Skip unchanged values
+        
+        if (fieldKey === 'question') {
+          updates.questionUpdates.questionText = value;
+        } else if (fieldKey === 'inspiration-insight') {
+          updates.insightUpdates[questionData.inspiration.id] = {
+            insightText: value
+          };
+        } else if (fieldKey === 'inspiration-short') {
+          updates.insightUpdates[questionData.inspiration.id] = {
+            ...updates.insightUpdates[questionData.inspiration.id],
+            shortInsightText: value
+          };
+        } else {
+          const [type, id] = fieldKey.split('-');
+          if (type === 'answer') {
+            updates.answerUpdates[id] = { answerText: value };
+          } else if (type === 'insight') {
+            const answer = questionData.answers.find(a => a.id.toString() === id);
+            if (answer?.linkedAnswerInsight) {
+              updates.insightUpdates[answer.linkedAnswerInsight.id] = {
+                insightText: value
+              };
+            }
+          } else if (type === 'short') {
+            const answer = questionData.answers.find(a => a.id.toString() === id);
+            if (answer?.linkedAnswerInsight) {
+              updates.insightUpdates[answer.linkedAnswerInsight.id] = {
+                ...updates.insightUpdates[answer.linkedAnswerInsight.id],
+                shortInsightText: value
+              };
+            }
+          }
+        }
+      });
+      
+      // Send updates to API
+      const response = await fetch(`/api/questions/${questionData.id}/edit`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updates)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      // Clear editing state and refresh the question data
+      setEditingFields(new Set());
+      setEditedValues({});
+      setHasChanges(false);
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to save changes:', error);
+      alert('Failed to save changes: ' + (error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDiscard = () => {
+    if (discarding) return;
+    
+    setDiscarding(true);
+    setEditingFields(new Set());
+    setEditedValues({});
+    setHasChanges(false);
+    
+    // Reload the page to get fresh data
+    window.location.reload();
   };
 
   useEffect(() => {
@@ -836,7 +1103,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                 💬
               </button>
               
-              {!isApproved && (
+              {!isApproved && !hasChanges && (
                 <button
                   onClick={handleDeleteQuestion}
                   disabled={deleting?.type === 'question'}
@@ -874,7 +1141,18 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             </div>
           </div>
           <div style={{ marginBottom: 'auto', paddingBottom: '20px' }}>
-            <h3 style={{ margin: 0, marginBottom: '10px' }}>{displayQuestionText}</h3>
+            <h3 style={{ margin: 0, marginBottom: '10px' }}>
+              <EditableText
+                fieldKey="question"
+                value={displayQuestionText}
+                editingFields={editingFields}
+                editedValues={editedValues}
+                onStartEdit={startEdit}
+                onUpdateValue={updateEditValue}
+                onCancelEdit={cancelEdit}
+                style={{ fontWeight: 'bold', fontSize: 'inherit' }}
+              />
+            </h3>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {options.map((option) => {
@@ -887,7 +1165,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                     onMouseLeave={() => handleAnswerHover(null)}
                     style={{
                       padding: '15px',
-                      paddingRight: canDeleteAnswers ? '50px' : '15px',
+                      paddingRight: canDeleteAnswers && !hasChanges ? '50px' : '15px',
                       fontSize: '16px',
                       borderRadius: '8px',
                       border: isHovered ? '2px solid #007bff' : '2px solid transparent',
@@ -900,7 +1178,17 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                     }}
                   >
                     <div>
-                      {option.answerText}
+                      <EditableText
+                        fieldKey={`answer-${option.id}`}
+                        value={option.answerText}
+                        editingFields={editingFields}
+                        editedValues={editedValues}
+                        onStartEdit={startEdit}
+                        onUpdateValue={updateEditValue}
+                        onCancelEdit={cancelEdit}
+                        style={{ fontSize: 'inherit' }}
+                        disabled={questionData.questionType === 'BINARY'}
+                      />
                       {option.originalAnswer && option.originalAnswer !== option.answerText && (
                         <div style={{
                           fontSize: '12px',
@@ -914,7 +1202,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                       )}
                     </div>
                   </button>
-                  {canDeleteAnswers && (
+                  {canDeleteAnswers && !hasChanges && (
                     <button
                       onClick={() => handleDeleteAnswer(option.id)}
                       disabled={isDeleting}
@@ -997,6 +1285,78 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                 publishedId={questionData.publishedId}
                 isProposed={!!questionData.proposedQuestion}
               />
+              {hasChanges && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '10px' }}>
+                  <button
+                    onClick={handleDiscard}
+                    disabled={discarding || saving}
+                    style={{
+                      background: 'none',
+                      border: '2px solid #6c757d',
+                      color: '#6c757d',
+                      fontSize: '12px',
+                      cursor: discarding || saving ? 'not-allowed' : 'pointer',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: discarding || saving ? 0.5 : 1,
+                      transition: 'all 0.2s ease',
+                      fontWeight: 'normal'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!discarding && !saving) {
+                        e.currentTarget.style.backgroundColor = '#6c757d';
+                        e.currentTarget.style.color = 'white';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!discarding && !saving) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = '#6c757d';
+                      }
+                    }}
+                    title="Discard changes"
+                  >
+                    {discarding ? '⏳' : 'Discard'}
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving || discarding}
+                    style={{
+                      background: 'none',
+                      border: '2px solid #28a745',
+                      color: '#28a745',
+                      fontSize: '12px',
+                      cursor: saving || discarding ? 'not-allowed' : 'pointer',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: saving || discarding ? 0.5 : 1,
+                      transition: 'all 0.2s ease',
+                      fontWeight: 'normal'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!saving && !discarding) {
+                        e.currentTarget.style.backgroundColor = '#28a745';
+                        e.currentTarget.style.color = 'white';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!saving && !discarding) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = '#28a745';
+                      }
+                    }}
+                    title="Save changes"
+                  >
+                    {saving ? '⏳' : 'Save'}
+                  </button>
+                </div>
+              )}
             </div>
             {(questionData.proposedQuestion || (questionData.originalQuestion && questionData.originalQuestion !== questionData.questionText)) && (
               <div style={{ maxWidth: '300px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1048,12 +1408,46 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', gap: '10px' }}>
-                <p style={{ margin: 0, flex: 1, textAlign: 'left' }}>{questionData.inspiration.insightText}</p>
+                <p style={{ margin: 0, flex: 1, textAlign: 'left' }}>
+                  <EditableText
+                    fieldKey="inspiration-insight"
+                    value={questionData.inspiration.insightText}
+                    editingFields={editingFields}
+                    editedValues={editedValues}
+                    onStartEdit={startEdit}
+                    onUpdateValue={updateEditValue}
+                    onCancelEdit={cancelEdit}
+                    style={{ fontSize: 'inherit' }}
+                  />
+                </p>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                   {questionData.inspiration.publishedTag && (
                     <PublishedTagChip publishedTag={questionData.inspiration.publishedTag} />
                   )}
-                  <ShortInsightChip shortInsightText={questionData.inspiration.shortInsightText} />
+                  <div style={{ cursor: 'pointer' }}>
+                    <EditableText
+                      fieldKey="inspiration-short"
+                      value={questionData.inspiration.shortInsightText || ''}
+                      editingFields={editingFields}
+                      editedValues={editedValues}
+                      onStartEdit={startEdit}
+                      onUpdateValue={updateEditValue}
+                      onCancelEdit={cancelEdit}
+                      style={{ 
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        backgroundColor: editingFields.has('inspiration-short') ? 'rgba(0, 123, 255, 0.1)' : '#e0e0e0',
+                        color: '#000',
+                        padding: '6px 12px',
+                        borderRadius: '12px',
+                        display: 'inline-block',
+                        maxWidth: '150px',
+                        wordWrap: 'break-word',
+                        lineHeight: '1.3',
+                        minHeight: '1.3em'
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1098,13 +1492,46 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                               relatedQuestions={insightToQuestionsMap.get(answer.linkedAnswerInsight.id) || []}
                               onQuestionClick={handleQuestionNavigation}
                             />
-                            ↪ {answer.linkedAnswerInsight.insightText}
+                            ↪ 
+                            <EditableText
+                              fieldKey={`insight-${answer.id}`}
+                              value={answer.linkedAnswerInsight.insightText}
+                              editingFields={editingFields}
+                              editedValues={editedValues}
+                              onStartEdit={startEdit}
+                              onUpdateValue={updateEditValue}
+                              onCancelEdit={cancelEdit}
+                              style={{ fontSize: 'inherit', fontStyle: 'inherit', color: 'inherit', marginLeft: '4px' }}
+                            />
                           </p>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                             {answer.linkedAnswerInsight.publishedTag && (
                               <PublishedTagChip publishedTag={answer.linkedAnswerInsight.publishedTag} />
                             )}
-                            <ShortInsightChip shortInsightText={answer.linkedAnswerInsight.shortInsightText} />
+                            <div style={{ cursor: 'pointer' }}>
+                              <EditableText
+                                fieldKey={`short-${answer.id}`}
+                                value={answer.linkedAnswerInsight.shortInsightText || ''}
+                                editingFields={editingFields}
+                                editedValues={editedValues}
+                                onStartEdit={startEdit}
+                                onUpdateValue={updateEditValue}
+                                onCancelEdit={cancelEdit}
+                                style={{ 
+                                  fontSize: '12px',
+                                  fontWeight: 'bold',
+                                  backgroundColor: editingFields.has(`short-${answer.id}`) ? 'rgba(0, 123, 255, 0.1)' : '#e0e0e0',
+                                  color: '#000',
+                                  padding: '6px 12px',
+                                  borderRadius: '12px',
+                                  display: 'inline-block',
+                                  maxWidth: '150px',
+                                  wordWrap: 'break-word',
+                                  lineHeight: '1.3',
+                                  minHeight: '1.3em'
+                                }}
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1210,36 +1637,38 @@ const QuestionView: React.FC<QuestionViewProps> = ({
                                 isProposed={!!question.proposedQuestion}
                               />
                             </div>
-                            <button
-                              onClick={() => handleDeleteOverlappingQuestion(question.id)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#dc3545',
-                                fontSize: '14px',
-                                cursor: 'pointer',
-                                padding: '4px',
-                                borderRadius: '3px',
-                                opacity: 0.7,
-                                transition: 'opacity 0.2s ease',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                minWidth: '20px',
-                                height: '20px'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.opacity = '1';
-                                e.currentTarget.style.backgroundColor = '#f8d7da';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.opacity = '0.7';
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                              }}
-                              title="Delete overlapping question"
-                            >
-                              ✕
-                            </button>
+                            {!hasChanges && (
+                              <button
+                                onClick={() => handleDeleteOverlappingQuestion(question.id)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#dc3545',
+                                  fontSize: '14px',
+                                  cursor: 'pointer',
+                                  padding: '4px',
+                                  borderRadius: '3px',
+                                  opacity: 0.7,
+                                  transition: 'opacity 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  minWidth: '20px',
+                                  height: '20px'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.opacity = '1';
+                                  e.currentTarget.style.backgroundColor = '#f8d7da';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.opacity = '0.7';
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title="Delete overlapping question"
+                              >
+                                ✕
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
