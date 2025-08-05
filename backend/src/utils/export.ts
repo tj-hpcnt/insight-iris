@@ -1,4 +1,4 @@
-import { PrismaClient, InsightSource, PolarityType } from '@prisma/client';
+import { PrismaClient, Question, QuestionType } from '@prisma/client';
 
 interface ExportCategory {
   category: string;
@@ -35,6 +35,8 @@ interface ExportQuestion {
   questionText: string;
   questionType: string;
   isImageQuestion: boolean;
+  legacyQuestionType: string;
+  legacyIsMultiSelect: boolean;
   imagesPerRow: number | null;
   approved: boolean;
   conversationStarter: boolean;
@@ -107,6 +109,37 @@ export async function generateExportData(prisma: PrismaClient): Promise<ExportDa
   };
 }
 
+function mapLegacyQuestionType(question: { 
+  questionType: string;
+  isImageQuestion: boolean;
+}): string {
+  switch(question.questionType) {
+    case QuestionType.BINARY:
+      return question.isImageQuestion ? 'BINARY_IMAGE' : 'BINARY_TEXT';
+    case QuestionType.MULTIPLE_CHOICE:
+      return question.isImageQuestion ? 'MCQ_IMAGE' : 'MCQ_TEXT';
+    case QuestionType.SINGLE_CHOICE:
+      return question.isImageQuestion ? 'MCQ_IMAGE' : 'MCQ_TEXT';
+    default:
+      throw new Error(`Unknown question type: ${question.questionType}`);
+  }
+}
+
+function mapLegacyQuestionIsMultiSelect(question: {
+  questionType: string;
+}): boolean {
+  switch(question.questionType) {
+    case QuestionType.MULTIPLE_CHOICE:
+      return true;
+    case QuestionType.SINGLE_CHOICE:
+      return false;
+    case QuestionType.BINARY:
+      return false;
+    default:
+      throw new Error(`Unknown question type: ${question.questionType}`);
+    }
+}
+
 /**
  * Generates export data for a single question
  * @param question - Question with all related data included
@@ -148,6 +181,8 @@ export function generateQuestionExportData(question: {
     questionText: question.questionText,
     questionType: question.questionType,
     isImageQuestion: question.isImageQuestion,
+    legacyQuestionType: mapLegacyQuestionType(question),
+    legacyIsMultiSelect: mapLegacyQuestionIsMultiSelect(question),
     imagesPerRow: question.imagesPerRow,
     approved: question.approved,
     conversationStarter: question.conversationStarter,
