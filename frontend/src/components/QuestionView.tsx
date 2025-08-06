@@ -316,6 +316,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [togglingApproval, setTogglingApproval] = useState<boolean>(false);
   const [togglingFirstDays, setTogglingFirstDays] = useState<boolean>(false);
   const [togglingConversationStarter, setTogglingConversationStarter] = useState<boolean>(false);
+  const [showConversationStarterModal, setShowConversationStarterModal] = useState<boolean>(false);
   
   // Ref to track if we're in the middle of a save operation
   const isSavingRef = useRef<boolean>(false);
@@ -897,6 +898,13 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       setHasChanges(false);
     }
     
+    // Check if we're turning ON conversation starter and if there's no existing data
+    const willNeedGeneration = !isConversationStarter && !questionData.conversationStarterData;
+    
+    if (willNeedGeneration) {
+      setShowConversationStarterModal(true);
+    }
+    
     try {
       setTogglingConversationStarter(true);
       const response = await fetch(`/api/questions/${questionData.id}/conversation-starter`, {
@@ -910,11 +918,20 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       
       const result = await response.json();
       setIsConversationStarter(result.conversationStarter);
+      
+      // Update conversation starter data in questionData if it was generated
+      if (result.conversationStarterData) {
+        setQuestionData(prev => prev ? {
+          ...prev,
+          conversationStarterData: result.conversationStarterData
+        } : null);
+      }
     } catch (error) {
       console.error('Failed to toggle conversation starter:', error);
       alert('Failed to toggle conversation starter: ' + (error as Error).message);
     } finally {
       setTogglingConversationStarter(false);
+      setShowConversationStarterModal(false);
     }
   };
 
@@ -2212,6 +2229,66 @@ const QuestionView: React.FC<QuestionViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Conversation Starter Generation Modal */}
+      {showConversationStarterModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '32px',
+            maxWidth: '400px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+          }}>
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤖</div>
+              <h3 style={{ margin: '0 0 12px 0', color: '#333' }}>Creating conversation starter...</h3>
+              <p style={{ margin: 0, color: '#666', fontSize: '14px', lineHeight: '1.4' }}>
+                We're generating a compelling conversation starter for this question. This may take a moment.
+              </p>
+            </div>
+            
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              gap: '8px',
+              color: '#17a2b8',
+              fontSize: '14px'
+            }}>
+              <div style={{
+                width: '20px',
+                height: '20px',
+                border: '2px solid #17a2b8',
+                borderTop: '2px solid transparent',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+              <span>Generating...</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

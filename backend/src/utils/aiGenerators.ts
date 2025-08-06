@@ -3129,6 +3129,138 @@ Insight to summarize: "${insightWithRelations.insightText}"`;
  * @param log Optional logging function for streaming responses
  * @returns Tuple containing total usage statistics and number of strong comparisons generated
  */
+/**
+ * Generates a conversation starter module heading for a given question
+ * @param question The question to generate a conversation starter for
+ * @returns Tuple containing the generated module heading and token usage statistics
+ */
+export async function generateConversationStarter(
+  question: Question & {
+    answers: (Answer & {
+      insight: Insight;
+    })[];
+    category: Category;
+  }
+): Promise<[string, OpenAI.Completions.CompletionUsage] | null> {
+  try {
+    // Get all questions with existing conversation starters, then randomly sample 10
+    const allExampleQuestions = await prisma.question.findMany({
+      where: {
+        conversationStarterData: {
+          isNot: null
+        }
+      },
+      include: {
+        conversationStarterData: true
+      }
+    });
+
+    // Randomly shuffle and take 10
+    const shuffled = allExampleQuestions.sort(() => 0.5 - Math.random());
+    const exampleQuestions = shuffled.slice(0, 10);
+
+    if (exampleQuestions.length === 0) {
+      console.warn('No existing conversation starters found for examples');
+      return null;
+    }
+
+    // Build examples string - we'll need to get the answers for the examples too
+    const examplesWithAnswers = await Promise.all(
+      exampleQuestions.map(async (q) => {
+        const questionWithAnswers = await prisma.question.findUnique({
+          where: { id: q.id },
+          include: {
+            answers: true
+          }
+        });
+        return {
+          ...q,
+          answers: questionWithAnswers?.answers || []
+        };
+      })
+    );
+
+    const examples = examplesWithAnswers
+      .map(q => {
+        const answerOptions = q.answers.map(a => `"${a.answerText}"`).join(', ');
+        return `Question: "${q.questionText}"\nAnswer Options: ${answerOptions}\nModule Heading: "${q.conversationStarterData?.moduleHeading || 'N/A'}"`;
+      })
+      .join('\n\n');
+
+    const prompt = `You are tasked with creating a compelling conversation starter module heading for a dating app question. This heading will appear above a display showing how two users answered the same question, helping them start meaningful conversations.
+
+The heading should:
+- Be engaging and thought-provoking
+- Help users understand what they can learn about each other from this question
+- Be conversational and inviting
+- Encourage users to discuss their answers
+- Be concise (absolute maximum is 50 characters, average is 30)
+- Feel natural and not overly promotional
+
+Here are examples of good conversation starter headings from existing questions:
+
+${examples}
+
+Now create a module heading for this question:
+"${question.questionText}"
+
+Answer Options: ${question.answers.map(a => `"${a.answerText}"`).join(', ')}
+
+Category: ${question.category.category} - ${question.category.subcategory}
+Subject: ${question.category.insightSubject}
+
+IMPORTANT: The heading will appear above a display showing which specific answer option each user selected. For example, if the answers are "Yes" and "No", users will see something like:
+[Your Module Heading]
+User A selected: "Yes"  
+User B selected: "No"
+
+Make sure your heading makes sense in this context and helps users understand what they can learn about each other from their specific answer choices.
+
+Generate only the module heading text, nothing else.`;
+
+    const model = LOW_MODEL;
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: "system", content: prompt }
+    ];
+
+    const format = {
+      type: "json_schema" as const,
+      json_schema: {
+        name: "conversation_starter",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            moduleHeading: {
+              type: "string",
+              description: "The conversation starter module heading"
+            }
+          },
+          required: ["moduleHeading"],
+          additionalProperties: false
+        }
+      }
+    };
+
+    const completion = await openai.beta.chat.completions.parse({
+      messages,
+      model,
+      response_format: format,
+    });
+
+    const result = completion.choices[0].message.parsed as { moduleHeading: string } | null;
+    if (!result || !result.moduleHeading) {
+      console.error('Failed to parse conversation starter response');
+      return null;
+    }
+
+    return [result.moduleHeading, completion.usage!];
+  } catch (error) {
+    console.error('Error generating conversation starter:', error);
+    return null;
+  }
+}
+
 export async function generateSelfInsightComparisons(
   questionId: number,
   log?: (message: string) => void

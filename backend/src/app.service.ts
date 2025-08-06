@@ -1405,20 +1405,72 @@ export class AppService {
     try {
       const question = await this.prisma.question.findUnique({
         where: { id: questionId },
-        select: { conversationStarter: true }
+        select: { 
+          conversationStarter: true,
+          conversationStarterData: true
+        }
       });
 
       if (!question) {
         throw new NotFoundException('Question not found');
       }
 
+      const newConversationStarterValue = !question.conversationStarter;
+      let conversationStarterData = question.conversationStarterData;
+
+      // If toggling ON and no conversation starter data exists, generate it
+      if (newConversationStarterValue && !conversationStarterData) {
+        // Get the full question data needed for generation
+        const fullQuestion = await this.prisma.question.findUnique({
+          where: { id: questionId },
+          include: {
+            answers: {
+              include: {
+                insight: true
+              }
+            },
+            category: true
+          }
+        });
+
+        if (!fullQuestion) {
+          throw new NotFoundException('Question not found');
+        }
+
+        // Generate conversation starter using AI
+        const { generateConversationStarter } = await import('./utils/aiGenerators');
+        const generationResult = await generateConversationStarter(fullQuestion);
+        
+        if (generationResult) {
+          const [moduleHeading] = generationResult;
+          
+          // Create the conversation starter data
+          conversationStarterData = await this.prisma.conversationStarter.create({
+            data: {
+              starterId: `CS${questionId}_${Date.now()}`,
+              questionId: questionId,
+              moduleHeading: moduleHeading,
+              originalModuleHeading: moduleHeading
+            }
+          });
+        }
+      }
+
       const updatedQuestion = await this.prisma.question.update({
         where: { id: questionId },
-        data: { conversationStarter: !question.conversationStarter },
-        select: { id: true, conversationStarter: true }
+        data: { conversationStarter: newConversationStarterValue },
+        select: { 
+          id: true, 
+          conversationStarter: true,
+          conversationStarterData: true
+        }
       });
 
-      return { success: true, conversationStarter: updatedQuestion.conversationStarter };
+      return { 
+        success: true, 
+        conversationStarter: updatedQuestion.conversationStarter,
+        conversationStarterData: updatedQuestion.conversationStarterData
+      };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
