@@ -40,6 +40,8 @@ interface ExportQuestion {
   imagesPerRow: number | null;
   approved: boolean;
   conversationStarter: boolean;
+  conversationStarterId: string | null;
+  conversationStarterModuleHeading: string | null;
   firstDays: boolean;
   answers: {
     answerText: string;
@@ -63,6 +65,7 @@ export async function generateExportData(prisma: PrismaClient): Promise<ExportDa
     include: {
       category: true,
       inspiration: true,
+      conversationStarterData: true,
       answers: {
         include: {
           insight: true
@@ -161,6 +164,10 @@ export function generateQuestionExportData(question: {
     subcategory: string;
     insightSubject: string;
   };
+  conversationStarterData?: {
+    starterId: string;
+    moduleHeading: string | null;
+  } | null;
   answers: Array<{
     answerText: string;
     originalAnswer: string | null;
@@ -186,6 +193,8 @@ export function generateQuestionExportData(question: {
     imagesPerRow: question.imagesPerRow,
     approved: question.approved,
     conversationStarter: question.conversationStarter,
+    conversationStarterId: question.conversationStarterData?.starterId || null,
+    conversationStarterModuleHeading: question.conversationStarterData?.moduleHeading || null,
     firstDays: question.firstDays,
     answers: question.answers.map(answer => ({
       answerText: answer.answerText,
