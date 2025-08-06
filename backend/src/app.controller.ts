@@ -120,11 +120,7 @@ export class AppController {
     return this.appService.deleteAnswer(answerId);
   }
 
-  @Get('questions/:questionId/answer-count')
-  @UseGuards(AuthGuard)
-  async getQuestionAnswerCount(@Param('questionId', ParseIntPipe) questionId: number) {
-    return this.appService.getQuestionAnswerCount(questionId);
-  }
+
 
   @Put('questions/:questionId/approval')
   @UseGuards(WriteGuard)

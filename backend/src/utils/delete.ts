@@ -255,29 +255,6 @@ export async function deleteAnswer(answerId: number): Promise<void> {
 }
 
 /**
- * Checks if a question can have individual answers deleted (has more than 2 answers)
- * @param questionId The ID of the question to check
- * @returns boolean indicating if answers can be deleted individually
- */
-export async function canDeleteAnswersIndividually(questionId: number): Promise<boolean> {
-  const answerCount = await prisma.answer.count({
-    where: { questionId }
-  });
-  return answerCount > 2;
-}
-
-/**
- * Gets the number of answers for a question
- * @param questionId The ID of the question
- * @returns number of answers
- */
-export async function getAnswerCount(questionId: number): Promise<number> {
-  return await prisma.answer.count({
-    where: { questionId }
-  });
-}
-
-/**
  * Deletes a category and ALL its associated relationships recursively
  * This will delete all questions, answers, and insights in the category
  * @param categoryId The ID of the category to delete

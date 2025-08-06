@@ -645,10 +645,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     const fetchQuestionData = async () => {
       try {
         setLoadingQuestionContext(true);
-        const [questionResponse, countResponse] = await Promise.all([
-          fetch(`/api/questions/${questionId}`),
-          fetch(`/api/questions/${questionId}/answer-count`)
-        ]);
+        const questionResponse = await fetch(`/api/questions/${questionId}`);
         
         if (!questionResponse.ok) {
             const errorData = await questionResponse.json().catch(() => ({ message: `HTTP error! status: ${questionResponse.status}` }));
@@ -661,10 +658,9 @@ const QuestionView: React.FC<QuestionViewProps> = ({
         setIsFirstDays(data.firstDays); // Set firstDays state
         setIsConversationStarter(data.conversationStarter); // Set conversationStarter state
         
-        if (countResponse.ok) {
-          const countData = await countResponse.json();
-          setCanDeleteAnswers(countData.canDeleteAnswers);
-        }
+        // Calculate canDeleteAnswers from the answer data (need more than 2 answers to delete)
+        const answerCount = data.answers?.length || 0;
+        setCanDeleteAnswers(answerCount > 2);
       } catch (e) {
         if (e instanceof Error) setError(e.message);
         else setError('An unknown error occurred while fetching question data');

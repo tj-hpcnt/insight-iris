@@ -11,7 +11,7 @@ import {
   predictQuestionCandidateCategory, generateQuestionFromProposal, generateSelfInsightComparisons,
   generateShortInsightText, computeQuestionRedundancyGroups
 } from './utils/aiGenerators';
-import { deleteQuestion, deleteAnswer, getAnswerCount, deleteCategory } from './utils/delete';
+import { deleteQuestion, deleteAnswer, deleteCategory } from './utils/delete';
 import { processInParallel } from './utils/parallelProcessor';
 import { AI_GENERATION_CONFIG } from './config';
 
@@ -1338,14 +1338,7 @@ export class AppService {
     }
   }
 
-  async getQuestionAnswerCount(questionId: number) {
-    try {
-      const count = await getAnswerCount(questionId);
-      return { count, canDeleteAnswers: count > 2 };
-    } catch (error) {
-      throw new NotFoundException('Question not found');
-    }
-  }
+
 
   async deleteCategory(categoryId: number) {
     try {

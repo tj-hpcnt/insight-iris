@@ -203,45 +203,20 @@ const InsightTable: React.FC<InsightTableProps> = ({
     fetchQuestions();
   }, [refreshTrigger]);
 
-  // Fetch answer counts for questions when questions change
+  // Calculate answer counts from question data when questions change
   useEffect(() => {
-    const fetchAnswerCounts = async () => {
-      if (questions.length === 0) {
-        setAnswerCounts(new Map());
-        return;
-      }
-      
-      console.log('Fetching answer counts for', questions.length, 'questions');
-      
-      const countPromises = questions.map(async (question) => {
-        try {
-          const response = await fetch(`/api/questions/${question.id}/answer-count`);
-          if (response.ok) {
-            const data = await response.json();
-            console.log(`Question ${question.id} has ${data.count} answers`);
-            return { questionId: question.id, count: data.count };
-          } else {
-            console.warn(`Failed to fetch answer count for question ${question.id}: ${response.status}`);
-          }
-        } catch (error) {
-          console.warn(`Failed to fetch answer count for question ${question.id}:`, error);
-        }
-        // Default to the number of answers we already have in the data
-        const fallbackCount = question.answers?.length || 0;
-        console.log(`Using fallback count ${fallbackCount} for question ${question.id}`);
-        return { questionId: question.id, count: fallbackCount };
-      });
-      
-      const results = await Promise.all(countPromises);
-      const newAnswerCounts = new Map();
-      results.forEach(({ questionId, count }) => {
-        newAnswerCounts.set(questionId, count);
-      });
-      console.log('Answer counts:', Array.from(newAnswerCounts.entries()));
-      setAnswerCounts(newAnswerCounts);
-    };
+    if (questions.length === 0) {
+      setAnswerCounts(new Map());
+      return;
+    }
     
-    fetchAnswerCounts();
+    const newAnswerCounts = new Map();
+    questions.forEach((question) => {
+      const count = question.answers?.length || 0;
+      newAnswerCounts.set(question.id, count);
+    });
+    
+    setAnswerCounts(newAnswerCounts);
   }, [questions]);
 
   useEffect(() => {
