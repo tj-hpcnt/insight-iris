@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QuestionIdChip from './QuestionIdChip';
 import PublishedTagChip from './PublishedTagChip';
@@ -317,6 +317,9 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   const [togglingFirstDays, setTogglingFirstDays] = useState<boolean>(false);
   const [togglingConversationStarter, setTogglingConversationStarter] = useState<boolean>(false);
   
+  // Ref to track if we're in the middle of a save operation
+  const isSavingRef = useRef<boolean>(false);
+  
   // Add state for comment editing and deleting
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [editCommentText, setEditCommentText] = useState<string>('');
@@ -380,7 +383,8 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     }));
     
     // Check if this creates a change
-    const hasCurrentChanges = Object.entries({...editedValues, [fieldKey]: value})
+    const newEditedValues = {...editedValues, [fieldKey]: value};
+    const hasCurrentChanges = Object.entries(newEditedValues)
       .some(([key, val]) => val !== getOriginalValue(key));
     setHasChanges(hasCurrentChanges);
   };
@@ -439,6 +443,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     
     try {
       setSaving(true);
+      isSavingRef.current = true;
       
       // Build updates for different entities
       const updates: any = {
@@ -505,12 +510,20 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       setEditingFields(new Set());
       setEditedValues({});
       setHasChanges(false);
+      
+      // Explicitly remove the beforeunload listener before reload
+      if (handleBeforeUnloadRef.current) {
+        window.removeEventListener('beforeunload', handleBeforeUnloadRef.current);
+        handleBeforeUnloadRef.current = null;
+      }
+      
       window.location.reload();
     } catch (error) {
       console.error('Failed to save changes:', error);
       alert('Failed to save changes: ' + (error as Error).message);
     } finally {
       setSaving(false);
+      isSavingRef.current = false;
     }
   };
 
@@ -522,26 +535,72 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     setEditedValues({});
     setHasChanges(false);
     
+    // Explicitly remove the beforeunload listener before reload
+    if (handleBeforeUnloadRef.current) {
+      window.removeEventListener('beforeunload', handleBeforeUnloadRef.current);
+      handleBeforeUnloadRef.current = null;
+    }
+    
     // Reload the page to get fresh data
     window.location.reload();
   };
 
   // Add navigation protection when there are unsaved changes
+  const handleBeforeUnloadRef = useRef<((e: BeforeUnloadEvent) => void) | null>(null);
+  
+  // Add popstate listener for browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = (_e: PopStateEvent) => {
+      if (hasChanges && !isSavingRef.current) {
+        const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+        if (!confirmed) {
+          // Push the current state back to prevent navigation
+          window.history.pushState(null, '', window.location.href);
+        }
+      }
+    };
+
+    if (hasChanges) {
+      window.addEventListener('popstate', handlePopState);
+      // Push a state so we can intercept back navigation
+      window.history.pushState(null, '', window.location.href);
+    }
+
+    return () => {
+      if (hasChanges) {
+        window.removeEventListener('popstate', handlePopState);
+      }
+    };
+  }, [hasChanges]);
+  
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasChanges) {
+      if (hasChanges && !isSavingRef.current) {
         e.preventDefault();
         e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
         return 'You have unsaved changes. Are you sure you want to leave?';
       }
     };
 
+    // Remove old listener if it exists
+    if (handleBeforeUnloadRef.current) {
+      window.removeEventListener('beforeunload', handleBeforeUnloadRef.current);
+    }
+
+    // Store the new handler reference
+    handleBeforeUnloadRef.current = handleBeforeUnload;
+
+    // Add new listener if we have changes
     if (hasChanges) {
       window.addEventListener('beforeunload', handleBeforeUnload);
     }
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Only remove if this is the current handler (not removed by save/discard)
+      if (handleBeforeUnloadRef.current === handleBeforeUnload) {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        handleBeforeUnloadRef.current = null;
+      }
     };
   }, [hasChanges]);
 
@@ -833,7 +892,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     
     // Check for unsaved changes
     if (hasChanges) {
-      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to toggle conversation starter? Your changes will be lost.');
       if (!confirmed) return;
       
       // Clear unsaved changes if user confirmed
