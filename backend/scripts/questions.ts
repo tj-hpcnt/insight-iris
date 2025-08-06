@@ -1,8 +1,10 @@
 import * as fs from 'fs';
 import * as csv from 'csv-parser';
-import { QuestionType, PrismaClient } from '@prisma/client';
+import { QuestionType, PrismaClient, InsightSource, Category, Insight, InsightDirection } from '@prisma/client';
 import * as path from 'path';
-import { fixIllegalEnumCharacters } from '../src/utils/aiGenerators';
+import { fixIllegalEnumCharacters, generateInsightTextFromImportedQuestion, regenerateImportedQuestion } from '../src/utils/aiGenerators';
+import { processInParallel } from '../src/utils/parallelProcessor';
+import { AI_GENERATION_CONFIG } from '../src/config';
 
 export interface QuestionCSVRow {
   question_id: string;
@@ -291,5 +293,312 @@ export async function handleConversationStarterImport(prisma: PrismaClient): Pro
 
   } catch (error) {
     console.error('Error importing conversation starters:', error);
+  }
+}
+
+// Extract configuration constants
+const {
+  BATCH_COUNT,
+  IMPORT_QUESTIONS_FROM_CSV,
+  REGENERATE_IMPORTED_QUESTIONS,
+} = AI_GENERATION_CONFIG;
+
+export async function handleQuestionImport(
+  prisma: PrismaClient,
+  categories: Category[], 
+  totalUsage: { promptTokens: number; cachedPromptTokens: number; completionTokens: number }
+) {
+  if (IMPORT_QUESTIONS_FROM_CSV) {
+    console.log('Importing questions from CSV...');
+    const [questionsData, mappingData] = await Promise.all([
+      parseQuestionsFromCSV(),
+      parseMappingFromCSV()
+    ]);
+
+    console.log(`Loaded ${questionsData.length} questions and ${mappingData.length} mappings`);
+
+    // Create a mapping from question_id + answer_option to insight_tag
+    const answerToInsightMap = new Map<string, { tag: string, direction: string }>();
+    for (const mapping of mappingData) {
+      if (mapping.source === 'question' && mapping.mapped_to_insight_tag && mapping.insight_direction) {
+        const key = `${mapping.question_id}:::${mapping.raw_value_answer_option}`;
+        answerToInsightMap.set(key, { tag: mapping.mapped_to_insight_tag, direction: mapping.insight_direction });
+      }
+    }
+    console.log(`Created ${answerToInsightMap.size} answer-to-insight mappings`);
+
+    // Process each question
+    for (const questionRow of questionsData) {
+      if (questionRow.status !== 'ACTIVE') {
+        console.log(`Skipping inactive question: ${questionRow.question_stem}`);
+        continue;
+      }
+
+      const existingQuestion = await prisma.question.findFirst({
+        where: { 
+          publishedId: questionRow.question_id,
+        },
+      });
+
+      if (existingQuestion) {
+        console.log(`Question already exists: ${questionRow.question_stem}`);
+        continue;
+      }
+
+      // Extract answers from the row
+      const answers = extractAnswersFromRow(questionRow).
+        filter(x => x != 'None of the above' && x != 'Prefer not to say');
+
+      // Determine if the question is an image-based question
+      const isImageQuestion = questionRow.question_type.endsWith('_IMAGE');
+      
+      if (answers.length === 0) {
+        console.warn(`No answers found for question: ${questionRow.question_stem}`);
+        continue;
+      }
+
+      console.log(`Processing question: ${questionRow.question_stem} : ${answers}`);
+
+      // Find matching category for the question's insights
+      const matchingCategory = categories.find(c => 
+        c.insightSubject === questionRow.insight_subject
+      );
+
+      if (!matchingCategory) {
+        console.warn(`No matching category found for question: ${questionRow.question_id} (${questionRow.insight_subject})`);
+        continue;
+      }
+
+      const inspirationInsight = await prisma.insight.create({
+        data: {
+          categoryId: matchingCategory.id,
+          insightText: `Question imported: ${questionRow.question_stem}`,
+          source: InsightSource.INSPIRATION,
+        },
+      });      
+      
+      // Create the question linked to the inspiration insight
+      const question = await prisma.question.create({
+        data: {
+          inspirationId: inspirationInsight.id,
+          categoryId: matchingCategory.id,
+          questionText: questionRow.question_stem,
+          originalQuestion: questionRow.question_stem, // Preserve the exact imported text
+          questionType: parseQuestionType(questionRow.question_type, questionRow.multi_select),
+          publishedId: questionRow.question_id,
+          persistentId: questionRow.question_id, // Use original question ID as persistent ID for imported questions
+          isImageQuestion: isImageQuestion,
+          imagesPerRow: isImageQuestion ? parseInt(questionRow.image_per_row) : undefined,
+        } as any,
+      });
+
+      // Create answers and link to insights
+      for (let i = 0; i < answers.length; i++) {
+        const answerText = answers[i];
+        const mapKey = `${questionRow.question_id}:::${answerText}`;
+        const insightTag : { tag: string, direction: string } = answerToInsightMap.get(mapKey);
+
+        if (!insightTag) {
+          console.error(`failed to find answer insight: ${insightTag}`);
+          continue
+        }
+
+        // Find or create the insight for this answer
+        var insight = await prisma.insight.findFirst({
+          where: { 
+            publishedTag: insightTag.tag,
+            legacyDirection: insightTag.direction as InsightDirection
+          }
+        });
+
+        if (!insight) {
+          // Create new insight with placeholder text
+          insight = await prisma.insight.create({
+            data: {
+              categoryId: matchingCategory.id,
+              insightText: "IMPORTED",
+              source: InsightSource.ANSWER,
+              publishedTag: insightTag.tag == 'nan' ? undefined : insightTag.tag,
+              legacyDirection: insightTag.direction as InsightDirection 
+            },
+          });
+          console.log(`Created new insight: ${insightTag.tag} ${insightTag.direction}`);
+        } 
+
+        // Create the answer
+        await prisma.answer.create({
+          data: {
+            questionId: question.id,
+            answerText: answerText,
+            originalAnswer: answerText, // Preserve original imported answer text
+            insightId: insight.id,
+          } as any,
+        });
+      }
+    }
+
+    console.log('Questions import completed successfully!');
+
+    // Phase: Generate proper insight text for insights that need it
+    console.log('Generating insight text for imported insights...');
+    const insightsNeedingGeneration = await prisma.insight.findMany({
+      where: {
+        insightText: "IMPORTED",
+      }
+    });
+    
+    if (insightsNeedingGeneration.length > 0) {
+      console.log(`Generating insight text for ${insightsNeedingGeneration.length} insights`);
+      
+      await processInParallel<Insight, void>(
+        insightsNeedingGeneration,
+        async (insight) => {
+          try {
+            const category = categories.find(c => c.id === insight.categoryId);
+            if (!category) {
+              console.error(`Category not found for insight ${insight.id}`);
+              return;
+            }
+            const answer = await prisma.answer.findFirst({ where: { insightId: insight.id } });
+            if (!answer) {
+              console.error(`Answer not found for insight ${insight.id}`);
+              return;
+            }
+            const question = await prisma.question.findFirst({ where: { id: answer.questionId } });
+            if (!question) {
+              console.error(`Question not found for answer ${answer.id}`);
+              return;
+            }
+
+            const result = await generateInsightTextFromImportedQuestion(question.questionText, answer.answerText, category, insight.publishedTag);
+            if (result) {
+              const [generatedText, usage] = result;
+              totalUsage.promptTokens += usage.prompt_tokens;
+              totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
+              totalUsage.completionTokens += usage.completion_tokens;
+
+              // Update the insight with the generated text
+              await prisma.insight.update({
+                where: { id: insight.id },
+                data: { insightText: generatedText },
+              });
+
+              console.log(`Generated insight text for "${insight.publishedTag}": ${generatedText}`);
+            } else {
+              console.error(`Failed to generate insight text for "${insight.publishedTag}"`);
+            }
+          } catch (error) {
+            console.error(`Error processing insight ${insight.id}:`, error);
+          }
+        },
+        BATCH_COUNT
+      );
+    } else {
+      console.log('No insights need text generation, skipping generation phase');
+    }
+
+    // Phase: Update inspiration insights to use answer insight text
+    console.log('Updating inspiration insights with answer insight text...');
+    const inspirationInsightsNeedingUpdate = await prisma.insight.findMany({
+      where: {
+        source: InsightSource.INSPIRATION,
+        insightText: {
+          startsWith: "Question imported: "
+        }
+      }
+    });
+    
+    if (inspirationInsightsNeedingUpdate.length > 0) {
+      console.log(`Updating ${inspirationInsightsNeedingUpdate.length} inspiration insights`);
+      
+      for (const inspirationInsight of inspirationInsightsNeedingUpdate) {
+        try {
+          // Find the question associated with this inspiration insight
+          const question = await prisma.question.findFirst({
+            where: { inspirationId: inspirationInsight.id }
+          });
+          
+          if (!question) {
+            console.error(`No question found for inspiration insight ${inspirationInsight.id}`);
+            continue;
+          }
+          
+          // Find the first answer for this question and get its insight
+          const answer = await prisma.answer.findFirst({
+            where: { questionId: question.id },
+            include: { insight: true }
+          });
+          
+          if (!answer || !answer.insight) {
+            console.error(`No answer with insight found for question ${question.id}`);
+            continue;
+          }
+          
+          // Update the inspiration insight text to match the answer insight text
+          await prisma.insight.update({
+            where: { id: inspirationInsight.id },
+            data: { insightText: answer.insight.insightText }
+          });
+          
+          console.log(`Updated inspiration insight for question "${question.questionText}" with text: "${answer.insight.insightText}"`);
+        } catch (error) {
+          console.error(`Error updating inspiration insight ${inspirationInsight.id}:`, error);
+        }
+      }
+    } else {
+      console.log('No inspiration insights need text updates');
+    }
+  }
+
+  if (REGENERATE_IMPORTED_QUESTIONS) {
+    console.log('Regenerating imported questions to match style guidelines...');
+    const publishedQuestions = await prisma.question.findMany({
+      where: {
+        publishedId: {
+          not: null,
+        },
+      },
+      include: {
+        answers: {
+          include: {
+            insight: true,
+          },
+        },
+      },
+    });
+
+    if (publishedQuestions.length > 0) {
+      console.log(`Regenerating ${publishedQuestions.length} published questions`);
+      
+      await processInParallel<typeof publishedQuestions[0], void>(
+        publishedQuestions,
+        async (question) => {
+          try {
+            if (question.questionText !== question.originalQuestion) {
+              return
+            }
+            if (question.isImageQuestion) {
+              return;
+            }
+            const result = await regenerateImportedQuestion(question);
+            if (result) {
+              const [updatedQuestion, usage] = result;
+              totalUsage.promptTokens += usage.prompt_tokens;
+              totalUsage.cachedPromptTokens += usage.prompt_tokens_details?.cached_tokens || 0;
+              totalUsage.completionTokens += usage.completion_tokens;
+
+              console.log(`Regenerated question "${question.questionText}" -> "${updatedQuestion.questionText}"`);
+            } else {
+              console.error(`Failed to regenerate question: ${question.questionText}`);
+            }
+          } catch (error) {
+            console.error(`Error regenerating question ${question.id}:`, error);
+          }
+        },
+        BATCH_COUNT
+      );
+    } else {
+      console.log('No published questions found, skipping regeneration phase');
+    }
   }
 } 
