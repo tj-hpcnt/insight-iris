@@ -303,6 +303,74 @@ const {
   REGENERATE_IMPORTED_QUESTIONS,
 } = AI_GENERATION_CONFIG;
 
+export async function updateFirstDaysFlags(prisma: PrismaClient): Promise<void> {
+  console.log('Updating firstDays flags from CSV data...');
+  
+  try {
+    const questionsData = await parseQuestionsFromCSV();
+    console.log(`Loaded ${questionsData.length} questions from CSV for firstDays update`);
+
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const questionRow of questionsData) {
+      try {
+        // Skip inactive questions
+        if (questionRow.status !== 'ACTIVE') {
+          continue;
+        }
+
+        // Parse the used_on_day_0 flag (assuming it's a string like "TRUE"/"FALSE" or "1"/"0")
+        const shouldBeFirstDay = questionRow.used_on_day_0.toLowerCase() === 'true' || 
+                                 questionRow.used_on_day_0 === '1' || 
+                                 questionRow.used_on_day_0.toLowerCase() === 'yes';
+
+        // Find the question by publishedId (which corresponds to question_id from CSV)
+        const existingQuestion = await prisma.question.findFirst({
+          where: { 
+            publishedId: questionRow.question_id,
+          },
+        });
+
+        if (!existingQuestion) {
+          console.warn(`Question not found for firstDays update: ${questionRow.question_id}`);
+          skipped++;
+          continue;
+        }
+
+        // Check if the firstDays flag needs to be updated
+        if (existingQuestion.firstDays === shouldBeFirstDay) {
+          // No update needed
+          continue;
+        }
+
+        // Update the firstDays flag
+        await prisma.question.update({
+          where: { id: existingQuestion.id },
+          data: { firstDays: shouldBeFirstDay }
+        });
+
+        console.log(`Updated firstDays flag for question "${questionRow.question_stem}": ${shouldBeFirstDay}`);
+        updated++;
+
+      } catch (error) {
+        console.error(`Error updating firstDays flag for question ${questionRow.question_id}:`, error);
+        errors++;
+      }
+    }
+
+    console.log(`\nFirstDays flags update completed:`);
+    console.log(`- Updated: ${updated}`);
+    console.log(`- Skipped (not found): ${skipped}`);
+    console.log(`- Errors: ${errors}`);
+    console.log(`- Total processed: ${questionsData.length}`);
+
+  } catch (error) {
+    console.error('Error updating firstDays flags:', error);
+  }
+}
+
 export async function handleQuestionImport(
   prisma: PrismaClient,
   categories: Category[], 

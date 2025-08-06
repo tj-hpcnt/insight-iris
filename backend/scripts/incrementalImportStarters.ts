@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
-import { handleConversationStarterImport, handleQuestionImport } from './questions';
+import { handleConversationStarterImport, handleQuestionImport, updateFirstDaysFlags } from './questions';
 import { parseCategoriesFromCSV } from './categories';
 
 dotenv.config();
@@ -29,6 +29,10 @@ async function importConversationStarters() {
     // Then, import conversation starters
     console.log('Starting conversation starters import...');
     await handleConversationStarterImport(prisma);
+    
+    // Finally, update firstDays flags based on used_on_day_0 from CSV
+    console.log('Updating firstDays flags from CSV data...');
+    await updateFirstDaysFlags(prisma);
     
     console.log('Import process completed successfully!');
     console.log(`Total usage: ${totalUsage.promptTokens} prompt tokens, ${totalUsage.completionTokens} completion tokens`);
