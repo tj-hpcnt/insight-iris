@@ -65,6 +65,14 @@ interface CompatibilityComparison {
   } | null;
 }
 
+// Interface for conversation starter data
+interface ConversationStarterData {
+  id: number;
+  starterId: string;
+  moduleHeading: string | null;
+  originalModuleHeading: string | null;
+}
+
 // Interface for the question data from the new API
 interface QuestionData {
   id: number;
@@ -87,6 +95,7 @@ interface QuestionData {
   }[];
   category: CategoryInfo;
   compatibilityComparisons: CompatibilityComparison[];
+  conversationStarterData: ConversationStarterData | null;
 }
 
 // Add interface for comments
@@ -382,6 +391,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     if (fieldKey === 'question') return questionData.questionText;
     if (fieldKey === 'inspiration-insight') return questionData.inspiration.insightText;
     if (fieldKey === 'inspiration-short') return questionData.inspiration.shortInsightText || '';
+    if (fieldKey === 'conversation-starter-heading') return questionData.conversationStarterData?.moduleHeading || '';
     
     // For answer and answer insight fields
     const [type, id] = fieldKey.split('-');
@@ -434,7 +444,8 @@ const QuestionView: React.FC<QuestionViewProps> = ({
       const updates: any = {
         questionUpdates: {},
         answerUpdates: {},
-        insightUpdates: {}
+        insightUpdates: {},
+        conversationStarterUpdates: {}
       };
       
       Object.entries(editedValues).forEach(([fieldKey, value]) => {
@@ -451,6 +462,8 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             ...updates.insightUpdates[questionData.inspiration.id],
             shortInsightText: value
           };
+        } else if (fieldKey === 'conversation-starter-heading') {
+          updates.conversationStarterUpdates.moduleHeading = value;
         } else {
           const [type, id] = fieldKey.split('-');
           if (type === 'answer') {
@@ -817,6 +830,17 @@ const QuestionView: React.FC<QuestionViewProps> = ({
 
   const handleConversationStarterToggle = async () => {
     if (!questionData || togglingConversationStarter) return;
+    
+    // Check for unsaved changes
+    if (hasChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to navigate away? Your changes will be lost.');
+      if (!confirmed) return;
+      
+      // Clear unsaved changes if user confirmed
+      setEditingFields(new Set());
+      setEditedValues({});
+      setHasChanges(false);
+    }
     
     try {
       setTogglingConversationStarter(true);
@@ -1640,6 +1664,47 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             <p>No related answer insights found for this question's options.</p>
           )}
           
+          {/* Conversation Starter Section */}
+          {isConversationStarter && questionData.conversationStarterData && (
+            <div style={{ marginTop: '30px' }}>
+              <h4 style={{ margin: 0, marginBottom: '15px' }}>Conversation Starter</h4>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '15px' }}>
+                <div style={{ flex: 1 }}>
+                  <EditableText
+                    fieldKey="conversation-starter-heading"
+                    value={questionData.conversationStarterData.moduleHeading || ''}
+                    editingFields={editingFields}
+                    editedValues={editedValues}
+                    onStartEdit={startEdit}
+                    onUpdateValue={updateEditValue}
+                    onCancelEdit={cancelEdit}
+                    onExitEditMode={exitEditMode}
+                    style={{ fontSize: '14px', lineHeight: '1.4', minHeight: '1.4em' }}
+                  />
+                </div>
+                {questionData.conversationStarterData.originalModuleHeading && 
+                 questionData.conversationStarterData.originalModuleHeading !== questionData.conversationStarterData.moduleHeading && (
+                  <div style={{ flexShrink: 0, maxWidth: '300px' }}>
+                    <span style={{
+                      backgroundColor: '#e0e0e0',
+                      color: '#000',
+                      padding: '6px 12px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      fontWeight: '400',
+                      display: 'inline-block',
+                      maxWidth: '100%',
+                      wordWrap: 'break-word',
+                      lineHeight: '1.3'
+                    }}>
+                      {questionData.conversationStarterData.originalModuleHeading}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           {/* Overlapping Questions Section */}
           {overlappingQuestions.length > 0 && (
             <div style={{ marginTop: '30px' }}>
@@ -1778,6 +1843,8 @@ const QuestionView: React.FC<QuestionViewProps> = ({
               )}
             </div>
           )}
+          
+
           
           {/* Compatibility Section */}
           {questionData.compatibilityComparisons && questionData.compatibilityComparisons.length > 0 && (

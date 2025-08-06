@@ -152,6 +152,7 @@ export class AppController {
       questionUpdates?: { questionText?: string };
       answerUpdates?: Record<string, { answerText?: string }>;
       insightUpdates?: Record<string, { insightText?: string; shortInsightText?: string }>;
+      conversationStarterUpdates?: { moduleHeading?: string };
     }
   ) {
     return this.appService.editQuestionFields(questionId, body);

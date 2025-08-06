@@ -482,6 +482,14 @@ export class AppService {
             insightSubject: true,
           },
         },
+        conversationStarterData: {
+          select: {
+            id: true,
+            starterId: true,
+            moduleHeading: true,
+            originalModuleHeading: true,
+          },
+        },
       },
     });
 
@@ -1432,6 +1440,7 @@ export class AppService {
       questionUpdates?: { questionText?: string };
       answerUpdates?: Record<string, { answerText?: string }>;
       insightUpdates?: Record<string, { insightText?: string; shortInsightText?: string }>;
+      conversationStarterUpdates?: { moduleHeading?: string };
     }
   ) {
     try {
@@ -1517,6 +1526,26 @@ export class AppService {
               });
               results.insights[insightId] = updatedInsight;
             }
+          }
+        }
+
+        // Update conversation starter if needed
+        if (updates.conversationStarterUpdates && Object.keys(updates.conversationStarterUpdates).length > 0) {
+          // Check if conversation starter exists
+          const existingConversationStarter = await tx.conversationStarter.findUnique({
+            where: { questionId: questionId },
+            select: { id: true }
+          });
+
+          if (existingConversationStarter) {
+            const updatedConversationStarter = await tx.conversationStarter.update({
+              where: { questionId: questionId },
+              data: updates.conversationStarterUpdates,
+              select: { id: true, moduleHeading: true, originalModuleHeading: true }
+            });
+            results.conversationStarter = updatedConversationStarter;
+          } else {
+            throw new Error(`Conversation starter not found for question ${questionId}`);
           }
         }
 
