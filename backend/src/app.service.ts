@@ -1444,15 +1444,17 @@ export class AppService {
         if (generationResult) {
           const [moduleHeading] = generationResult;
           
-          // Create the conversation starter data
-          conversationStarterData = await this.prisma.conversationStarter.create({
-            data: {
-              starterId: `CS${questionId}_${Date.now()}`,
-              questionId: questionId,
-              moduleHeading: moduleHeading,
-              originalModuleHeading: moduleHeading
-            }
-          });
+                  // Create the conversation starter data
+        // Extract numeric part from question's persistentId for the starterId
+        const persistentIdNumbers = fullQuestion.persistentId.replace(/[^0-9]/g, '');
+        conversationStarterData = await this.prisma.conversationStarter.create({
+          data: {
+            starterId: `CSID${persistentIdNumbers}`,
+            questionId: questionId,
+            moduleHeading: moduleHeading,
+            originalModuleHeading: moduleHeading
+          }
+        });
         }
       }
 
