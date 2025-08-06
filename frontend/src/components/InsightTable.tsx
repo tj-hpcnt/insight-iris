@@ -148,9 +148,9 @@ const InsightTable: React.FC<InsightTableProps> = ({
         }
         
         const categories = await categoriesResponse.json();
-        const allQuestions: QuestionFromAPI[] = [];
         
-        for (const category of categories) {
+        // Create all API calls in parallel
+        const questionPromises = categories.map(async (category: any) => {
           try {
             let url = `/api/categories/${category.id}/questions`;
             const params = new URLSearchParams();
@@ -170,15 +170,20 @@ const InsightTable: React.FC<InsightTableProps> = ({
             const response = await fetch(url);
             if (!response.ok) {
               console.warn(`Failed to fetch questions for category ${category.id}: ${response.status}`);
-              continue;
+              return [];
             }
             
             const questions: QuestionFromAPI[] = await response.json();
-            allQuestions.push(...questions);
+            return questions;
           } catch (error) {
             console.warn(`Error fetching questions for category ${category.id}:`, error);
+            return [];
           }
-        }
+        });
+
+        // Wait for all API calls to complete in parallel
+        const questionArrays = await Promise.all(questionPromises);
+        const allQuestions: QuestionFromAPI[] = questionArrays.flat();
         
         setQuestions(allQuestions);
       }
