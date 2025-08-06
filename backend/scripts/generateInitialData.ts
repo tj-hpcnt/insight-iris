@@ -12,7 +12,7 @@ import {
 import { EXTRA_CATEGORIES, parseCategoriesFromCSV } from './categories';
 import { FIXED_STYLES } from './styles';
 import { processInParallel } from '../src/utils/parallelProcessor';
-import { parseQuestionsFromCSV, parseMappingFromCSV, parseQuestionType, extractAnswersFromRow, parseProposedQuestions } from './questions';
+import { parseQuestionsFromCSV, parseMappingFromCSV, parseQuestionType, extractAnswersFromRow, parseProposedQuestions, handleConversationStarterImport } from './questions';
 import { AI_GENERATION_CONFIG } from '../src/config';
 dotenv.config();
 const prisma = new PrismaClient();
@@ -330,6 +330,8 @@ async function handleQuestionImport(
     }
   }
 }
+
+
 
 async function main() {
   try {
@@ -809,6 +811,9 @@ async function main() {
         BATCH_COUNT
       );
     }
+
+    // Import conversation starters
+    await handleConversationStarterImport(prisma);
 
     clearInterval(usageLogger);
     console.log(`accumulated tokens - in:${totalUsage.promptTokens} cached:${totalUsage.cachedPromptTokens} out:${totalUsage.completionTokens}`);

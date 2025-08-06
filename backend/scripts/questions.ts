@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as csv from 'csv-parser';
-import { QuestionType } from '@prisma/client';
+import { QuestionType, PrismaClient } from '@prisma/client';
 import * as path from 'path';
 import { fixIllegalEnumCharacters } from '../src/utils/aiGenerators';
 
@@ -31,6 +31,14 @@ export interface MappingCSVRow {
   raw_value_answer_option: string;
   mapped_to_insight_tag: string;
   insight_tag_suggestions: string;
+}
+
+export interface StarterCSVRow {
+  question_id: string;
+  conversation_starter_id: string;
+  question_type: string;
+  question_stem: string;
+  module_header: string;
 }
 
 export interface ExampleQuestion {
@@ -174,6 +182,25 @@ export function extractAnswersFromRow(questionRow: QuestionCSVRow): string[] {
   return answers;
 }
 
+export async function parseStartersFromCSV(): Promise<StarterCSVRow[]> {
+  const csvPath = path.join(__dirname, 'mvp-data', 'starters.csv');
+  return new Promise((resolve, reject) => {
+    const results: StarterCSVRow[] = [];
+    fs.createReadStream(csvPath)
+      .pipe(csv({ mapHeaders: ({ header, index }) => header == '' ? "h" + index : header.replace(/\s*\([^)]*\)/g, '')}))
+      .on('data', (data) => results.push(data))
+      .on('end', () => resolve(results))
+      .on('error', reject);
+  }).then((results: StarterCSVRow[]) => {
+    results.forEach(result => {
+      result.question_stem = result.question_stem.trim();
+      result.question_stem = fixIllegalEnumCharacters(result.question_stem);
+      result.module_header = result.module_header.trim();
+    });
+    return results;
+  });
+}
+
 export async function parseProposedQuestions(): Promise<string[]> {
   const proposedQuestionsPath = path.join(__dirname, 'mvp-data', 'proposedQuestions.txt');
   try {
@@ -188,5 +215,81 @@ export async function parseProposedQuestions(): Promise<string[]> {
   } catch (error) {
     console.error('Error reading proposed questions file:', error);
     return [];
+  }
+}
+
+export async function handleConversationStarterImport(prisma: PrismaClient): Promise<void> {
+  console.log('Importing conversation starters from CSV...');
+  
+  try {
+    const startersData = await parseStartersFromCSV();
+    console.log(`Loaded ${startersData.length} conversation starters from CSV`);
+
+    let imported = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const starterRow of startersData) {
+      try {
+        // Find the question by matching the originalQuestion field with question_stem
+        const question = await prisma.question.findFirst({
+          where: {
+            originalQuestion: starterRow.question_stem,
+            conversationStarter: false
+          }
+        });
+
+        if (!question) {
+          console.warn(`Question not found for starter: ${starterRow.question_id} - "${starterRow.question_stem}"`);
+          errors++;
+          continue;
+        }
+
+        // Check if conversation starter already exists for this question
+        const existingStarter = await prisma.conversationStarter.findUnique({
+          where: {
+            questionId: question.id
+          }
+        });
+
+        if (existingStarter) {
+          console.log(`Conversation starter already exists for question: ${question.originalQuestion}`);
+          skipped++;
+          continue;
+        }
+
+        // Create the conversation starter with both originalModuleHeading and moduleHeading set
+        await prisma.conversationStarter.create({
+          data: {
+            questionId: question.id,
+            starterId: starterRow.conversation_starter_id,
+            originalModuleHeading: starterRow.module_header,
+            moduleHeading: starterRow.module_header, // Set both fields to the same value
+          }
+        });
+
+        // Update the question to set the conversationStarter flag to true
+        await prisma.question.update({
+          where: { id: question.id },
+          data: { conversationStarter: true }
+        });
+
+        console.log(`Created conversation starter for question "${starterRow.question_stem}" with module heading: "${starterRow.module_header}"`);
+        imported++;
+
+      } catch (error) {
+        console.error(`Error processing starter for question ${starterRow.question_id}:`, error);
+        errors++;
+      }
+    }
+
+    console.log(`\nConversation starters import completed:`);
+    console.log(`- Imported: ${imported}`);
+    console.log(`- Skipped (already exists): ${skipped}`);
+    console.log(`- Errors: ${errors}`);
+    console.log(`- Total processed: ${startersData.length}`);
+
+  } catch (error) {
+    console.error('Error importing conversation starters:', error);
   }
 } 

@@ -1,0 +1,155 @@
+question_id,conversation_starter_id,question_type,question_stem,module_header
+QID100,CSID100,BINARY_TEXT,You prefer outdoor activities.,"""I prefer outdoor activities."""
+QID101,CSID101,MCQ_TEXT,How do you generally spend your weekend?,Typical weekend plans
+QID105,CSID103,MCQ_TEXT,Time for a vacation! What's your plan?,Time off well spent
+QID106,CSID104,MCQ_TEXT,What's your top priority when traveling?,Vacation spot must-have
+QID107,CSID105,BINARY_TEXT,Travel is a big part of my life.,"""Travel is a big part of my life."""
+QID116,CSID107,MCQ_TEXT,Date night! Which restaurant would be your first choice?,Go-to takeout order
+QID118,CSID108,MCQ_TEXT,It's a weeknight. How do you decide what's for dinner?,First rule of food
+QID124,CSID110,MCQ_TEXT,How often do you grab fast food?,Fast food frequency
+QID126,CSID112,MCQ_TEXT,How often do you order takeout or delivery each week?,Ordering delivery
+QID128,CSID114,BINARY_TEXT,My grocery haul is mostly healthy foods.,"""I check nutritional info when shopping."""
+QID129,CSID115,BINARY_TEXT,Your friends would call you a neat freak.,"""My friends call me a neat freak."""
+QID144,CSID118,MCQ_TEXT,What motivates you to exercise?,Fitness motivation
+QID145,CSID119,BINARY_TEXT,You'd love to work out with your partner.,"""I'd love to work out with my partner."""
+QID154,CSID120,BINARY_TEXT,Staying fit is important to you. ,"""Staying fit is important to me."""
+QID158,CSID121,BINARY_TEXT,"You're definitely a ""night out"" kind of person.","""I'm a 'night out' kind of person."""
+QID160,CSID123,MCQ_TEXT,How do you feel about traveling as a group?,Thoughts on group travel
+QID161,CSID124,MCQ_TEXT,What kind of social activities do you tend to enjoy the most?,Happy place
+QID162,CSID125,BINARY_TEXT,You're very much a night owl. ,"""I'm definitely a night owl."""
+QID163,CSID126,BINARY_TEXT,You're open to your partner having a different sleep schedule from yours. ,"""Different sleep schedules are fine."""
+QID166,CSID128,BINARY_TEXT,You feel energized after hanging out with a big group of friends. ,"""I feel energized in big groups."""
+QID168,CSID129,BINARY_TEXT,You need time alone at home on weekends.,"""I need alone time on weekends."""
+QID170,CSID132,MCQ_TEXT,Do you prefer to spend your free time alone or with others?,Free time: social or alone?
+QID180,CSID133,BINARY_TEXT,You don't mind if you and your partner have different opinions. ,Couple debates
+QID197,CSID136,BINARY_TEXT,"For you, work is all about building an empire. ","""Work is about building my empire."""
+QID206,CSID140,BINARY_TEXT,You're very interested in politics. ,"""I'm very interested in politics."""
+QID217,CSID142,BINARY_TEXT,Following your family traditions is important to you.,"""Following family traditions matters."""
+QID219,CSID143,BINARY_TEXT,You enjoy gatherings with close family.,"""I enjoy close family gatherings."""
+QID258,CSID147,BINARY_TEXT,You'd take a job with a lot of travel required.,"""I'd relocate for work."""
+QID259,CSID148,BINARY_TEXT,Climbing the career ladder is important to you.,"""Career growth is important to me."""
+QID282,CSID155,MCQ_IMAGE,Rise and shine! What's for breakfast? Choose all that apply.,Breakfast order
+QID316,CSID161,BINARY_TEXT,"You work to live, not live to work. ","""I work to live, not live to work."""
+QID317,CSID162,BINARY_TEXT,You work on creative projects for fun. ,"""I enjoy creative projects."""
+QID318,CSID163,BINARY_TEXT,Handmade gifts are more meaningful to you.,"""Handmade gifts are meaningful to me."""
+QID320,CSID165,BINARY_TEXT,You'd move across the country for the right job.,"""I'd move for the right job."""
+QID324,CSID167,BINARY_TEXT,Your friends call you a workaholic.,"""I've been called a workaholic."""
+QID326,CSID169,MCQ_TEXT,Do you work while on vacation?,Taking work on holiday
+QID329,CSID172,MCQ_TEXT,Who cleans your home?,Who cleans your home
+QID336,CSID400,MCQ_TEXT,Which would you find attractive in a partner?,Hottest artistic skill
+QID339,CSID181,MCQ_TEXT,Do you like spicy food?,Cooking with spices
+QID340,CSID182,MCQ_TEXT,Do you want a partner you can cook with?,Cooking with a partner
+QID341,CSID183,MCQ_TEXT,Who do you prefer to manage your household finances?,Who handles the money
+QID342,CSID184,BINARY_TEXT,You consider yourself a gamer. ,"""I consider myself a gamer."""
+QID343,CSID185,BINARY_TEXT,You forgive and forget.,"""Forgiving means forgetting too."""
+QID344,CSID186,BINARY_TEXT,You enjoy watching others play video games. ,"""I enjoy watching video games."""
+QID345,CSID187,MCQ_TEXT,How often do you play video games?,Gaming habits
+QID346,CSID188,MCQ_TEXT,Do you want a partner who plays video games?,Finding a partner who games
+QID348,CSID190,MCQ_TEXT,What kinds of games are you into? Choose all that apply.,A game you enjoy
+QID349,CSID191,MCQ_IMAGE,What outdoor sports do you enjoy? Choose all that apply.,A sport you play
+QID350,CSID192,BINARY_TEXT,You have a passport and you're ready to use it. ,"""I have a passport and use it."""
+QID351,CSID193,BINARY_TEXT,You regularly travel for work.,"""I regularly travel for work."""
+QID355,CSID195,MCQ_TEXT,Do you usually stay in a hotel or hostel?,Hotel or hostel?
+QID356,CSID196,BINARY_TEXT,You would love to live on a boat.,"""I'd love to live on a boat."""
+QID357,CSID197,MCQ_TEXT,What types of movies do you like? Choose all that apply.,The movie you'd pick
+QID360,CSID200,MCQ_TEXT,"When you travel, do you plan an itinerary?",Travel: plan or no plan
+QID363,CSID202,MCQ_TEXT,"Are you the ""planner"" in your family or friend group?","Are you the ""planner"" friend?"
+QID364,CSID203,MCQ_TEXT,Do you strive for promotions at work?,Going for that promotions
+QID365,CSID204,MCQ_TEXT,Thoughts on retiring early?,Retiring early
+QID366,CSID205,MCQ_TEXT,Are you allergic to cats or dogs?,Pet allergies
+QID367,CSID206,MCQ_TEXT,Would you adopt a pet with a partner?,Adopting a pet with a partner
+QID369,CSID208,BINARY_TEXT,"It's fine to bring a dog on a date. Better, even!",Bringing dogs on dates
+QID372,CSID211,MCQ_TEXT,Should abortion be legal?,Pro-choice?
+QID375,CSID212,MCQ_TEXT,What would you enjoy the most?,Urban adventure vibe
+QID380,CSID214,MCQ_TEXT,Do you observe religious holidays?,Your happy place
+QID4,CSID218,BINARY_TEXT,5 dates this week sounds great!,Five dates a week sounds great!
+QID407,CSID220,BINARY_TEXT,I love hanging out at cafes ,"""I love hanging out at cafes."""
+QID408,CSID221,MCQ_TEXT,It's really important for you that your partner…,Partner must-have
+QID417,CSID223,MCQ_TEXT,Do you think people should use full sentences over text?,Full sentences over text
+QID418,CSID224,MCQ_TEXT,"Do you prefer phone calls, video calls, or text messages?",Dating a marathon phone caller
+QID420,CSID225,BINARY_TEXT,I'd be fine dating someone who doesn't want to marry.,Dating someone who doesn't want to marry
+QID423,CSID226,MCQ_TEXT,Does it annoy you when other people talk during movies?,No talking during movies
+QID424,CSID227,BINARY_TEXT,I would date someone who isn't artistic.,Dating someone who isn't artistic
+QID426,CSID228,BINARY_TEXT,I'd love to have a partner who plays sports with me.,"""I'd love a partner who plays sports with me."""
+QID427,CSID229,BINARY_TEXT,I’d be interested in joining a sports league with a partner.,"""I'd join a sports league with my partner."""
+QID435,CSID231,MCQ_TEXT,Lots of piercings?,Lots of piercings
+QID438,CSID232,MCQ_TEXT,Do you prefer to do indoor our outdoor activities with your partner?,Looking for…
+QID439,CSID233,MCQ_TEXT,How does an all-day hike sound?,All-day hike sounds…
+QID448,CSID237,MCQ_TEXT,What time do you usually work out?,Best time to work out
+QID449,CSID238,BINARY_TEXT,It's important that my partner is physically fit.,"""My partner's physical fitness matters."""
+QID452,CSID240,BINARY_IMAGE,I prefer to meet dates for coffee over a drink.,"""I prefer coffee dates over drinks."""
+QID455,CSID242,BINARY_TEXT,People often see me as a leader.,"""People see me as a leader."""
+QID457,CSID243,BINARY_TEXT,I'm open to my partner going on dates with other people.,"""I'm fine if my date sees other people."""
+QID459,CSID245,MCQ_TEXT,You are upset with your partner. What's your go-to move?,When a fight is coming
+QID460,CSID246,MCQ_TEXT,Which are you most likely to say during an argument?,When a fight is over
+QID472,CSID252,MCQ_TEXT,Do you have any siblings? Choose all that apply.,Sibling situation
+QID473,CSID253,BINARY_IMAGE,I get up early in the morning.,"""I'm an early riser."""
+QID474,CSID254,BINARY_TEXT,Keeping a regular sleep schedule is important.,"""A regular sleep schedule is important."""
+QID475,CSID255,MCQ_TEXT,"When you say you like the outdoors, what do you actually mean?",You said you like the outdoors?
+QID477,CSID257,BINARY_TEXT,I avoid eating or drinking dairy.,"""I avoid dairy."""
+QID478,CSID258,MCQ_TEXT,Do you adhere to a specific diet? Choose all that apply.,A diet you stick to
+QID489,CSID264,MCQ_TEXT,What are some family activities you enjoy? Choose all that apply.,A family activity you enjoy
+QID492,CSID265,BINARY_TEXT,My ideal partner must love Star Wars.,"""My ideal partner must love Star Wars."""
+QID493,CSID266,MCQ_TEXT,What's your favorite type of movie?,What's your favorite type of movie?
+QID494,CSID267,BINARY_TEXT,Seeing a movie is a great date idea. ,"""Movies make great first dates."""
+QID498,CSID269,MCQ_IMAGE,You win a free ticket to any sports event. What's your pick?,A sport you might watch
+QID499,CSID270,MCQ_IMAGE,Which sports do you like to play? Choose all that apply.,Sports like to play
+QID502,CSID274,MCQ_TEXT,Are you interested in any of these hobbies? Choose all that apply. ,A hobby you're interested in
+QID503,CSID275,BINARY_IMAGE,You like to work with your hands. ,"""A good day is one where I work with my hands."""
+QID506,CSID278,BINARY_TEXT,It's important to share hobbies with the person you're dating. ,"""I'd like to share hobbies with my partner."""
+QID508,CSID279,BINARY_IMAGE,You're willing to take risks when investing.,"""I'm willing to take risks investing"""
+QID509,CSID280,BINARY_TEXT,You'd combine your finances with the right person.,"""I'd combine finances with the right person."""
+QID511,CSID282,MCQ_TEXT,Which music genres do you like? Choose all that apply.,Music genres you like
+QID512,CSID283,MCQ_TEXT,Which music genres do you like? Choose all that apply.,Music genres you like
+QID513,CSID284,BINARY_IMAGE,Do you consider yourself a music lover?,"""I catch myself humming all the time."""
+QID515,CSID286,BINARY_IMAGE,You think tattoos are hot.,Tattoos are hot.
+QID519,CSID287,BINARY_TEXT,You know how to operate power tools. ,"""I can operate at least one power tool."""
+QID523,CSID290,MCQ_TEXT,You'd be thrilled if your date enjoyed these hobbies. Choose all that apply.,A hobby you find cute
+QID527,CSID294,BINARY_TEXT,You think white lies are totally fine. ,"""White lies are totally fine."""
+QID528,CSID295,MCQ_TEXT,Who are you in your friend group?,Your role in the friend group
+QID530,CSID296,MCQ_TEXT,What's one quality you absolutely can't compromise on in a partner?,Partner non-negotiable
+QID531,CSID297,MCQ_TEXT,Pick one thing you'd list as your top strength on your resume.,Top of your resume
+QID533,CSID298,MCQ_TEXT,How would you describe your sense of humor?,Style of humor
+QID534,CSID299,BINARY_TEXT,I want a partner who can hold their own in a conversation.,"""I'm fine doing most of the talking on a date."""
+QID536,CSID301,BINARY_IMAGE,You want to meet someone with golden retriever energy.,Someone with golden retriever energy?
+QID537,CSID302,MCQ_TEXT,Is it necessary to have shared values with everyone you date?,Shared values in a match
+QID538,CSID303,MCQ_TEXT,What do you bring to a date?,Energy you bring to a date
+QID539,CSID304,MCQ_TEXT,What are you looking for in a partner?,On the lookout for…
+QID555,CSID307,BINARY_IMAGE,You'd splurge on a special meal,"""I'd splurge on a special meal."""
+QID556,CSID308,BINARY_IMAGE,You'll try any type of food once.,"""I'll try any type of food once."""
+QID564,CSID310,BINARY_IMAGE,You enjoy casual team sports.,"""I enjoy casual team sports."""
+QID574,CSID312,BINARY_IMAGE,You’d rather spend money on experiences than material things.,"""I'd rather splurge on experiences than stuff."""
+QID58,CSID315,BINARY_TEXT,You love video games.,"""I love gaming."""
+QID598,CSID321,BINARY_IMAGE,Not knowing how to cook is a red flag for me.,Not knowing how to cook is a red flag.
+QID599,CSID322,BINARY_TEXT,"When you cook, you tend to follow the recipe. ","""I follow strict recipes when cooking."""
+QID600,CSID323,MCQ_TEXT,"When you cook, it's mainly because…",What motivates you to cook
+QID605,CSID326,BINARY_TEXT,I'm a proud plant parent.,"""I'm a proud plant parent."""
+QID608,CSID329,BINARY_TEXT,I vape.,Vape?
+QID61,CSID331,MCQ_TEXT,What would you like to spend time doing?,Spend time doing
+QID611,CSID332,MCQ_TEXT,How far are you willing to travel to meet your date?,Max distance for a date
+QID612,CSID333,BINARY_TEXT,Would you date someone you were friends with first?,Dating a friend...awkward?
+QID613,CSID334,BINARY_TEXT,Having multiple situationships is basically cheating.,Multiple situationships = cheating?
+QID615,CSID335,BINARY_TEXT,Most of my relationships started out as friends first.,"""Most of my relationships started as friendships."""
+QID619,CSID337,MCQ_TEXT,What should your partner do when you need to vent?,Best way to support you
+QID62,CSID338,BINARY_TEXT,Art plays an important role in my life.,"""Art is important in my life."""
+QID621,CSID339,MCQ_TEXT,What do you mainly exercise for? Choose all that apply.,What motivates you to exercise
+QID622,CSID340,MCQ_TEXT,Where do you prefer to work out?,Best place to work out
+QID623,CSID341,BINARY_TEXT,You'd rather do cardio than weights.,"""I'd rather run a mile than lift weights."""
+QID629,CSID343,MCQ_TEXT,Do you follow any of these sports closely? Choose all that apply.,A sport you follow
+QID631,CSID344,MCQ_TEXT,What best describes you in your spiritual journey?,Feelings on spirituality
+QID635,CSID348,BINARY_TEXT,You'd date someone who doesn't follow politics.,"""I'd date someone who doesn't follow politics."""
+QID64,CSID349,BINARY_TEXT,I have a creative hobby I do often.,"""I have a creative hobby I do often."""
+QID648,CSID351,BINARY_TEXT,My partner definitely needs to love dogs.,"""My partner must love dogs."""
+QID649,CSID352,BINARY_TEXT,My partner definitely needs to love cats.,"""My partner must love cats."""
+QID650,CSID354,BINARY_TEXT,I own a business.,"""I own a business."""
+QID66,CSID360,MCQ_TEXT,Which activity do you feel most drawn to?,Most likely to be caught…
+QID667,CSID361,BINARY_TEXT,"In terms of career, I know what I want to do in the next 5 years.","""I have a five-year career plan."""
+QID668,CSID362,BINARY_TEXT,I'd move far away from family and friends for a dream job.,"""I'd move far for a dream job."""
+QID70,CSID363,BINARY_TEXT,Cigarette smoke doesn't bother me.,"""Cigarette smoke doesn't bother me."""
+QID71,CSID364,BINARY_TEXT,I would date someone who smokes cigarettes.,"""I'd date someone who smokes."""
+QID72,CSID365,BINARY_TEXT,I would date someone who vapes.,"""I'd date someone who vapes."""
+QID85,CSID369,MCQ_TEXT,What's your perfect outdoor date?,Best outdoor date
+QID86,CSID370,MCQ_TEXT,Would you rather camp or glamp?,Camping vs. glamping
+QID87,CSID371,MCQ_TEXT,What's your perfect picnic spot?,Best picnic spot
+QID88,CSID372,MCQ_TEXT,Sunrise hike!,Sunrise hike?
+QID96,CSID373,BINARY_TEXT,I'd gladly visit a museum on the weekend.,"""I'd visit a museum on the weekend."""

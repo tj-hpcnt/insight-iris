@@ -90,6 +90,7 @@ model Question {
   answers         Answer[]
   comments        Comment[]
   questionRedundancies QuestionRedundancy[]
+  conversationStarterData ConversationStarter?
   inspiration     Insight      @relation("QuestionInspiration", fields: [inspirationId], references: [id])
   category        Category     @relation(fields: [categoryId], references: [id])
 
@@ -178,6 +179,17 @@ model QuestionRedundancy {
 
   @@unique([categoryId, redundancyGroupNumber, questionId])
   @@index([categoryId])
+  @@index([questionId])
+}
+
+model ConversationStarter {
+  id                    Int      @id @default(autoincrement())
+  starterId             String   @unique 
+  questionId            Int      @unique // Each question can have at most one conversation starter
+  moduleHeading         String?
+  originalModuleHeading String?
+  question              Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
   @@index([questionId])
 }
 
