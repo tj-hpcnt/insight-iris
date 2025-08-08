@@ -642,6 +642,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({
   useEffect(() => {
     if (!questionId) return;
     setError(null);
+    
+    // Clear pending edit data when navigating to a different question
+    setEditingFields(new Set());
+    setEditedValues({});
+    setHasChanges(false);
 
     const fetchQuestionData = async () => {
       try {
