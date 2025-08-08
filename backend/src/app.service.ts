@@ -1159,7 +1159,7 @@ export class AppService {
   }
 
   async regenerateQuestion(questionId: number, feedback: string, res: Response) {
-    const { regenerateQuestionWithFeedback, reduceExactRedundancyForAnswers, generateSelfInsightComparisons } = await import('./utils/aiGenerators');
+    const { regenerateQuestionWithFeedback, regenerateImportedQuestion, reduceExactRedundancyForAnswers, generateSelfInsightComparisons } = await import('./utils/aiGenerators');
 
     const log = (message: string) => {
       res.write(`${message}\n`);
@@ -1203,19 +1203,65 @@ export class AppService {
         throw new Error(`Inspiration insight not found for question ${questionId}`);
       }
 
-      // Regenerate the question with feedback
-      log('Regenerating question with AI...');
-      const progressIndicator = createProgressIndicator('Regenerating question with AI');
-      
-      const result = await regenerateQuestionWithFeedback(
-        existingQuestion as any, // Type assertion since we know the structure
-        feedback
-      );
-
-      clearInterval(progressIndicator);
-
-      if (!result) {
-        throw new Error('Failed to regenerate question');
+      // Choose regeneration method based on whether question was imported (has publishedId)
+      let result;
+      if (existingQuestion.publishedId) {
+        // This is an imported question, use the imported regeneration style
+        log('Regenerating imported question with AI...');
+        const progressIndicator = createProgressIndicator('Regenerating imported question with AI');
+        
+        const importedResult = await regenerateImportedQuestion(
+          existingQuestion as any, // Type assertion since we know the structure
+          feedback || undefined
+        );
+        
+        clearInterval(progressIndicator);
+        
+        if (!importedResult) {
+          throw new Error('Failed to regenerate imported question');
+        }
+        
+        const [updatedQuestion, usage] = importedResult;
+        
+        // For imported questions, we don't get new answers/insights since they preserve existing ones
+        // We need to fetch the updated question with answers and insights for consistency
+        const updatedQuestionWithData = await this.prisma.question.findUnique({
+          where: { id: updatedQuestion.id },
+          include: {
+            answers: {
+              include: {
+                insight: true
+              }
+            }
+          }
+        });
+        
+        if (!updatedQuestionWithData) {
+          throw new Error('Failed to fetch updated question data');
+        }
+        
+        // Convert to the expected format for consistency with the rest of the flow
+        result = [
+          updatedQuestion,
+          updatedQuestionWithData.answers,
+          updatedQuestionWithData.answers.map(a => a.insight),
+          usage
+        ];
+      } else {
+        // This is a generated question, use the full regeneration with feedback
+        log('Regenerating question with AI...');
+        const progressIndicator = createProgressIndicator('Regenerating question with AI');
+        
+        result = await regenerateQuestionWithFeedback(
+          existingQuestion as any, // Type assertion since we know the structure
+          feedback
+        );
+        
+        clearInterval(progressIndicator);
+        
+        if (!result) {
+          throw new Error('Failed to regenerate question');
+        }
       }
 
       const [updatedQuestion, newAnswers, newInsights, usage] = result;

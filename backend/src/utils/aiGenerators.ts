@@ -2604,6 +2604,7 @@ If you can't generate a unique question, then output:
  * Regenerates an existing imported question to better match sample question style
  * while preserving the exact insights and question type
  * @param question The existing question to regenerate (must include answers with insights)
+ * @param feedback Optional human feedback to incorporate into the regeneration
  * @returns Tuple containing the updated question object and token usage statistics
  */
 export async function regenerateImportedQuestion(
@@ -2611,7 +2612,8 @@ export async function regenerateImportedQuestion(
     answers: (Answer & {
       insight: Insight;
     })[];
-  }
+  },
+  feedback?: string
 ): Promise<[Question, OpenAI.Completions.CompletionUsage] | null> {
   const category = await prisma.category.findUnique({
     where: { id: question.categoryId }
@@ -2676,7 +2678,12 @@ Question Type: ${question.questionType} - ${TYPE_DESCRIPTIONS[question.questionT
 
 ${question.questionType === 'BINARY' ? 'When making a binary statement, do not include the details in the answer, simply make the statement the user can agree or disagree with.  The answer should be a simple True or False.  Do not change the orientation of the statement, the old and new positive answers must both correlate with the same insight' : ''}
 
-Focus on making the question specifically relevant to the target category and following the style of our sample questions.
+${feedback ? `ADDITIONAL FEEDBACK TO INCORPORATE:
+${feedback}
+
+Please address this feedback while still preserving the exact insights and following all other requirements.
+
+` : ''}Focus on making the question specifically relevant to the target category and following the style of our sample questions.
 
 Here is the complete insight taxonomy to help you understand the scope:
 ${categoryTreeStr}
