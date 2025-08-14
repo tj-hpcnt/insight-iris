@@ -144,6 +144,51 @@ function mapLegacyQuestionIsMultiSelect(question: {
 }
 
 /**
+ * Sorts binary question answers to put negative responses first and standardizes text
+ * Converts negative responses ('No', 'Disagree', 'False') to "No" and positive responses to "Yes"
+ * @param answers - Array of answer objects
+ * @param questionType - The type of the question
+ * @returns Sorted and standardized array of answers
+ */
+function sortBinaryAnswers<T extends { answerText: string }>(answers: T[], questionType: string): T[] {
+  if (questionType !== QuestionType.BINARY) {
+    return answers;
+  }
+
+  const negativeAnswers = ['no', 'disagree', 'false'];
+  const positiveAnswers = ['yes', 'agree', 'true'];
+  
+  // Transform and sort the answers
+  const transformedAnswers = answers.map(answer => {
+    if (negativeAnswers.includes(answer.answerText.toLowerCase())) {
+      return {
+        ...answer,
+        answerText: 'No'
+      };
+    } else if (positiveAnswers.includes(answer.answerText.toLowerCase())) {
+      return {
+        ...answer,
+        answerText: 'Yes'
+      };
+    } else {
+      return answer;
+    }
+  });
+
+  return transformedAnswers.sort((a, b) => {
+    const aIsNegative = a.answerText === 'No';
+    const bIsNegative = b.answerText === 'No';
+    
+    // If a is negative and b is not, a should come first
+    if (aIsNegative && !bIsNegative) return -1;
+    // If b is negative and a is not, b should come first
+    if (bIsNegative && !aIsNegative) return 1;
+    // If both are negative or both are positive, maintain original order
+    return 0;
+  });
+}
+
+/**
  * Generates export data for a single question
  * @param question - Question with all related data included
  * @returns ExportQuestion object
@@ -196,14 +241,17 @@ export function generateQuestionExportData(question: {
     conversationStarterId: question.conversationStarterData?.starterId || null,
     conversationStarterModuleHeading: question.conversationStarterData?.moduleHeading || null,
     firstDays: question.firstDays,
-    answers: question.answers.map(answer => ({
-      answerText: answer.answerText,
-      answerInsight: answer.insight ? {
-        insightText: answer.insight.insightText,
-        shortInsightText: answer.insight.shortInsightText,
-        publishedTag: answer.insight.publishedTag
-      } : null
-    })),
+    answers: sortBinaryAnswers(
+      question.answers.map(answer => ({
+        answerText: answer.answerText,
+        answerInsight: answer.insight ? {
+          insightText: answer.insight.insightText,
+          shortInsightText: answer.insight.shortInsightText,
+          publishedTag: answer.insight.publishedTag
+        } : null
+      })),
+      question.questionType
+    ),
     proposedQuestion: question.proposedQuestion,
   };
 }
