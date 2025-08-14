@@ -99,7 +99,8 @@ export async function generateExportData(prisma: PrismaClient): Promise<ExportDa
     const parsedData = JSON.parse(deleted.exportData) as ExportQuestion;
     return {
       ...parsedData,
-      deleted: true
+      deleted: true,
+      answers: sortBinaryAnswers(parsedData.answers, parsedData.questionType)
     };
   });
 
